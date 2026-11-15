@@ -26,6 +26,7 @@ jobs:
       contents: write # to publish the release
     container:
       image: registry.fedoraproject.org/fedora:45
+      options: --privileged -v /dev:/dev # mkksiso builds the EFI boot image on a loop device
     steps:
       - name: Tools
         run: dnf install -y --setopt=install_weak_deps=False lorax xorriso pykickstart gh git curl
