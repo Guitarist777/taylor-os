@@ -11,6 +11,13 @@ base-image: ghcr.io/ublue-os/bazzite-nvidia-open
 image-version: stable
 
 modules:
+  # Bazzite's Fedora 45 build ships Terra's Xwayland, which does not satisfy the Xwayland Hyprland asks for
+  # (a known clash, 2026-11). Take Terra's out first and use Fedora's Xwayland, as other Bazzite + Hyprland images do.
+  - type: dnf
+    remove:
+      packages:
+        - terra-xorg-x11-server-Xwayland
+
   # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
   - type: dnf
     repos:
@@ -19,6 +26,7 @@ modules:
     install:
       packages:
         - hyprland
+        - xorg-x11-server-Xwayland # Fedora's, in place of Terra's (see above)
         - xdg-desktop-portal-hyprland # screen sharing and file pickers inside Hyprland
         - hyprpolkitagent # the "enter your password" window for admin prompts
         - hyprlock # lock screen
@@ -26,5 +34,11 @@ modules:
         - hyprpaper # wallpaper until the TAYLOR shell replaces it
         - uwsm # starts Hyprland as a proper session from the login screen
         - kitty # terminal Hyprland's default config opens
+
+  # Dual boot with Windows: keep the hardware clock in local time like Windows does, so the clock does not jump 5 hours when she switches sides.
+  - type: files
+    files:
+      - source: system
+        destination: /
 
   - type: signing # sets up the policy so the PC only accepts images signed with this repo's key
