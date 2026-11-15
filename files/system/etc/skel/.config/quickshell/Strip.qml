@@ -93,7 +93,7 @@ Item {
                 text: "M"
                 font.family: strip.theme.mono
                 font.pixelSize: 11
-                color: strip.muted ? strip.theme.onAccent : strip.theme.text2
+                color: strip.muted ? strip.theme.accentInk : strip.theme.text2
             }
             MouseArea {
                 anchors.fill: parent

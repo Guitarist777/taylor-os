@@ -17,7 +17,7 @@ ShellRoot {
         readonly property color text2: "#C8CCCA"
         readonly property color muted: "#9AA19D"
         readonly property color accent: "#4FB386"
-        readonly property color onAccent: "#06140D"
+        readonly property color accentInk: "#06140D"
         readonly property color chip: Qt.rgba(1, 1, 1, 0.06)
         readonly property color track: "#2A2E2C"
         readonly property color mute: "#D9826B"

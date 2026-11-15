@@ -18,6 +18,8 @@ jobs:
       contents: read
       packages: read
     steps:
+      - uses: actions/checkout@v4
+
       - name: Make room (the image is several GB)
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
@@ -36,6 +38,8 @@ jobs:
           dnf install -y -q --setopt=install_weak_deps=False sway grim swaybg dbus-daemon >/dev/null 2>&1 || dnf install -y sway grim swaybg dbus-daemon
           useradd -m tester
           dbus-uuidgen > /etc/machine-id
+          # test THIS commit's desktop files, so a desktop fix is previewed without waiting for a new image
+          cp -a /repo/files/system/etc/skel/.config/quickshell/. /home/tester/.config/quickshell/ && chown -R tester:tester /home/tester/.config/quickshell
           ls -la /home/tester/.config /home/tester/.config/quickshell
           cat > /tmp/sway.conf <<'EOC'
           output HEADLESS-1 resolution 1920x1080
@@ -62,7 +66,7 @@ jobs:
           cp -a /tmp/out/. /out/
           grep -o "node.name = \"taylor_[a-z]*\"" /out/pw-nodes.txt | sort -u > /out/channels.txt || true
           EOS
-          podman run --rm --privileged -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
+          podman run --rm --privileged -v "$PWD:/repo:ro" -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
           echo "--- quickshell log"; cat out/quickshell.log || true
           echo "--- mixer channels"; cat out/channels.txt || true
           test -s out/desktop.png

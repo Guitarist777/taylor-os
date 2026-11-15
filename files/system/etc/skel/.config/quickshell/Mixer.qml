@@ -41,7 +41,7 @@ PanelWindow {
     }
     readonly property var headset: outputs().find(n => isHeadset(n)) || null
     readonly property var speakers: outputs().find(n => !isHeadset(n)) || null
-    readonly property bool onHeadset: Pipewire.defaultAudioSink !== null && isHeadset(Pipewire.defaultAudioSink)
+    readonly property bool headsetOn: Pipewire.defaultAudioSink !== null && isHeadset(Pipewire.defaultAudioSink)
 
     readonly property var strips: [
         { label: "SYS", node: findSink("taylor_sys") },
@@ -85,11 +85,11 @@ PanelWindow {
                     model: [{ label: "Speakers", head: false }, { label: "Headphones", head: true }]
                     delegate: Rectangle {
                         required property var modelData
-                        readonly property bool on: modelData.head === win.onHeadset
+                        readonly property bool picked: modelData.head === win.headsetOn
                         width: t.implicitWidth + 20
                         height: 26
                         radius: 8
-                        color: on ? win.theme.accent : "transparent"
+                        color: picked ? win.theme.accent : "transparent"
                         Text {
                             id: t
                             anchors.centerIn: parent
@@ -97,7 +97,7 @@ PanelWindow {
                             font.family: win.theme.sans
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
-                            color: parent.on ? win.theme.onAccent : win.theme.text
+                            color: parent.picked ? win.theme.accentInk : win.theme.text
                         }
                         MouseArea {
                             anchors.fill: parent

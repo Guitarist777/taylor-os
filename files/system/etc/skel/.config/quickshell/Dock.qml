@@ -64,7 +64,7 @@ PanelWindow {
                             font.family: win.theme.sans
                             font.weight: Font.Bold
                             font.pixelSize: 13
-                            color: win.theme.onAccent
+                            color: win.theme.accentInk
                         }
                     }
                     IconImage {
