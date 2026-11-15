@@ -34,7 +34,12 @@ modules:
         - hyprpaper # wallpaper until the TAYLOR shell replaces it
         - uwsm # starts Hyprland as a proper session from the login screen
         - kitty # terminal Hyprland's default config opens
+        - quickshell # draws her desktop from the mockup: clock, mixer, dock, tray (from Fedora itself)
+        - fuzzel # app search on Windows key + Space
+        - playerctl # play / pause / next keys
 
+  # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
+  # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
   # Dual boot with Windows: keep the hardware clock in local time like Windows does, so the clock does not jump 5 hours when she switches sides.
   - type: files
     files:

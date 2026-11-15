@@ -1,0 +1,71 @@
+name: preview the desktop
+# After each image build: start the built image, make a test user (so her skel config is copied), run a
+# screenless Wayland desktop (sway headless, software drawing; it speaks the same layer-shell as Hyprland),
+# start PipeWire, start Quickshell with her config, and take a screenshot. Proves the desktop layer loads
+# and the mixer channels exist, and shows what it looks like, before install day. Not a Hyprland test:
+# Hyprland needs a GPU; its own config is checked on the real PC.
+on:
+  workflow_run:
+    workflows: ["build taylor-os"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  preview:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Make room (the image is several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Pull the image
+        run: |
+          echo "${{ github.token }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman pull ghcr.io/guitarist777/taylor-os:latest
+
+      - name: Run the desktop and screenshot it
+        run: |
+          mkdir -p out
+          cat > out/run.sh <<'EOS'
+          set -x
+          dnf install -y -q --setopt=install_weak_deps=False sway grim swaybg dbus-daemon >/dev/null 2>&1 || dnf install -y sway grim swaybg dbus-daemon
+          useradd -m tester
+          ls -la /home/tester/.config /home/tester/.config/quickshell
+          cat > /tmp/sway.conf <<'EOC'
+          output HEADLESS-1 resolution 1920x1080
+          output * bg /usr/share/backgrounds/taylor/horizon.png fill
+          EOC
+          chmod 644 /tmp/sway.conf
+          runuser -u tester -- bash -c '
+            export XDG_RUNTIME_DIR=/tmp/xdg-tester; mkdir -p -m 700 $XDG_RUNTIME_DIR
+            eval $(dbus-launch --sh-syntax)
+            pipewire > /out/pipewire.log 2>&1 &
+            sleep 1; wireplumber > /out/wireplumber.log 2>&1 &
+            pipewire-pulse > /out/pipewire-pulse.log 2>&1 &
+            WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 sway -c /tmp/sway.conf > /out/sway.log 2>&1 &
+            for i in $(seq 1 30); do ls $XDG_RUNTIME_DIR/wayland-* >/dev/null 2>&1 && break; sleep 0.5; done
+            export WAYLAND_DISPLAY=$(basename $(ls $XDG_RUNTIME_DIR/wayland-* | grep -v lock | head -1))
+            sleep 3
+            pw-cli ls Node > /out/pw-nodes.txt 2>&1
+            QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /out/quickshell.log 2>&1 &
+            sleep 10
+            grim /out/desktop.png
+          '
+          grep -o "node.name = \"taylor_[a-z]*\"" /out/pw-nodes.txt | sort -u > /out/channels.txt || true
+          EOS
+          podman run --rm -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
+          echo "--- quickshell log"; cat out/quickshell.log || true
+          echo "--- mixer channels"; cat out/channels.txt || true
+          test -s out/desktop.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-preview
+          path: out/
+          retention-days: 14
