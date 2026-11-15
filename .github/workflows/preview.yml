@@ -41,21 +41,24 @@ jobs:
           output * bg /usr/share/backgrounds/taylor/horizon.png fill
           EOC
           chmod 644 /tmp/sway.conf
-          runuser -u tester -- bash -c '
-            export XDG_RUNTIME_DIR=/tmp/xdg-tester; mkdir -p -m 700 $XDG_RUNTIME_DIR
+          mkdir -p /tmp/out && chown tester:tester /tmp/out
+          # setpriv, not runuser/su: a container has no login session for PAM to open
+          setpriv --reuid=tester --regid=tester --init-groups env HOME=/home/tester USER=tester bash -c '
+            cd ~; export XDG_RUNTIME_DIR=/tmp/xdg-tester; mkdir -p -m 700 $XDG_RUNTIME_DIR
             eval $(dbus-launch --sh-syntax)
-            pipewire > /out/pipewire.log 2>&1 &
-            sleep 1; wireplumber > /out/wireplumber.log 2>&1 &
-            pipewire-pulse > /out/pipewire-pulse.log 2>&1 &
-            WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 sway -c /tmp/sway.conf > /out/sway.log 2>&1 &
+            pipewire > /tmp/out/pipewire.log 2>&1 &
+            sleep 1; wireplumber > /tmp/out/wireplumber.log 2>&1 &
+            pipewire-pulse > /tmp/out/pipewire-pulse.log 2>&1 &
+            WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 sway -c /tmp/sway.conf > /tmp/out/sway.log 2>&1 &
             for i in $(seq 1 30); do ls $XDG_RUNTIME_DIR/wayland-* >/dev/null 2>&1 && break; sleep 0.5; done
             export WAYLAND_DISPLAY=$(basename $(ls $XDG_RUNTIME_DIR/wayland-* | grep -v lock | head -1))
             sleep 3
-            pw-cli ls Node > /out/pw-nodes.txt 2>&1
-            QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /out/quickshell.log 2>&1 &
+            pw-cli ls Node > /tmp/out/pw-nodes.txt 2>&1
+            QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell.log 2>&1 &
             sleep 10
-            grim /out/desktop.png
+            grim /tmp/out/desktop.png
           '
+          cp -a /tmp/out/. /out/
           grep -o "node.name = \"taylor_[a-z]*\"" /out/pw-nodes.txt | sort -u > /out/channels.txt || true
           EOS
           podman run --rm -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
