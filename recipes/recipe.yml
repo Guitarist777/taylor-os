@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+# TAYLOR OS: Bazzite (NVIDIA, open kernel modules) with Hyprland added. KDE Plasma stays as the backup login.
+# Published to ghcr.io/guitarist777/taylor-os and signed with the key whose public half is cosign.pub.
+name: taylor-os
+description: Jessica's desktop. Bazzite underneath, Hyprland on top, KDE as the backup.
+
+# Bazzite's NVIDIA image with the open kernel modules: Bazzite's pick for RTX 16xx and newer (her card is an RTX 3080).
+# "stable" follows Bazzite's tested weekly release; Fedora 45 as of 2026-11-15.
+base-image: ghcr.io/ublue-os/bazzite-nvidia-open
+image-version: stable
+
+modules:
+  # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
+  - type: dnf
+    repos:
+      copr:
+        - sdegler/hyprland
+    install:
+      packages:
+        - hyprland
+        - xdg-desktop-portal-hyprland # screen sharing and file pickers inside Hyprland
+        - hyprpolkitagent # the "enter your password" window for admin prompts
+        - hyprlock # lock screen
+        - hypridle # locks / sleeps when idle
+        - hyprpaper # wallpaper until the TAYLOR shell replaces it
+        - uwsm # starts Hyprland as a proper session from the login screen
+        - kitty # terminal Hyprland's default config opens
+
+  - type: signing # sets up the policy so the PC only accepts images signed with this repo's key

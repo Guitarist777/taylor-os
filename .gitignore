@@ -1,0 +1,5 @@
+# The private signing key never goes in the repo (it lives in GitHub's SIGNING_SECRET and in Key Vault).
+cosign.key
+*.key
+*.private
+.env
