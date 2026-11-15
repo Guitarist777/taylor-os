@@ -35,6 +35,7 @@ jobs:
           set -x
           dnf install -y -q --setopt=install_weak_deps=False sway grim swaybg dbus-daemon >/dev/null 2>&1 || dnf install -y sway grim swaybg dbus-daemon
           useradd -m tester
+          dbus-uuidgen > /etc/machine-id
           ls -la /home/tester/.config /home/tester/.config/quickshell
           cat > /tmp/sway.conf <<'EOC'
           output HEADLESS-1 resolution 1920x1080
@@ -61,7 +62,7 @@ jobs:
           cp -a /tmp/out/. /out/
           grep -o "node.name = \"taylor_[a-z]*\"" /out/pw-nodes.txt | sort -u > /out/channels.txt || true
           EOS
-          podman run --rm -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
+          podman run --rm --privileged -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
           echo "--- quickshell log"; cat out/quickshell.log || true
           echo "--- mixer channels"; cat out/channels.txt || true
           test -s out/desktop.png
