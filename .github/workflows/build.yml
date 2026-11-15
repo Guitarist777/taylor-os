@@ -5,6 +5,8 @@ on:
   push:
     paths-ignore:
       - "**.md"
+      - "installer/**"
+      - ".github/workflows/installer.yml"
   pull_request:
   workflow_dispatch: # a build can also be started by hand from the Actions tab
 

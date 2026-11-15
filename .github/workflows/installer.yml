@@ -1,0 +1,59 @@
+name: build the TAYLOR OS installer
+# Fedora's network installer with installer/taylor-os.ks baked in. Published as the release "installer"
+# (TAYLOR-OS-installer.iso, about 1.2 GB) for writing to a USB stick. Run by hand, or when the kickstart changes.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "installer/**"
+      - ".github/workflows/installer.yml"
+
+concurrency:
+  group: installer
+  cancel-in-progress: true
+
+env:
+  FEDORA: "45"
+  NETINST: Fedora-Everything-netinst-x86_64-45-1.4.iso
+  CHECKSUM: Fedora-Everything-45-1.4-x86_64-CHECKSUM
+  BASE_URL: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/iso
+
+jobs:
+  installer:
+    name: Build the installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to publish the release
+    container:
+      image: registry.fedoraproject.org/fedora:45
+    steps:
+      - name: Tools
+        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso pykickstart gh git curl
+
+      - uses: actions/checkout@v4
+
+      - name: The kickstart is valid
+        run: ksvalidator -v F45 installer/taylor-os.ks
+
+      - name: Download Fedora's network installer and check it
+        run: |
+          curl -fsSL -o "$NETINST" "$BASE_URL/$NETINST"
+          curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
+          want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
+          got=$(sha256sum "$NETINST" | awk '{print $1}')
+          echo "want $want"; echo "got  $got"
+          test -n "$want" && test "$want" = "$got"
+
+      - name: Bake the kickstart in
+        run: |
+          mkksiso --ks installer/taylor-os.ks "$NETINST" TAYLOR-OS-installer.iso
+          sha256sum TAYLOR-OS-installer.iso | tee TAYLOR-OS-installer.iso.sha256
+          ls -l TAYLOR-OS-installer.iso
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          gh release view installer >/dev/null 2>&1 || gh release create installer --title "TAYLOR OS installer" --notes "Write TAYLOR-OS-installer.iso to a USB stick. It installs TAYLOR OS over the network; it asks which disk to use and never picks one by itself."
+          gh release upload installer TAYLOR-OS-installer.iso TAYLOR-OS-installer.iso.sha256 --clobber
