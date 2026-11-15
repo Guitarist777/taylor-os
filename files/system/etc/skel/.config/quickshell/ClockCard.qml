@@ -26,7 +26,7 @@ PanelWindow {
 
         Text {
             anchors { left: parent.left; leftMargin: 24; verticalCenter: parent.verticalCenter }
-            text: Qt.formatDateTime(clock.date, "h:mm")
+            text: Qt.formatDateTime(clock.date, "h:mm AP").replace(/\s*[AP]M$/i, "")   // 12-hour, no AM/PM (as in the mockup)
             font.family: win.theme.sans
             font.weight: Font.Light
             font.pixelSize: 46

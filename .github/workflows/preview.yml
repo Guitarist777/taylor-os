@@ -38,6 +38,7 @@ jobs:
           dnf install -y -q --setopt=install_weak_deps=False sway grim swaybg dbus-daemon >/dev/null 2>&1 || dnf install -y sway grim swaybg dbus-daemon
           useradd -m tester
           dbus-uuidgen > /etc/machine-id
+          ls /usr/share/icons > /out/icon-themes.txt
           # test THIS commit's desktop files, so a desktop fix is previewed without waiting for a new image
           cp -a /repo/files/system/etc/skel/.config/quickshell/. /home/tester/.config/quickshell/ && chown -R tester:tester /home/tester/.config/quickshell
           ls -la /home/tester/.config /home/tester/.config/quickshell
