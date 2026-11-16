@@ -3,7 +3,7 @@
 # TAYLOR OS: Bazzite (NVIDIA, open kernel modules) with Hyprland added. KDE Plasma stays as the backup login.
 # Published to ghcr.io/guitarist777/taylor-os and signed with the key whose public half is cosign.pub.
 name: taylor-os
-description: Jessica's desktop. Bazzite underneath, Hyprland on top, KDE as the backup.
+description: The TAYLOR desktop. Bazzite underneath, Hyprland on top, KDE as the backup.
 
 # Bazzite's NVIDIA image with the open kernel modules: Bazzite's pick for RTX 16xx and newer (her card is an RTX 3080).
 # "stable" follows Bazzite's tested weekly release; Fedora 45 as of 2026-11-15.
