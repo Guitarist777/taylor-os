@@ -102,19 +102,23 @@ PanelWindow {
             const ctx = getContext("2d");
             const sc = win.scene(clock.date);
             ctx.reset();
-            // Cover the screen, keeping the hills on the bottom edge (the mockup is 1440 x 900).
-            const s = Math.max(width / 1440, height / 900);
-            ctx.translate((width - 1440 * s) / 2, height - 900 * s);
-            ctx.scale(s, s);
+            // Fit the whole 1440 x 900 drawing to the screen, never cropping it: on a wider screen (16:9) the sky and
+            // hills stretch sideways a little, and the sun, moon and stars stay round (cropping the top hid the
+            // midday sun behind the dock in the first preview).
+            const sx = width / 1440, sy = height / 900, sr = Math.min(sx, sy);
+            ctx.scale(sx, sy);
 
             const g = ctx.createLinearGradient(0, 0, 0, 900);
             g.addColorStop(0, sc.sky.top); g.addColorStop(0.55, sc.sky.mid); g.addColorStop(0.8, sc.sky.bottom); g.addColorStop(1, sc.sky.bottom);
             ctx.fillStyle = g;
-            ctx.fillRect(0, -2000, 1440, 2900);   // the top is filled well past the drawing for tall screens
+            ctx.fillRect(0, 0, 1440, 900);
 
             function disc(x, y, r, fill, alpha) {
+                ctx.save();
+                ctx.resetTransform();
                 ctx.globalAlpha = alpha; ctx.fillStyle = fill;
-                ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+                ctx.beginPath(); ctx.arc(x * sx, y * sy, r * sr, 0, 2 * Math.PI); ctx.fill();
+                ctx.restore();
             }
             if (sc.starOp > 0)
                 for (let i = 0; i < win.stars.length; i++) {
