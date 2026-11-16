@@ -1,0 +1,2 @@
+# Her Arctis Nova Pro Wireless base station: let the signed-in user talk to it, and start ChatMix (taylor-chatmix) when it is plugged in.
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="12e0", TAG+="uaccess", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}+="taylor-chatmix.service"

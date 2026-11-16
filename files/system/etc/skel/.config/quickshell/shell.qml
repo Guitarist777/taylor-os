@@ -1,6 +1,6 @@
 //@ pragma IconTheme breeze-dark
 // TAYLOR OS desktop, from her mockup "7 · Dock your way + mixer widget" (the TAYLOR theme).
-// Quickshell draws it on top of Hyprland: the clock card and mixer sit on the desktop (under windows),
+// Quickshell draws it on top of Hyprland: the live Horizon sky is the wallpaper, the clock card and mixer sit on the desktop (under windows),
 // the dock floats at the top, the tray sits bottom right. The TAYLOR dial and "TAYLOR has a question"
 // pill come later, once TAYLOR runs on Linux.
 import Quickshell
@@ -36,9 +36,10 @@ ShellRoot {
             Scope {
                 id: perScreen
                 required property var modelData
+                Sky { screen: perScreen.modelData; theme: root.c }
                 ClockCard { screen: perScreen.modelData; theme: root.c }
                 Mixer { screen: perScreen.modelData; theme: root.c; visible: root.mixerShown }
-                Dock { screen: perScreen.modelData; theme: root.c; onToggleMixer: root.mixerShown = !root.mixerShown }
+                Dock { screen: perScreen.modelData; theme: root.c; mixerShown: root.mixerShown; onToggleMixer: root.mixerShown = !root.mixerShown }
                 Tray { screen: perScreen.modelData; theme: root.c }
             }
         }

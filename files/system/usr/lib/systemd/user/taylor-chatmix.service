@@ -1,0 +1,13 @@
+[Unit]
+Description=TAYLOR ChatMix for the Arctis Nova Pro Wireless (the dial balances GAME and VOICE)
+After=pipewire-pulse.service wireplumber.service
+Wants=pipewire-pulse.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/taylor-chatmix
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

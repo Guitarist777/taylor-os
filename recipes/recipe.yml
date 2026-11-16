@@ -31,12 +31,15 @@ modules:
         - hyprpolkitagent # the "enter your password" window for admin prompts
         - hyprlock # lock screen
         - hypridle # locks / sleeps when idle
-        - hyprpaper # wallpaper until the TAYLOR shell replaces it
+        - hyprpaper # the still Horizon picture under the live sky (shows if the shell ever fails)
         - uwsm # starts Hyprland as a proper session from the login screen
         - kitty # terminal Hyprland's default config opens
         - quickshell # draws her desktop from the mockup: clock, mixer, dock, tray (from Fedora itself)
         - fuzzel # app search on Windows key + Space
         - playerctl # play / pause / next keys
+        - qt6-qtsvg # draws the dock and tray line icons (SVG)
+        - python3-hidapi # ChatMix: talks to her Arctis Nova Pro Wireless base station
+        - pulseaudio-utils # ChatMix: pactl sets the GAME / VOICE channel volumes
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.

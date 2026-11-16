@@ -1,0 +1,136 @@
+#!/usr/bin/python3
+# ChatMix for her Arctis Nova Pro Wireless base station (USB 1038:12E0), the way Sonar does it on Windows:
+# pressing the volume dial switches it to ChatMix, and turning it then balances GAME against VOICE.
+# The dial drives the volumes of TAYLOR's own mixer channels, taylor_game and taylor_voice
+# (/etc/pipewire/pipewire.conf.d/taylor-mixer.conf), so the GAME and VOICE sliders on her desktop move with it.
+#
+# The base station protocol is from Dymstro/nova-chatmix-linux (0BSD licence, reverse engineered from
+# Sonar's USB traffic; tested by its author on MCU firmware 01.29.27, DSP 00.03.82). Only these messages are used:
+#   send    06 49 01/00   ChatMix control on/off (the dial can then be pressed into ChatMix)
+#   send    06 8D 01/00   the Sonar icon on the base station's screen on/off
+#   receive 07 45 G C     the dial moved: game volume G and chat volume C, each 0..100
+# No SteelSeries code or software is used.
+#
+# Started by udev when the base station is plugged in (60-taylor-chatmix.rules -> taylor-chatmix.service, a
+# user service), stops when it is unplugged, and hands the dial back to plain volume when it stops.
+import signal
+import subprocess
+import sys
+import time
+
+VID, PID, INTERFACE = 0x1038, 0x12E0, 4
+MSGLEN = 63
+TX = 0x06
+OPT_CHATMIX_ENABLE = 0x49
+OPT_SONAR_ICON = 0x8D
+OPT_CHATMIX = 0x45
+GAME_SINK, VOICE_SINK = "taylor_game", "taylor_voice"
+
+
+def log(*a):
+    print("taylor-chatmix:", *a, flush=True)
+
+
+def msg(*data):
+    return bytes(data).ljust(MSGLEN, b"\0")
+
+
+def find_path(hid):
+    for d in hid.enumerate(VID, PID):
+        if d.get("interface_number") == INTERFACE:
+            return d["path"]
+    return None
+
+
+def sinks():
+    try:
+        out = subprocess.run(["pactl", "list", "sinks", "short"], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return set()
+    return {line.split("\t")[1] for line in out.splitlines() if "\t" in line}
+
+
+def set_volume(sink, percent):
+    percent = max(0, min(100, int(percent)))
+    subprocess.run(["pactl", "set-sink-volume", sink, f"{percent}%"], timeout=5)
+
+
+class ChatMix:
+    def __init__(self, dev, set_volume=set_volume):
+        self.dev = dev
+        self.set_volume = set_volume
+        self.stop = False
+        self.last = None
+        self.enabled = False
+
+    def start(self):
+        self.dev.write(msg(TX, OPT_SONAR_ICON, 1))
+        self.dev.write(msg(TX, OPT_CHATMIX_ENABLE, 1))
+        self.enabled = True
+
+    def handle(self, data):
+        """One message from the base station. Returns (game, voice) when it was a dial move that changed something."""
+        if not data or len(data) < 4 or data[1] != OPT_CHATMIX:
+            return None
+        game, voice = max(0, min(100, data[2])), max(0, min(100, data[3]))
+        if (game, voice) == self.last:
+            return None
+        self.last = (game, voice)
+        self.set_volume(GAME_SINK, game)
+        self.set_volume(VOICE_SINK, voice)
+        return game, voice
+
+    def run(self):
+        while not self.stop:
+            data = self.dev.read(MSGLEN, 1000)   # times out every second so a stop is noticed
+            self.handle(data)
+
+    def close(self):
+        if self.enabled:
+            try:
+                self.dev.write(msg(TX, OPT_CHATMIX_ENABLE, 0))
+                self.dev.write(msg(TX, OPT_SONAR_ICON, 0))
+            except OSError:
+                pass   # already unplugged
+            self.enabled = False
+
+
+def main():
+    import hid   # python3-hidapi
+    path = find_path(hid)
+    if not path:
+        log("base station not found (Arctis Nova Pro Wireless, 1038:12E0); nothing to do")
+        return 0
+    # TAYLOR's channels come up with PipeWire at login; wait for them (up to a minute).
+    for _ in range(60):
+        if {GAME_SINK, VOICE_SINK} <= sinks():
+            break
+        time.sleep(1)
+    else:
+        log("the TAYLOR mixer channels are missing; is PipeWire running?")
+        return 1
+    dev = hid.device()
+    dev.open_path(path)
+    cm = ChatMix(dev)
+
+    def stop(*_):
+        cm.stop = True
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        cm.start()
+        log("ChatMix on: press the volume dial to switch it to ChatMix")
+        cm.run()
+    except OSError:
+        log("base station unplugged")
+    finally:
+        cm.close()
+        try:
+            dev.close()
+        except Exception:
+            pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

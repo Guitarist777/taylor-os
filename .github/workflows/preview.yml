@@ -60,17 +60,28 @@ jobs:
             export WAYLAND_DISPLAY=$(basename $(ls $XDG_RUNTIME_DIR/wayland-* | grep -v lock | head -1))
             sleep 3
             pw-cli ls Node > /tmp/out/pw-nodes.txt 2>&1
-            QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell.log 2>&1 &
-            sleep 10
-            grim /tmp/out/desktop.png
+            # the live sky at four hours of her day (Eastern time): afternoon, sunset, night, sunrise
+            export TZ=America/New_York
+            for H in 13 16.75 22 7; do
+              TAYLOR_SKY_HOUR=$H QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-$H.log 2>&1 &
+              QS=$!
+              sleep 10
+              grim /tmp/out/desktop-$H.png
+              kill $QS; wait $QS 2>/dev/null
+            done
+            cp /tmp/out/desktop-13.png /tmp/out/desktop.png
+            cp /tmp/out/quickshell-13.log /tmp/out/quickshell.log
+            # ChatMix: its pieces are in the image, and with no base station plugged in it says so and stops cleanly
+            { python3 -c "import hid; print(\"hidapi ok\")"; command -v pactl; ls -l /usr/libexec/taylor-chatmix /usr/lib/udev/rules.d/60-taylor-chatmix.rules /usr/lib/systemd/user/taylor-chatmix.service; /usr/libexec/taylor-chatmix; echo "exit=$?"; } > /tmp/out/chatmix.txt 2>&1
           '
           cp -a /tmp/out/. /out/
           grep -o "node.name = \"taylor_[a-z]*\"" /out/pw-nodes.txt | sort -u > /out/channels.txt || true
           EOS
           podman run --rm --privileged -v "$PWD:/repo:ro" -v "$PWD/out:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/run.sh > out/run.log 2>&1 || true
-          echo "--- quickshell log"; cat out/quickshell.log || true
+          for f in out/quickshell-*.log; do echo "--- $f"; cat "$f"; done || true
+          echo "--- chatmix"; cat out/chatmix.txt || true
           echo "--- mixer channels"; cat out/channels.txt || true
-          test -s out/desktop.png
+          for H in 13 16.75 22 7; do test -s out/desktop-$H.png; done
 
       - uses: actions/upload-artifact@v4
         if: always()

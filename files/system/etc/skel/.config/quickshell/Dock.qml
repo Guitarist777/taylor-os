@@ -1,20 +1,21 @@
-// The floating dock, top centre (mockup: a dark pill of icon buttons, the TAYLOR "J" chip first).
-// Buttons: TAYLOR, files, browser, games, messages, mixer (show/hide), notes, settings.
+// The floating dock, top centre (mockup: a dark pill of 48 px buttons with 22 px line icons, the TAYLOR "J" chip
+// first, a thin divider before Settings). The icons are the mockup's own drawings (icons/*.svg).
+// Buttons: TAYLOR, files, browser, games, messages, mixer (show/hide), notes | settings.
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Widgets
 import QtQuick
 
 PanelWindow {
     id: win
     property QtObject theme
+    property bool mixerShown: true
     signal toggleMixer()
     anchors { top: true }
     margins { top: 10 }
     implicitWidth: pill.width
-    implicitHeight: 48
+    implicitHeight: pill.height
     color: "transparent"
-    exclusiveZone: 58
+    exclusiveZone: 66
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: "taylor-dock"
 
@@ -22,21 +23,22 @@ PanelWindow {
     readonly property string taylorUrl: "https://home.tail0b45b7.ts.net/"
 
     readonly property var buttons: [
-        { icon: "", letter: "J", tip: "TAYLOR", run: ["xdg-open", taylorUrl] },
-        { icon: "system-file-manager", tip: "Files", run: ["dolphin"] },
-        { icon: "internet-web-browser", tip: "Browser", run: ["xdg-open", "https://"] },
-        { icon: "input-gaming", tip: "Games", run: ["steam"] },
-        { icon: "mail-message", tip: "Messages", run: ["xdg-open", taylorUrl] },
-        { icon: "audio-volume-high", tip: "Mixer", mixer: true },
-        { icon: "accessories-text-editor", tip: "Notes", run: ["kate"] },
-        { icon: "preferences-system", tip: "Settings", run: ["systemsettings"] }
+        { letter: "J", tip: "TAYLOR", run: ["xdg-open", taylorUrl] },
+        { icon: "files", tip: "Files", run: ["dolphin"] },
+        { icon: "browser", tip: "Browser", run: ["xdg-open", "https://"] },
+        { icon: "games", tip: "Games", run: ["steam"] },
+        { icon: "chat", tip: "Messages", run: ["xdg-open", taylorUrl] },
+        { icon: "studio", tip: "Mixer", mixer: true },
+        { icon: "notes", tip: "Notes", run: ["kate"] },
+        { divider: true },
+        { icon: "settings", tip: "Settings", run: ["systemsettings"] }
     ]
 
     Rectangle {
         id: pill
-        height: 48
+        height: 56
         width: icons.width + 16
-        radius: 14
+        radius: 16
         color: win.theme.dock
         border.color: win.theme.line
         border.width: 1
@@ -44,41 +46,67 @@ PanelWindow {
         Row {
             id: icons
             anchors.centerIn: parent
-            spacing: 6
+            spacing: 4
             Repeater {
                 model: win.buttons
-                delegate: Rectangle {
+                delegate: Item {
+                    id: btn
                     required property var modelData
-                    width: 36; height: 36; radius: 9
-                    color: hover.hovered ? Qt.rgba(0.5, 0.5, 0.5, 0.16) : "transparent"
-                    HoverHandler { id: hover }
+                    width: modelData.divider ? 13 : 48
+                    height: 48
+
+                    // the thin line before Settings
+                    Rectangle {
+                        visible: btn.modelData.divider === true
+                        anchors.centerIn: parent
+                        width: 1; height: 28
+                        color: win.theme.line
+                    }
 
                     Rectangle {
-                        visible: modelData.letter !== undefined
-                        anchors.centerIn: parent
-                        width: 26; height: 26; radius: 8
-                        color: win.theme.accent
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.letter || ""
-                            font.family: win.theme.sans
-                            font.weight: Font.Bold
-                            font.pixelSize: 13
-                            color: win.theme.accentInk
-                        }
-                    }
-                    IconImage {
-                        visible: modelData.letter === undefined
-                        anchors.centerIn: parent
-                        implicitSize: 20
-                        source: Quickshell.iconPath(modelData.icon, "application-x-executable")
-                    }
-                    MouseArea {
+                        visible: btn.modelData.divider !== true
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (modelData.mixer) win.toggleMixer();
-                            else Quickshell.execDetached(modelData.run);
+                        radius: 12
+                        color: hover.hovered ? Qt.rgba(1, 1, 1, 0.07) : "transparent"
+                        HoverHandler { id: hover }
+
+                        // TAYLOR's chip
+                        Rectangle {
+                            visible: btn.modelData.letter !== undefined
+                            anchors.centerIn: parent
+                            width: 30; height: 30; radius: 9
+                            color: win.theme.accent
+                            Text {
+                                anchors.centerIn: parent
+                                text: btn.modelData.letter || ""
+                                font.family: win.theme.mono
+                                font.pixelSize: 15
+                                color: win.theme.accentInk
+                            }
+                        }
+                        Image {
+                            visible: btn.modelData.icon !== undefined
+                            anchors.centerIn: parent
+                            anchors.verticalCenterOffset: -3
+                            width: 22; height: 22
+                            sourceSize: Qt.size(44, 44)
+                            source: btn.modelData.icon ? Qt.resolvedUrl("icons/" + btn.modelData.icon + ".svg") : ""
+                            smooth: true
+                        }
+                        // the little bar under an icon: green under the mixer while it is showing (as in the mockup)
+                        Rectangle {
+                            visible: btn.modelData.mixer === true
+                            anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 6 }
+                            width: win.mixerShown ? 14 : 5; height: 3; radius: 2
+                            color: win.mixerShown ? win.theme.accent : "transparent"
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (btn.modelData.mixer) win.toggleMixer();
+                                else if (btn.modelData.run) Quickshell.execDetached(btn.modelData.run);
+                            }
                         }
                     }
                 }
