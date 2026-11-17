@@ -58,9 +58,9 @@ PanelWindow {
             try {
                 const code = JSON.parse(req.responseText).current.weather_code;
                 win.liveWx = win.wxFromCode(code);
-                console.log("taylor-sky: weather code " + code + " -> " + win.liveWx);
+                console.info("taylor-sky: weather code " + code + " -> " + win.liveWx);
             } catch (e) {
-                console.log("taylor-sky: weather not read (status " + req.status + "); keeping " + win.liveWx);
+                console.info("taylor-sky: weather not read (status " + req.status + "); keeping " + win.liveWx);
             }
         };
         req.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=38.9&longitude=-77.04&current=weather_code");
