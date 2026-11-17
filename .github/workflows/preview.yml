@@ -69,6 +69,20 @@ jobs:
               grim /tmp/out/desktop-$H.png
               kill $QS; wait $QS 2>/dev/null
             done
+            # the weather looks (pinned), then one with the live weather, to prove the desktop can ask for it
+            for HW in 13:cloudy 13:rain 22:snow; do
+              H=${HW%%:*}; WX=${HW##*:}
+              TAYLOR_SKY_HOUR=$H TAYLOR_SKY_WX=$WX QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-$H-$WX.log 2>&1 &
+              QS=$!
+              sleep 10
+              grim /tmp/out/desktop-$H-$WX.png
+              kill $QS; wait $QS 2>/dev/null
+            done
+            TAYLOR_SKY_HOUR=13 QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-live-weather.log 2>&1 &
+            QS=$!
+            sleep 15
+            grim /tmp/out/desktop-live-weather.png
+            kill $QS; wait $QS 2>/dev/null
             cp /tmp/out/desktop-13.png /tmp/out/desktop.png
             cp /tmp/out/quickshell-13.log /tmp/out/quickshell.log
             # ChatMix: its pieces are in the image, and with no base station plugged in it says so and stops cleanly
@@ -81,7 +95,8 @@ jobs:
           for f in out/quickshell-*.log; do echo "--- $f"; cat "$f"; done || true
           echo "--- chatmix"; cat out/chatmix.txt || true
           echo "--- mixer channels"; cat out/channels.txt || true
-          for H in 13 16.75 22 7; do test -s out/desktop-$H.png; done
+          for H in 13 16.75 22 7 13-cloudy 13-rain 22-snow live-weather; do test -s out/desktop-$H.png; done
+          grep -h "taylor-sky: weather" out/quickshell-live-weather.log
 
       - uses: actions/upload-artifact@v4
         if: always()

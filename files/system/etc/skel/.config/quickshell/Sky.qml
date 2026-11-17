@@ -2,8 +2,13 @@
 // The sun and moon follow real sun times for Washington, DC (her location in the mockup), worked out from
 // the date, and the sky and hills blend through night, dawn, day and dusk, the same maths as the mockup.
 // Drawn on the background layer, above hyprpaper (which stays as the still picture if this ever fails).
-// Repaints once a minute. TAYLOR_SKY_HOUR=13.5 (for example) pins the hour, for the preview only.
-// Canvas on purpose: it draws with the software renderer too, so the automatic preview can show it.
+// The weather is real too: the mockup's clear / cloudy / rain / snow looks, picked from the current weather in DC
+// (Open-Meteo, keyless, the same city-level spot TAYLOR's weather uses), asked every 15 minutes. If it can't be
+// reached the sky stays as it was (clear at first). Clouds drift, rain and snow fall, as in the mockup.
+// Repaints once a minute. TAYLOR_SKY_HOUR=13.5 and TAYLOR_SKY_WX=rain (for example) pin the hour and the weather,
+// for the preview only.
+// Canvas on purpose: it draws with the software renderer too, so the automatic preview can show it. Each layer is
+// painted once and only moved, so the drifting and falling cost almost nothing.
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -22,7 +27,52 @@ PanelWindow {
         return isNaN(v) ? -1 : v;
     }
 
-    SystemClock { id: clock; precision: SystemClock.Minutes; onDateChanged: sky.requestPaint() }
+    readonly property string pinnedWx: {
+        const v = Quickshell.env("TAYLOR_SKY_WX") || "";
+        return ["clear", "cloudy", "rain", "snow"].indexOf(v) >= 0 ? v : "";
+    }
+    property string liveWx: "clear"
+    readonly property string wx: pinnedWx !== "" ? pinnedWx : liveWx
+    onWxChanged: win.repaintAll()
+
+    // sx / sy: the 1440 x 900 drawing fitted to the screen; sr keeps round things round.
+    readonly property real sx: width / 1440
+    readonly property real sy: height / 900
+    readonly property real sr: Math.min(sx, sy)
+
+    function repaintAll() { sky.requestPaint(); clouds.requestPaint(); hillsLayer.requestPaint(); }
+
+    SystemClock { id: clock; precision: SystemClock.Minutes; onDateChanged: win.repaintAll() }
+
+    // WMO weather codes to the mockup's four looks.
+    function wxFromCode(c) {
+        if (c >= 71 && c <= 77 || c === 85 || c === 86) return "snow";
+        if (c >= 51 && c <= 67 || c >= 80 && c <= 82 || c >= 95) return "rain";
+        if (c >= 2) return "cloudy";   // 2 partly cloudy, 3 overcast, 45/48 fog
+        return "clear";
+    }
+    function fetchWeather() {
+        const req = new XMLHttpRequest();
+        req.onreadystatechange = function () {
+            if (req.readyState !== XMLHttpRequest.DONE) return;
+            try {
+                const code = JSON.parse(req.responseText).current.weather_code;
+                win.liveWx = win.wxFromCode(code);
+                console.log("taylor-sky: weather code " + code + " -> " + win.liveWx);
+            } catch (e) {
+                console.log("taylor-sky: weather not read (status " + req.status + "); keeping " + win.liveWx);
+            }
+        };
+        req.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=38.9&longitude=-77.04&current=weather_code");
+        req.send();
+    }
+    Timer {
+        interval: 15 * 60 * 1000
+        repeat: true
+        running: win.pinnedWx === ""
+        triggeredOnStart: true
+        onTriggered: win.fetchWeather()
+    }
 
     // 110 stars and the three hills, copied from the mockup (1440 x 900 drawing).
     readonly property var stars: [[487, 143, 1.2, 0.75], [970, 77, 0.8, 0.75], [960, 275, 1, 0.36], [963, 497, 1.6, 0.6], [308, 247, 1, 0.73], [1071, 409, 0.8, 0.62], [131, 173, 0.8, 0.42], [63, 285, 1.6, 0.58], [793, 447, 1.6, 0.65], [1181, 465, 1, 0.73], [199, 46, 1, 0.52], [528, 456, 1.2, 0.48], [790, 369, 1.6, 0.57], [689, 39, 1.2, 0.8], [1374, 177, 1.2, 0.78], [1171, 116, 1, 0.6], [1174, 283, 1.2, 0.32], [987, 505, 0.8, 0.44], [136, 430, 1, 0.26], [874, 435, 0.8, 0.27], [1258, 56, 1.6, 0.65], [677, 295, 1, 0.8], [634, 17, 0.8, 0.31], [1096, 42, 1, 0.78], [597, 279, 1, 0.63], [695, 331, 1.2, 0.78], [773, 395, 1.6, 0.73], [790, 115, 1.2, 0.49], [486, 318, 1.6, 0.79], [1067, 320, 1.2, 0.26], [850, 332, 0.8, 0.46], [1206, 146, 0.8, 0.6], [680, 487, 1.2, 0.62], [722, 295, 1.6, 0.26], [124, 31, 1.2, 0.39], [934, 315, 1.2, 0.35], [379, 330, 1.2, 0.71], [540, 317, 1.6, 0.31], [55, 144, 1.2, 0.53], [1338, 285, 1, 0.43], [1388, 455, 0.8, 0.31], [659, 351, 1, 0.49], [346, 91, 1.2, 0.66], [446, 471, 1.2, 0.37], [247, 44, 1, 0.42], [1177, 197, 1.2, 0.44], [1314, 97, 1.2, 0.57], [862, 308, 1.2, 0.51], [1298, 436, 1.2, 0.48], [838, 46, 1.6, 0.34], [9, 498, 1.6, 0.56], [454, 43, 1.6, 0.71], [1357, 305, 1.2, 0.74], [139, 303, 0.8, 0.7], [92, 45, 1, 0.74], [880, 60, 0.8, 0.51], [247, 185, 1.2, 0.38], [40, 433, 0.8, 0.77], [1253, 126, 1.2, 0.32], [1107, 498, 0.8, 0.44], [404, 135, 0.8, 0.34], [560, 141, 0.8, 0.52], [1169, 419, 0.8, 0.67], [508, 285, 1.6, 0.28], [661, 11, 0.8, 0.68], [94, 137, 0.8, 0.29], [67, 98, 1.6, 0.42], [644, 83, 1.2, 0.46], [797, 321, 1.2, 0.4], [673, 448, 0.8, 0.32], [7, 399, 0.8, 0.56], [87, 392, 1.6, 0.58], [1108, 399, 0.8, 0.59], [883, 64, 1.2, 0.6], [1439, 332, 1.6, 0.77], [856, 481, 0.8, 0.38], [1097, 286, 0.8, 0.69], [459, 446, 1, 0.73], [666, 393, 1.2, 0.32], [1414, 136, 1.6, 0.62], [652, 115, 0.8, 0.51], [483, 408, 0.8, 0.54], [1155, 111, 1.6, 0.35], [48, 359, 0.8, 0.26], [235, 503, 1.2, 0.57], [181, 47, 1, 0.31], [204, 72, 1.2, 0.73], [369, 89, 1, 0.8], [1322, 265, 1.6, 0.59], [806, 268, 1.2, 0.58], [717, 438, 0.8, 0.46], [481, 432, 1, 0.48], [1164, 539, 1.6, 0.34], [821, 162, 1, 0.3], [990, 539, 1.6, 0.57], [381, 149, 1.2, 0.66], [300, 537, 1.2, 0.76], [1415, 312, 1.6, 0.58], [1197, 283, 1, 0.42], [549, 500, 1.6, 0.36], [1167, 379, 1, 0.43], [294, 438, 1.6, 0.64], [421, 489, 0.8, 0.51], [148, 419, 0.8, 0.51], [470, 250, 0.8, 0.78], [520, 257, 1, 0.68], [281, 201, 0.8, 0.74], [522, 183, 0.8, 0.42], [866, 103, 0.8, 0.31], [541, 308, 0.8, 0.45]]
@@ -39,7 +89,12 @@ PanelWindow {
         return '#' + m(0) + m(2) + m(4);
     }
 
-    // The mockup's scene maths, value for value (wx is always 'clear' when live, as in the mockup).
+    function rgba(hex, a) {
+        const h = hex.replace('#', '');
+        return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
+    }
+
+    // The mockup's scene maths, value for value, with its weather (which the mockup only showed in preview).
     function scene(nowD) {
         const bg = '#0F1010', accent = '#4FB386';
         const LAT = 38.9, LON = -77.04, rad = Math.PI / 180;
@@ -67,11 +122,18 @@ PanelWindow {
         };
         const blend = (A, B2, t) => ({ top: mix(A.top, B2.top, t), mid: mix(A.mid, B2.mid, t), bottom: mix(A.bottom, B2.bottom, t), h: [0, 1, 2].map((i) => mix(A.h[i], B2.h[i], t)) });
         const twi = morning ? P.dawn : P.dusk;
-        let sky;
-        if (elev <= -0.22) sky = P.night;
-        else if (elev <= 0) sky = blend(P.night, twi, (elev + 0.22) / 0.22);
-        else if (elev <= 0.32) sky = blend(twi, P.day, elev / 0.32);
-        else sky = P.day;
+        let skyC;
+        if (elev <= -0.22) skyC = P.night;
+        else if (elev <= 0) skyC = blend(P.night, twi, (elev + 0.22) / 0.22);
+        else if (elev <= 0.32) skyC = blend(twi, P.day, elev / 0.32);
+        else skyC = P.day;
+        const wx = win.wx;
+        const cloudK = { clear: 0, cloudy: 0.72, rain: 0.86, snow: 0.6 }[wx];
+        const greyC = mix('#1A1E22', '#8C969E', Math.max(0, elev));
+        const sky = {
+            top: mix(skyC.top, greyC, cloudK * 0.8), mid: mix(skyC.mid, greyC, cloudK), bottom: mix(skyC.bottom, greyC, cloudK),
+            h: skyC.h.map((x) => mix(x, mix(x, '#2A2F33', 0.5), cloudK * 0.6))
+        };
         const lowSun = Math.max(0, 1 - Math.max(0, elev) / 0.35);
         const sunVis = (tSun > -0.04 && tSun < 1.04) ? 1 : 0;
         const moonVis = (tNight > -0.03 && tNight < 1.03) ? 1 : 0;
@@ -86,10 +148,50 @@ PanelWindow {
             sky: sky, elev: elev,
             sun: mix('#FFF6DC', '#FFB070', lowSun),
             sunGlow: 'rgba(255,' + Math.round(240 - 90 * lowSun) + ',' + Math.round(200 - 110 * lowSun) + ',' + (0.22 + 0.12 * lowSun).toFixed(2) + ')',
-            sunR: Math.round(38 + 16 * lowSun), sunP: arcPos(tSun, 520), sunOp: sunVis,
-            moonP: arcPos(tNight, 480), moonOp: moonVis,
-            starOp: Math.max(0, Math.min(1, (-elev - 0.05) / 0.25))
+            sunR: Math.round(38 + 16 * lowSun), sunP: arcPos(tSun, 520), sunOp: sunVis * (1 - cloudK * 0.9),
+            moonP: arcPos(tNight, 480), moonOp: moonVis * (1 - cloudK * 0.85),
+            starOp: Math.max(0, Math.min(1, (-elev - 0.05) / 0.25)) * (1 - cloudK),
+            cloud: mix(greyC, '#FFFFFF', elev > 0 ? 0.25 : 0.05)
         };
+    }
+
+    // The mockup's eleven cloud shapes: [cx, cy, rx, ry, opacity], drawn soft-edged (the mockup blurs them 18 px).
+    readonly property var cloudShapes: [[826, 346, 279, 68, 0.70], [1102, 157, 207, 72, 0.69], [1157, 155, 184, 68, 0.62],
+        [85, 335, 170, 78, 0.89], [827, 394, 317, 50, 0.75], [982, 92, 175, 42, 0.58], [395, 367, 167, 69, 0.63],
+        [1110, 160, 292, 54, 0.76], [923, 62, 181, 69, 0.76], [733, 342, 181, 56, 0.63], [370, 322, 233, 41, 0.53]]
+
+    // A pattern layer one tile bigger than the screen on each side, painted once and then slid by exactly one tile,
+    // so the loop has no seam. draw(ctx) paints one tile at (0, 0).
+    component Falling: Item {
+        id: fall
+        property real tileW: 100
+        property real tileH: 100
+        property real dx: 0          // how far it slides sideways per loop (the mockup's rain jumps back a little each loop, as here)
+        property int ms: 1000
+        property var draw: function (ctx) {}
+        anchors.fill: parent
+        clip: true
+        Canvas {
+            id: pat
+            x: -fall.tileW; y: -fall.tileH
+            width: fall.width + 2 * fall.tileW; height: fall.height + 2 * fall.tileH
+            renderStrategy: Canvas.Cooperative
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                for (let ty = 0; ty < height; ty += fall.tileH)
+                    for (let tx = 0; tx < width; tx += fall.tileW) {
+                        ctx.save(); ctx.translate(tx, ty);
+                        ctx.beginPath(); ctx.rect(0, 0, fall.tileW, fall.tileH); ctx.clip();
+                        fall.draw(ctx);
+                        ctx.restore();
+                    }
+            }
+            NumberAnimation on y { from: -fall.tileH; to: 0; duration: fall.ms; loops: Animation.Infinite; running: fall.visible }
+            NumberAnimation on x { from: -fall.tileW; to: -fall.tileW + fall.dx; duration: fall.ms; loops: Animation.Infinite; running: fall.visible && fall.dx !== 0 }
+        }
     }
 
     Canvas {
@@ -105,7 +207,7 @@ PanelWindow {
             // Fit the whole 1440 x 900 drawing to the screen, never cropping it: on a wider screen (16:9) the sky and
             // hills stretch sideways a little, and the sun, moon and stars stay round (cropping the top hid the
             // midday sun behind the dock in the first preview).
-            const sx = width / 1440, sy = height / 900, sr = Math.min(sx, sy);
+            const sx = win.sx, sy = win.sy, sr = win.sr;
             ctx.scale(sx, sy);
 
             const g = ctx.createLinearGradient(0, 0, 0, 900);
@@ -133,11 +235,99 @@ PanelWindow {
                 disc(sc.sunP.x, sc.sunP.y, 130, sc.sunGlow, sc.sunOp);
                 disc(sc.sunP.x, sc.sunP.y, sc.sunR, sc.sun, sc.sunOp);
             }
-            ctx.globalAlpha = 1;
+        }
+    }
+
+    // Clouds, between the sun and the hills, drifting slowly side to side (the mockup's 90 s drift).
+    Canvas {
+        id: clouds
+        width: parent.width; height: parent.height
+        visible: win.wx !== "clear"
+        opacity: 0.85
+        renderStrategy: Canvas.Cooperative
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d");
+            ctx.reset();
+            if (win.wx === "clear") return;
+            const col = win.scene(clock.date).cloud;
+            for (let i = 0; i < win.cloudShapes.length; i++) {
+                const c = win.cloudShapes[i];
+                ctx.save();
+                ctx.translate(c[0] * win.sx, c[1] * win.sy);
+                ctx.scale(c[2] * win.sx, c[3] * win.sy);
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.15);
+                g.addColorStop(0, win.rgba(col, c[4]));
+                g.addColorStop(0.7, win.rgba(col, c[4] * 0.85));
+                g.addColorStop(1, win.rgba(col, 0));
+                ctx.fillStyle = g;
+                ctx.beginPath(); ctx.arc(0, 0, 1.15, 0, 2 * Math.PI); ctx.fill();
+                ctx.restore();
+            }
+        }
+        SequentialAnimation on x {
+            running: clouds.visible
+            loops: Animation.Infinite
+            NumberAnimation { from: -60 * win.sx; to: 60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
+            NumberAnimation { from: 60 * win.sx; to: -60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
+        }
+    }
+
+    Canvas {
+        id: hillsLayer
+        anchors.fill: parent
+        renderStrategy: Canvas.Cooperative
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d");
+            const sc = win.scene(clock.date);
+            ctx.reset();
+            ctx.scale(win.sx, win.sy);
             for (let i = 0; i < 3; i++) {
                 ctx.fillStyle = sc.sky.h[i];
                 ctx.beginPath(); ctx.path = win.hills[i]; ctx.fill();
             }
+        }
+    }
+
+    // Rain: the mockup's thin slanted streaks (105 degrees, one every 23 px, 180 x 260 tiles), falling every 0.7 s.
+    Falling {
+        visible: win.wx === "rain"
+        tileW: 180 * win.sr; tileH: 260 * win.sr; dx: -70 * win.sr; ms: 700
+        draw: function (ctx) {
+            const s = win.sr, gx = Math.sin(105 * Math.PI / 180), gy = -Math.cos(105 * Math.PI / 180);
+            ctx.strokeStyle = "rgba(205,220,230,0.16)";
+            ctx.lineWidth = Math.max(1, s);
+            for (let k = -40; k <= 40; k++) {
+                const d = (k * 23 + 22.5) * s;         // distance along the slant to this streak
+                const px = d * gx, py = d * gy;        // a point on the streak; the streak runs at right angles
+                ctx.beginPath();
+                ctx.moveTo(px - gy * 2000, py + gx * 2000);
+                ctx.lineTo(px + gy * 2000, py - gx * 2000);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // Snow: the mockup's two layers of flakes, falling at its speeds (about 50 and 39 px a second), straight down so the loop has no seam.
+    Falling {
+        visible: win.wx === "snow"
+        tileW: 140 * win.sr; tileH: 140 * win.sr; ms: 2800
+        draw: function (ctx) {
+            const s = win.sr;
+            ctx.fillStyle = "rgba(255,255,255,0.75)";
+            ctx.beginPath(); ctx.arc(70 * s, 70 * s, 2.1 * s, 0, 2 * Math.PI); ctx.fill();
+        }
+    }
+    Falling {
+        visible: win.wx === "snow"
+        tileW: 90 * win.sr; tileH: 90 * win.sr; ms: 2330
+        draw: function (ctx) {
+            const s = win.sr;
+            ctx.fillStyle = "rgba(255,255,255,0.5)";
+            ctx.beginPath(); ctx.arc(40 * s, 60 * s, 1.5 * s, 0, 2 * Math.PI); ctx.fill();
         }
     }
 }
