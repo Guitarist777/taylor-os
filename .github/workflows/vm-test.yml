@@ -128,7 +128,7 @@ jobs:
             "echo taylortest | sudo -S bootc switch --enforce-container-sigpolicy --transport registry ghcr.io/guitarist777/taylor-os:${UPDATE_TO} >/tmp/u.log 2>&1 && echo 'PASS the update downloads and its signature checks' || echo 'FAIL the update downloads and its signature checks'" \
             "tail -15 /tmp/u.log" \
             "echo taylortest | sudo -S bootc status 2>&1 | head -30" \
-            "(sleep 5; echo taylortest | sudo -S systemctl reboot) >/dev/null 2>&1 &"
+            "{ (sleep 5; echo taylortest | sudo -S systemctl reboot) >/dev/null 2>&1 & }"
           cat out/0-update.txt
           sleep 60
           python3 .github/vm/vmctl.py wait-login 900
