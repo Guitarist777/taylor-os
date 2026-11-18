@@ -9,6 +9,7 @@ on:
       - ".github/workflows/installer.yml"
       - ".github/workflows/preview.yml"
       - ".github/workflows/vm-test.yml"
+      - ".github/workflows/vm-windows-drive.yml"
       - ".github/vm/**"
   pull_request:
   workflow_dispatch: # a build can also be started by hand from the Actions tab

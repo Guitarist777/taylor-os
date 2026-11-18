@@ -1,0 +1,18 @@
+[Unit]
+Description=TAYLOR OS: mount the Windows drive at /var/mnt/windows (refuses a hibernated drive)
+Documentation=file:///usr/libexec/taylor-windows-mount
+After=local-fs.target systemd-udevd.service
+Wants=systemd-udevd.service
+# her user manager (and TAYLOR in it) starts only after this has finished: see user@.service.d/taylor-windows-drive.conf
+Before=systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# the internal drive can take a moment to show up when TAYLOR OS boots from USB
+ExecStartPre=-/usr/bin/udevadm settle --timeout=20
+ExecStart=/usr/libexec/taylor-windows-mount
+ExecStop=-/usr/bin/umount /var/mnt/windows
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,204 @@
+name: test the Windows drive in a virtual PC
+# "One TAYLOR, either side" (2026-11-18): TAYLOR runs from the Windows drive when the PC is booted into TAYLOR OS.
+# This installs TAYLOR OS from the REAL kickstart into a virtual PC (as vm-test.yml does), gives it a second disk made
+# like a Windows drive (a data partition and a Windows partition, NTFS, made-up folders only), and checks:
+#   1. a hibernated Windows drive (Fast Startup) is refused, with a plain reason, and nothing is mounted;
+#   2. a clean one is found without any disk ID and mounted the safe way (ntfs3, hers only, windows_names);
+#   3. SQLite in WAL mode on it survives kill -9 mid-write, in the image's own kernel (a MADE-UP database);
+#   4. a -wal file left behind by a crash opens cleanly on the other side (another NTFS driver, another SQLite).
+# Nothing of hers is in here: no TAYLOR code, no database of hers, no keys. The logs and pictures are public.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "image tag to install (latest, or a test branch's tag)"
+        required: true
+        default: latest
+
+jobs:
+  vm:
+    name: Install, then the Windows drive
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      NETINST: Fedora-Everything-netinst-x86_64-45-1.4.iso
+      CHECKSUM: Fedora-Everything-45-1.4-x86_64-CHECKSUM
+      BASE_URL: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/iso
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Room on the disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: KVM, QEMU and the NTFS tools
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -q
+          sudo apt-get install -y -q qemu-system-x86 qemu-utils ovmf ntfs-3g
+          ls -l /dev/kvm /usr/share/OVMF/
+          # GitHub sometimes hands out a smaller machine (run 44403991732: 2 CPUs, "cannot set up guest memory"):
+          # size the test PC to what this one has, up to 4 CPUs and 8 GB
+          cpus=$(nproc); [ "$cpus" -gt 4 ] && cpus=4
+          mem=$(( $(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo) - 1536 )); [ "$mem" -gt 8192 ] && mem=8192
+          echo "VM_CPUS=$cpus" >> "$GITHUB_ENV"; echo "VM_MEM=$mem" >> "$GITHUB_ENV"; echo "test PC: $cpus CPUs, $mem MB"
+
+      - name: The test kickstart (the real one plus test-only answers)
+        run: |
+          mkdir -p out
+          sed "s#ghcr.io/guitarist777/taylor-os:latest#ghcr.io/guitarist777/taylor-os:${TAG}#g" installer/taylor-os.ks > test.ks
+          cat >> test.ks <<'EOF'
+
+          # ---- test only ----
+          text
+          lang en_US.UTF-8
+          keyboard us
+          timezone America/New_York
+          ignoredisk --only-use=vda
+          zerombr
+          clearpart --all --initlabel --disklabel=gpt
+          autopart --type=btrfs --noswap
+          bootloader --append="console=tty0 console=ttyS0,115200"
+          rootpw --lock
+          user --name=tester --password=taylortest --plaintext --groups=wheel
+          poweroff
+
+          %post
+          # No Secure Boot in the test PC: cancel the key screen the real kickstart queued (it waits for a person forever).
+          mokutil --revoke-import || :
+          mokutil --timeout 0 || :
+          cat > /home/tester/drive_checks.sh <<'XEOF'
+          EOF
+          cat .github/vm/drive_checks.sh >> test.ks
+          printf 'XEOF\n%%end\n' >> test.ks
+          cp test.ks out/test.ks
+
+      - name: Fedora's installer with the test kickstart
+        run: |
+          curl -fsSL -o "$NETINST" "$BASE_URL/$NETINST"
+          curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
+          want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
+          test "$want" = "$(sha256sum "$NETINST" | awk '{print $1}')"
+          docker run --rm --privileged -e NETINST -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
+            dnf install -y -q --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum >/dev/null
+            ksvalidator -v F45 test.ks
+            mkksiso --ks test.ks -c "console=ttyS0,115200 inst.text" "$NETINST" test.iso
+            implantisomd5 --force test.iso'
+          rm -f "$NETINST"
+          ls -lh test.iso
+
+      - name: Install (unattended; the test PC turns itself off when done)
+        run: |
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd vars.fd
+          qemu-img create -f qcow2 disk.qcow2 60G
+          timeout 100m qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio -cdrom test.iso \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial file:out/install-serial.log
+          echo "exit $?"; tail -40 out/install-serial.log
+          rm -f test.iso
+
+      - name: A made-up Windows drive (data partition + Windows partition, NTFS), left hibernated
+        run: |
+          truncate -s 8G win.img
+          printf 'label: gpt\nsize=1GiB, type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7, name="Data"\ntype=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7, name="Windows"\n' | sfdisk -q win.img
+          LOOP=$(sudo losetup -fP --show win.img); echo "LOOP=$LOOP" >> "$GITHUB_ENV"
+          sudo mkntfs -Q -L Data "${LOOP}p1"
+          sudo mkntfs -Q -L Windows "${LOOP}p2"
+          sudo mkdir -p /mnt/d /mnt/w
+          sudo ntfs-3g "${LOOP}p1" /mnt/d && sudo mkdir -p /mnt/d/Users/Someone /mnt/d/Games && sudo umount /mnt/d
+          sudo ntfs-3g "${LOOP}p2" /mnt/w
+          sudo mkdir -p /mnt/w/Windows/System32 /mnt/w/Users/Public /mnt/w/Users/tester/taylor-test "/mnt/w/Program Files"
+          sudo cp .github/vm/wal_proof.py /mnt/w/Users/tester/taylor-test/
+          # Windows' hibernation file as Fast Startup leaves it: it starts with "HIBR"
+          { printf 'HIBR'; head -c 1048572 /dev/zero; } | sudo tee /mnt/w/hiberfil.sys >/dev/null
+          sudo find /mnt/w -maxdepth 3 | sort
+          sudo umount /mnt/w
+          sudo losetup -d "$LOOP"
+
+      - name: Start 1, Windows hibernated
+        run: |
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio -drive file=win.img,format=raw,if=virtio \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial unix:/tmp/vm-serial.sock,server,nowait \
+            -qmp unix:/tmp/vm-qmp.sock,server,nowait -daemonize -pidfile /tmp/vm.pid
+          python3 .github/vm/vmctl.py wait-login 900
+          sleep 30
+          python3 .github/vm/vmctl.py run tester taylortest out/1-hibernated.txt \
+            "lsblk -o NAME,FSTYPE,LABEL,SIZE" \
+            "echo taylortest | sudo -S bash ~/drive_checks.sh hibernated" \
+            "{ (sleep 5; echo taylortest | sudo -S systemctl poweroff) >/dev/null 2>&1 & }"
+          # (2026-11-18: the first run cut each line at its first underscore, so "integrity_check" never matched)
+          cat out/1-hibernated.txt
+          for i in $(seq 120); do kill -0 "$(cat /tmp/vm.pid)" 2>/dev/null || break; sleep 5; done
+          ! kill -0 "$(cat /tmp/vm.pid)" 2>/dev/null
+
+      - name: Windows "shut down properly" (the hibernation file goes)
+        run: |
+          LOOP=$(sudo losetup -fP --show win.img)
+          sudo ntfs-3g -o remove_hiberfile "${LOOP}p2" /mnt/w
+          ls -la /mnt/w
+          test ! -e /mnt/w/hiberfil.sys
+          sudo umount /mnt/w
+          sudo losetup -d "$LOOP"
+
+      - name: Start 2, Windows shut down properly; SQLite WAL on it, kill -9 mid-write
+        run: |
+          rm -f /tmp/vm-serial.sock /tmp/vm-qmp.sock
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio -drive file=win.img,format=raw,if=virtio \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial unix:/tmp/vm-serial.sock,server,nowait \
+            -qmp unix:/tmp/vm-qmp.sock,server,nowait -daemonize -pidfile /tmp/vm.pid
+          python3 .github/vm/vmctl.py wait-login 900
+          sleep 30
+          python3 .github/vm/vmctl.py run tester taylortest out/2-mounted.txt \
+            "echo taylortest | sudo -S bash ~/drive_checks.sh mounted" \
+            "echo taylortest | sudo -S bash ~/drive_checks.sh leave" \
+            "{ (sleep 5; echo taylortest | sudo -S systemctl poweroff) >/dev/null 2>&1 & }"
+          cat out/2-mounted.txt
+          for i in $(seq 120); do kill -0 "$(cat /tmp/vm.pid)" 2>/dev/null || break; sleep 5; done
+          ! kill -0 "$(cat /tmp/vm.pid)" 2>/dev/null
+
+      - name: The other side opens what the crash left (ntfs-3g and the runner's SQLite)
+        run: |
+          LOOP=$(sudo losetup -fP --show win.img)
+          sudo ntfs-3g.probe --readwrite "${LOOP}p2" && r=0 || r=$?
+          [ "$r" = 0 ] && echo "PASS TAYLOR OS left the Windows drive marked clean" | tee out/3-other-side.txt || echo "FAIL TAYLOR OS left the Windows drive marked clean (probe said $r)" | tee out/3-other-side.txt
+          sudo ntfs-3g "${LOOP}p2" /mnt/w
+          sudo ls -la /mnt/w/Users/tester/taylor-test/brain | tee -a out/3-other-side.txt
+          sudo test -s /mnt/w/Users/tester/taylor-test/brain/brain_test.db-wal && echo "PASS a -wal file was left behind for the other side" | tee -a out/3-other-side.txt || echo "FAIL a -wal file was left behind for the other side" | tee -a out/3-other-side.txt
+          echo "runner SQLite $(python3 -c 'import sqlite3; print(sqlite3.sqlite_version)')" | tee -a out/3-other-side.txt
+          sudo python3 .github/vm/wal_proof.py verify /mnt/w/Users/tester/taylor-test/brain | tee -a out/3-other-side.txt
+          sudo umount /mnt/w
+          sudo ntfs-3g.probe --readwrite "${LOOP}p2" && echo "PASS the drive is clean after the other side used it" | tee -a out/3-other-side.txt || echo "FAIL the drive is clean after the other side used it" | tee -a out/3-other-side.txt
+          sudo losetup -d "$LOOP"
+
+      - name: The verdict (fails on any FAIL)
+        run: |
+          # (2026-11-18: the first run cut each line at its first underscore, so "integrity_check" never matched)
+          cat out/1-hibernated.txt out/2-mounted.txt out/3-other-side.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | sed 's/__DONE_[0-9]*__.*//' | grep -oE '(PASS|FAIL) [A-Za-z].*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          grep -q '^PASS opened after the switch: integrity_check says ok' out/verdict.txt
+          test "$(grep -c '^PASS ' out/verdict.txt)" -ge 45
+          ! grep -q '^FAIL ' out/verdict.txt
+
+      - name: Keep the logs
+        if: always()
+        run: |
+          cp /tmp/vm-serial.log out/ 2>/dev/null || true
+          [ -f /tmp/vm.pid ] && kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-windows-drive-${{ inputs.tag }}
+          path: out/
