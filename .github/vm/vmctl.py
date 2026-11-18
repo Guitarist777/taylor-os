@@ -24,6 +24,13 @@ def serial():
     return s
 
 
+def clean(t):
+    t = re.sub(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", "", t)     # OSC (links, the shell's 3008 marks)
+    t = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", t)              # CSI (colours, cursor)
+    t = re.sub(r"\x1b[()][A-Za-z0-9]", "", t)
+    return t.replace("\r", "")
+
+
 def read_until(s, pattern, timeout):
     buf = ""
     end = time.time() + timeout
@@ -37,8 +44,9 @@ def read_until(s, pattern, timeout):
         buf += chunk
         with open(LOG, "a", encoding="utf-8") as f:
             f.write(chunk)
-        if re.search(pattern, buf):
-            return buf
+        text = clean(buf)       # Bazzite's prompt and banner are full of colour and terminal-mark codes: match the plain text
+        if re.search(pattern, text, re.M):
+            return text
     raise TimeoutError(f"no {pattern!r} after {timeout}s; last output: {buf[-600:]!r}")
 
 
@@ -70,7 +78,15 @@ def run(user, password, outfile, cmds):
     send(s, user + "\r")
     read_until(s, r"[Pp]assword:\s*$", 30)
     send(s, password + "\r")
-    read_until(s, prompt, 90)
+    # the first login after a start can sit after the welcome banner for minutes (run 3, 2026-11-18): nudge, wait up to 5 min
+    for attempt in range(10):
+        try:
+            read_until(s, prompt, 30)
+            break
+        except TimeoutError:
+            if attempt == 9:
+                raise
+            send(s, "\r")
     time.sleep(2)
     send(s, "export PAGER=cat SYSTEMD_PAGER=cat TERM=dumb; stty cols 200 -echo\r")
     read_until(s, prompt, 20)
