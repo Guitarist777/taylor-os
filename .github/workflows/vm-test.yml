@@ -112,6 +112,7 @@ jobs:
             -drive if=pflash,format=raw,file=vars.fd \
             -drive file=disk.qcow2,if=virtio \
             -nic user,model=virtio -device virtio-vga -display none \
+            -device qemu-xhci -device usb-tablet \
             -serial unix:/tmp/vm-serial.sock,server,nowait \
             -qmp unix:/tmp/vm-qmp.sock,server,nowait -daemonize -pidfile /tmp/vm.pid
           python3 .github/vm/vmctl.py wait-login 900
@@ -182,12 +183,37 @@ jobs:
             "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1"
           cat out/5-desktop-checks.txt
 
+      - name: Open a window and close it with the window bar's X (her pick 2026-11-18)
+        run: |
+          # Windows key + Enter opens the terminal (kitty draws no X of its own: the case she hit)
+          python3 .github/vm/vmctl.py key meta_l-ret
+          sleep 12
+          python3 .github/vm/vmctl.py shot "$PWD/out/6-window-open.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/6-window.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl activewindow | grep -q 'class: kitty' && echo 'PASS a terminal window opens' || echo 'FAIL a terminal window opens'" \
+            "hyprctl layers | grep -q taylor-windowbar && echo 'PASS the window bar shows with a window open' || echo 'FAIL the window bar shows with a window open'" \
+            "hyprctl layers | grep taylor-windowbar | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/BARXYWH \\1 \\2 \\3 \\4/'" \
+            "hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'" \
+            "hyprctl clients | grep -E 'class|title'"
+          cat out/6-window.txt
+          read -r bx by bw bh < <(tr -d '\r' < out/6-window.txt | grep -oE 'BARXYWH [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+          read -r sw sh < <(tr -d '\r' < out/6-window.txt | grep -oE 'SCREENWH [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+          # the X is the last thing in the bar: 28 px wide, its centre 16 px in from the bar's right edge
+          echo "bar $bx $by $bw $bh on $sw x $sh: clicking $((bx + bw - 16)), $((by + bh / 2))"
+          python3 .github/vm/vmctl.py click $((bx + bw - 16)) $((by + bh / 2)) "$sw" "$sh"
+          sleep 5
+          python3 .github/vm/vmctl.py shot "$PWD/out/7-after-x.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/7-closed.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl clients | grep -q 'class: kitty' && echo 'FAIL the X closes the window' || echo 'PASS the X closes the window'" \
+            "hyprctl clients | grep -E 'class|title'"
+          cat out/7-closed.txt
+
       - name: The verdict (fails on any FAIL)
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=13; [ -n "$UPDATE_TO" ] && want=15
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=16; [ -n "$UPDATE_TO" ] && want=18
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 

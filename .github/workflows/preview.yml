@@ -40,7 +40,7 @@ jobs:
           dbus-uuidgen > /etc/machine-id
           ls /usr/share/icons > /out/icon-themes.txt
           # test THIS commit's desktop files, so a desktop fix is previewed without waiting for a new image
-          cp -a /repo/files/system/etc/skel/.config/quickshell/. /home/tester/.config/quickshell/ && chown -R tester:tester /home/tester/.config/quickshell
+          cp -a /repo/files/system/usr/share/taylor-os/quickshell/. /home/tester/.config/quickshell/ && chown -R tester:tester /home/tester/.config/quickshell
           ls -la /home/tester/.config /home/tester/.config/quickshell
           cat > /tmp/sway.conf <<'EOC'
           output HEADLESS-1 resolution 1920x1080

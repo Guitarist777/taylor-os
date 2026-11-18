@@ -41,6 +41,7 @@ ShellRoot {
                 Mixer { screen: perScreen.modelData; theme: root.c; visible: root.mixerShown }
                 Dock { screen: perScreen.modelData; theme: root.c; mixerShown: root.mixerShown; onToggleMixer: root.mixerShown = !root.mixerShown }
                 Tray { screen: perScreen.modelData; theme: root.c }
+                WindowBar { screen: perScreen.modelData; theme: root.c }
             }
         }
     }

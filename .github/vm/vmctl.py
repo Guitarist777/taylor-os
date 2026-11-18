@@ -5,6 +5,8 @@
     vmctl.py run USER PASSWORD OUTFILE CMD...  log in on the serial console, run each CMD, save everything to OUTFILE
     vmctl.py shot FILE.png                     screenshot of the screen
     vmctl.py type TEXT                         type on the keyboard (letters, digits); "\\n" presses Enter
+    vmctl.py key COMBO                         press keys together, e.g. meta_l-ret
+    vmctl.py click X Y SCREEN_W SCREEN_H       left-click at a screen pixel (needs -device usb-tablet)
 """
 import json
 import re
@@ -128,6 +130,23 @@ def type_text(text):
         time.sleep(0.08)
 
 
+def key_combo(combo):
+    """Press keys together, e.g. "meta_l-ret" (QEMU key names)."""
+    qmp("send-key", {"keys": [{"type": "qcode", "data": k} for k in combo.split("-")]})
+
+
+def click(x, y, width, height):
+    """Left-click at screen pixel (x, y). Needs the virtual PC's usb-tablet (an absolute pointer)."""
+    ax = round(x * 32767 / (width - 1))
+    ay = round(y * 32767 / (height - 1))
+    qmp("input-send-event", {"events": [{"type": "abs", "data": {"axis": "x", "value": ax}},
+                                        {"type": "abs", "data": {"axis": "y", "value": ay}}]})
+    time.sleep(0.4)
+    for down in (True, False):
+        qmp("input-send-event", {"events": [{"type": "btn", "data": {"down": down, "button": "left"}}]})
+        time.sleep(0.15)
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "wait-login":
@@ -138,3 +157,7 @@ if __name__ == "__main__":
         print(qmp("screendump", {"filename": a[1], "format": "png"}))
     elif a[0] == "type":
         type_text(a[1])
+    elif a[0] == "key":
+        key_combo(a[1])
+    elif a[0] == "click":
+        click(int(a[1]), int(a[2]), int(a[3]), int(a[4]))
