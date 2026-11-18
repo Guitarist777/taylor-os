@@ -31,6 +31,8 @@ mounted)
     say "the files belong to her account" "[ \"\$(stat -c %U $M/Users)\" = $U ]"
     say "only she can open it (mode 700)" "[ \"\$(stat -c %a $M/Users)\" = 700 ]"
     say "another account cannot read it" "! runuser -u nobody -- ls $M/Users"
+    say "another account cannot write into the top of the drive" "! runuser -u nobody -- touch $M/by-another-account"
+    say "the top folder is hers only (mode 700)" "[ \"\$(stat -c %a $M)\" = 700 ]"
     say "a file name Windows could not open is refused (windows_names)" "! runuser -u $U -- touch '$T/bad:name'"
     say "an ordinary file name works" "runuser -u $U -- touch '$T/ordinary name.txt'"
     say "the status line says mounted" "grep -q '^mounted .* rw for $U' /run/taylor-os/windows-drive"
