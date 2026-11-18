@@ -1,0 +1,151 @@
+name: test a full install in a virtual PC
+# The test that was missing on install night (2026-11-18): install TAYLOR OS from Fedora's installer with the REAL
+# kickstart into a virtual PC, start it, and check what she would see. The test install is then put in the state her PC
+# was left in (text mode, Hyprland's example settings in her account), so the start-up repair is tested on that exact case.
+# Test-only answers (disk, user, no Secure Boot key screen) are added to a COPY of the kickstart; the real one is unchanged.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "image tag to install (latest, or a test branch's tag)"
+        required: true
+        default: latest
+
+jobs:
+  vm:
+    name: Install, start, look
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      NETINST: Fedora-Everything-netinst-x86_64-45-1.4.iso
+      CHECKSUM: Fedora-Everything-45-1.4-x86_64-CHECKSUM
+      BASE_URL: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/iso
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Room on the disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: KVM and QEMU
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -q
+          sudo apt-get install -y -q qemu-system-x86 qemu-utils ovmf
+          ls -l /dev/kvm /usr/share/OVMF/
+
+      - name: The test kickstart (the real one plus test-only answers)
+        run: |
+          mkdir -p out
+          sed "s#ghcr.io/guitarist777/taylor-os:latest#ghcr.io/guitarist777/taylor-os:${TAG}#g" installer/taylor-os.ks > test.ks
+          cat >> test.ks <<'EOF'
+
+          # ---- test only ----
+          text
+          lang en_US.UTF-8
+          keyboard us
+          timezone America/New_York
+          zerombr
+          clearpart --all --initlabel --disklabel=gpt
+          autopart --type=btrfs --noswap
+          bootloader --append="console=tty0 console=ttyS0,115200"
+          rootpw --lock
+          user --name=tester --password=taylortest --plaintext --groups=wheel
+          poweroff
+
+          %post
+          # No Secure Boot in the test PC: cancel the key screen the real kickstart queued (it waits for a person forever).
+          mokutil --revoke-import || :
+          mokutil --timeout 0 || :
+          # Put the install in the state her PC was left in on 2026-11-18, so the start-up repair is tested on it:
+          systemctl set-default multi-user.target
+          rm -f /home/tester/.config/hypr/hyprland.lua
+          mkdir -p /home/tester/.config/hypr
+          printf -- '-- This is an example Hyprland Lua config file.\n-- Refer to the wiki for more information.\n' > /home/tester/.config/hypr/hyprland.lua
+          chown -R tester:tester /home/tester/.config
+          %end
+          EOF
+          cp test.ks out/test.ks
+
+      - name: Fedora's installer with the test kickstart
+        run: |
+          curl -fsSL -o "$NETINST" "$BASE_URL/$NETINST"
+          curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
+          want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
+          test "$want" = "$(sha256sum "$NETINST" | awk '{print $1}')"
+          docker run --rm --privileged -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
+            dnf install -y -q --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum >/dev/null
+            ksvalidator -v F45 test.ks
+            mkksiso --ks test.ks -c "console=ttyS0,115200 inst.text" "$NETINST" test.iso
+            implantisomd5 --force test.iso'
+          rm -f "$NETINST"
+          ls -lh test.iso
+
+      - name: Install (unattended; the test PC turns itself off when done)
+        run: |
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd vars.fd
+          qemu-img create -f qcow2 disk.qcow2 60G
+          timeout 100m qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio -cdrom test.iso \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial file:out/install-serial.log
+          echo "exit $?"; tail -40 out/install-serial.log
+          rm -f test.iso
+
+      - name: First start, as her PC would
+        run: |
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial unix:/tmp/vm-serial.sock,server,nowait \
+            -qmp unix:/tmp/vm-qmp.sock,server,nowait -daemonize -pidfile /tmp/vm.pid
+          python3 .github/vm/vmctl.py wait-login 900
+          sleep 60
+          python3 .github/vm/vmctl.py shot "$PWD/out/1-after-start.png"
+
+      - name: What the test PC says about itself
+        run: |
+          python3 .github/vm/vmctl.py run tester taylortest out/2-checks.txt \
+            "systemctl get-default" \
+            "systemctl is-active display-manager.service plasmalogin.service taylor-heal.service" \
+            "journalctl -b -u taylor-heal --no-pager" \
+            "ls -la ~/.config/hypr ~/.config/quickshell" \
+            "head -4 ~/.config/hypr/hyprland.lua" \
+            "rpm -q hyprland quickshell" \
+            "ls /usr/share/wayland-sessions /usr/share/xsessions" \
+            "echo taylortest | sudo -S sh -c 'ls -la /var/lib/plasmalogin; cat /var/lib/plasmalogin/state.conf; ls /etc/plasmalogin.conf.d /usr/lib/plasmalogin.conf.d; cat /etc/plasmalogin.conf.d/* /usr/lib/plasmalogin.conf.d/*' 2>&1"
+          cat out/2-checks.txt
+
+      - name: Log in on the login screen and look at the desktop
+        run: |
+          python3 .github/vm/vmctl.py shot "$PWD/out/3-login-screen.png"
+          python3 .github/vm/vmctl.py type 'taylortest\n'
+          sleep 90
+          python3 .github/vm/vmctl.py shot "$PWD/out/4-after-login.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/5-desktop-checks.txt \
+            "loginctl list-sessions --no-legend" \
+            "for s in \$(loginctl list-sessions --no-legend | awk '{print \$1}'); do loginctl show-session \$s -p Type -p Desktop -p Service -p State; done" \
+            "pgrep -a -u tester 'Hyprland|quickshell|hyprpaper|plasmashell|kwin'" \
+            "ls /run/user/1000/hypr/ 2>&1" \
+            "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl -j configerrors 2>&1" \
+            "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl layers 2>&1 | head -60" \
+            "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1"
+          cat out/5-desktop-checks.txt
+
+      - name: Keep the pictures and logs
+        if: always()
+        run: |
+          cp /tmp/vm-serial.log out/ 2>/dev/null || true
+          [ -f /tmp/vm.pid ] && kill "$(cat /tmp/vm.pid)" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-test-${{ inputs.tag }}
+          path: out/
