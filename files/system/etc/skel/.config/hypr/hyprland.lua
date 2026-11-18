@@ -1,6 +1,7 @@
 -- TAYLOR OS: Hyprland, styled after her mockup "7 · Dock your way + mixer widget" (the TAYLOR theme).
 -- This file is copied into her home when her account is made; edit ~/.config/hypr/hyprland.lua to change it.
 -- Hyprland 0.57 reads only this Lua file (hyprland.conf is no longer read). Options: https://wiki.hypr.land/configuring/
+-- TAYLOR-OS-DESKTOP (taylor-heal recognises this file as TAYLOR's by this line; keep it if you edit the file)
 
 hl.monitor({
     output   = "",

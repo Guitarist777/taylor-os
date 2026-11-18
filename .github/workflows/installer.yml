@@ -29,7 +29,7 @@ jobs:
       options: --privileged -v /dev:/dev # mkksiso builds the EFI boot image on a loop device
     steps:
       - name: Tools
-        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso pykickstart gh git curl
+        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum gh git curl
 
       - uses: actions/checkout@v4
 
@@ -48,6 +48,10 @@ jobs:
       - name: Bake the kickstart in
         run: |
           mkksiso --ks installer/taylor-os.ks "$NETINST" TAYLOR-OS-installer.iso
+          # mkksiso left Fedora's old check value inside (2026-11-18: "Test this media" failed at 4.8% on her stick).
+          # Stamp the value for THIS file, then run the very check the installer menu runs; the build fails if it does.
+          implantisomd5 --force TAYLOR-OS-installer.iso
+          checkisomd5 --verbose TAYLOR-OS-installer.iso
           sha256sum TAYLOR-OS-installer.iso | tee TAYLOR-OS-installer.iso.sha256
           ls -l TAYLOR-OS-installer.iso
 

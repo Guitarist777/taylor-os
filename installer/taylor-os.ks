@@ -15,6 +15,12 @@ bootc switch --mutate-in-place --enforce-container-sigpolicy --transport registr
 %end
 
 %post
+# Start in picture mode (the login screen), whatever the installer decides for an image payload. A safety net: her
+# first boot's text console (2026-11-18) came from the image itself (fixed in the recipe); taylor-heal checks this too.
+systemctl set-default graphical.target
+%end
+
+%post
 # Secure Boot: queue Universal Blue's driver-signing key so the NVIDIA driver loads. On the first boot a blue
 # screen asks once to enroll it; the password it asks for is: universalblue
 mokutil --timeout -1 || :

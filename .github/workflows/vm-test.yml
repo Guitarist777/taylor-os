@@ -65,6 +65,9 @@ jobs:
           rm -f /home/tester/.config/hypr/hyprland.lua
           mkdir -p /home/tester/.config/hypr
           printf -- '-- This is an example Hyprland Lua config file.\n-- Refer to the wiki for more information.\n' > /home/tester/.config/hypr/hyprland.lua
+          # and Bazzite's own welcome-window start-up file, as her account got it (the image's new copy already says KDE only)
+          mkdir -p /home/tester/.config/autostart
+          printf '[Desktop Entry]\nName=Bazzite Portal\nComment=Helps you setup Bazzite\nExec=yafti_gtk.py /usr/share/yafti/yafti.yml\nIcon=io.github.ublue_os.yafti_gtk\nTerminal=false\nType=Application\nX-GNOME-Autostart-enabled=true\n' > /home/tester/.config/autostart/bazzite-portal.desktop
           chown -R tester:tester /home/tester/.config
           %end
           EOF
@@ -76,7 +79,7 @@ jobs:
           curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
           want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
           test "$want" = "$(sha256sum "$NETINST" | awk '{print $1}')"
-          docker run --rm --privileged -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
+          docker run --rm --privileged -e NETINST -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
             dnf install -y -q --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum >/dev/null
             ksvalidator -v F45 test.ks
             mkksiso --ks test.ks -c "console=ttyS0,115200 inst.text" "$NETINST" test.iso
@@ -113,6 +116,12 @@ jobs:
       - name: What the test PC says about itself
         run: |
           python3 .github/vm/vmctl.py run tester taylortest out/2-checks.txt \
+            "[ \"\$(systemctl get-default)\" = graphical.target ] && echo 'PASS starts in picture mode' || echo 'FAIL starts in picture mode'" \
+            "systemctl is-active -q plasmalogin.service && echo 'PASS the login screen is running' || echo 'FAIL the login screen is running'" \
+            "journalctl -b -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
+            "grep -q TAYLOR-OS-DESKTOP ~/.config/hypr/hyprland.lua && echo 'PASS her desktop file is the TAYLOR one' || echo 'FAIL her desktop file is the TAYLOR one'" \
+            "ls ~/.config/hypr/hyprland.lua.example-* >/dev/null 2>&1 && echo 'PASS Hyprland example kept beside it' || echo 'FAIL Hyprland example kept beside it'" \
+            "grep -qx 'PreselectedSession=hyprland-uwsm.desktop' /usr/lib/plasmalogin/plasmalogin.conf.d/10-taylor.conf && echo 'PASS login screen is set to the TAYLOR desktop' || echo 'FAIL login screen is set to the TAYLOR desktop'" \
             "systemctl get-default" \
             "systemctl is-active display-manager.service plasmalogin.service taylor-heal.service" \
             "journalctl -b -u taylor-heal --no-pager" \
@@ -130,6 +139,14 @@ jobs:
           sleep 90
           python3 .github/vm/vmctl.py shot "$PWD/out/4-after-login.png"
           python3 .github/vm/vmctl.py run tester taylortest out/5-desktop-checks.txt \
+            "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS logging in opens Hyprland' || echo 'FAIL logging in opens Hyprland'" \
+            "pgrep -u tester -f '^(/usr/bin/)?quickshell' >/dev/null && echo 'PASS her desktop shell (quickshell) is running' || echo 'FAIL her desktop shell (quickshell) is running'" \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr 2>/dev/null | head -1); hyprctl -j configerrors 2>/dev/null | tr -d ' \t\n' | grep -qxE '\[(\"\")?\]' && echo 'PASS Hyprland reports no settings errors' || echo 'FAIL Hyprland reports no settings errors'" \
+            "hyprctl layers 2>/dev/null | grep -q taylor-dock && echo 'PASS the dock is on screen' || echo 'FAIL the dock is on screen'" \
+            "hyprctl layers 2>/dev/null | grep -q taylor-clock && echo 'PASS the clock is on screen' || echo 'FAIL the clock is on screen'" \
+            "pgrep -u tester -f yafti_gtk >/dev/null && echo 'FAIL Bazzite welcome window stays shut' || echo 'PASS Bazzite welcome window stays shut'" \
+            "grep -qx 'NotShowIn=Hyprland;' ~/.config/autostart/bazzite-portal.desktop && echo 'PASS the repair kept Bazzite welcome to KDE' || echo 'FAIL the repair kept Bazzite welcome to KDE'" \
+            "hyprctl -j configerrors 2>&1" \
             "loginctl list-sessions --no-legend" \
             "for s in \$(loginctl list-sessions --no-legend | awk '{print \$1}'); do loginctl show-session \$s -p Type -p Desktop -p Service -p State; done" \
             "pgrep -a -u tester 'Hyprland|quickshell|hyprpaper|plasmashell|kwin'" \
@@ -138,6 +155,14 @@ jobs:
             "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl layers 2>&1 | head -60" \
             "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1"
           cat out/5-desktop-checks.txt
+
+      - name: The verdict (fails on any FAIL)
+        run: |
+          # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
+          # (lines starting "$ " are the typed commands, which contain both words: skip them)
+          cat out/2-checks.txt out/5-desktop-checks.txt | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          test "$(grep -c '^PASS ' out/verdict.txt)" -ge 13
+          ! grep -q '^FAIL ' out/verdict.txt
 
       - name: Keep the pictures and logs
         if: always()
