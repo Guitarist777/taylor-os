@@ -94,7 +94,7 @@ def run(user, password, outfile, cmds):
     for c in cmds:
         n = len(out)
         send(s, f"{c}; printf '__DO%sNE_%s__\\n' '' {n}\r")
-        text = read_until(s, rf"__DONE_{n}__\r?\n", 180)
+        text = read_until(s, rf"__DONE_{n}__\r?\n", 2400)   # an update download can take many minutes
         out.append(f"$ {c}\n{text}")
     send(s, "exit\r")
     with open(outfile, "w", encoding="utf-8") as f:
