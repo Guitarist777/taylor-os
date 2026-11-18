@@ -12,6 +12,9 @@ useradd -m t1; useradd -m t2; useradd -M t3; install -d -o t3 -g t3 /home/t3
 mkdir -p /home/t1/.config/hypr /home/t2/.config/hypr
 printf -- '-- This is an example Hyprland Lua config file.\n' > /home/t1/.config/hypr/hyprland.lua
 echo '-- my own settings' > /home/t2/.config/hypr/hyprland.lua
+mkdir -p /home/t1/.config/autostart /home/t2/.config/autostart
+printf '[Desktop Entry]\nName=Bazzite Portal\nExec=yafti_gtk.py /usr/share/yafti/yafti.yml\nType=Application\nX-GNOME-Autostart-enabled=true' > /home/t1/.config/autostart/bazzite-portal.desktop   # no final newline on purpose
+printf '[Desktop Entry]\nName=Something of hers\nExec=my-own-thing\n' > /home/t2/.config/autostart/bazzite-portal.desktop
 chown -R t1:t1 /home/t1; chown -R t2:t2 /home/t2
 systemctl set-default multi-user.target >/dev/null 2>&1
 
@@ -26,6 +29,11 @@ check "t2: nothing added beside it" '! ls /home/t2/.config/hypr/hyprland.lua.exa
 check "t3 (nothing): TAYLOR desktop in place" 'grep -q TAYLOR-OS-DESKTOP /home/t3/.config/hypr/hyprland.lua'
 check "t3: shell files put in place" '[ -f /home/t3/.config/quickshell/shell.qml ]'
 check "t3: owned by t3" '[ "$(stat -c %U /home/t3/.config/hypr/hyprland.lua)" = t3 ]'
+
+check "t1: Bazzite's welcome window kept to KDE" 'grep -qx "NotShowIn=Hyprland;" /home/t1/.config/autostart/bazzite-portal.desktop'
+check "t1: the welcome file is still a good file (last line intact)" 'grep -qx "X-GNOME-Autostart-enabled=true" /home/t1/.config/autostart/bazzite-portal.desktop'
+check "t2: a file of hers with that name is untouched" '! grep -q NotShowIn /home/t2/.config/autostart/bazzite-portal.desktop'
+check "new accounts get the welcome window kept to KDE" 'grep -qx "NotShowIn=Hyprland;" /repo/files/system/etc/skel/.config/autostart/bazzite-portal.desktop'
 
 before=$(find /home -type f | sort | xargs md5sum)
 bash /repo/files/system/usr/libexec/taylor-heal

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Bazzite Portal
+Comment=Helps you setup Bazzite
+Exec=yafti_gtk.py /usr/share/yafti/yafti.yml
+Icon=io.github.ublue_os.yafti_gtk
+Terminal=false
+Type=Application
+X-GNOME-Autostart-enabled=true
+# TAYLOR OS: Bazzite's welcome window opens in KDE only, not over her TAYLOR desktop (2026-11-18 virtual PC test).
+NotShowIn=Hyprland;

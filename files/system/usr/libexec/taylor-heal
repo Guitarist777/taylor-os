@@ -44,4 +44,18 @@ getent passwd | while IFS=: read -r name _ uid gid _ home _; do
         log "$name: TAYLOR shell files put in place"
     fi
 done
+
+# 3. Bazzite's welcome window ("Bazzite Portal") opens at every login until it is switched off, on top of her TAYLOR desktop
+#    (2026-11-18 virtual PC test). Keep it to KDE: add NotShowIn=Hyprland to Bazzite's own start-up file in each account.
+#    Only Bazzite's file is touched (it runs yafti_gtk.py), and only once (a file that already says NotShowIn is left alone).
+getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+    f="$home/.config/autostart/bazzite-portal.desktop"
+    [ -f "$f" ] || continue
+    grep -q '^Exec=yafti_gtk.py' "$f" || continue
+    grep -q '^NotShowIn=' "$f" && continue
+    [ -n "$(tail -c1 "$f")" ] && echo >> "$f"     # the file's last line must end before ours starts
+    printf 'NotShowIn=Hyprland;\n' >> "$f"
+    log "$name: Bazzite's welcome window kept to KDE"
+done
 exit 0
