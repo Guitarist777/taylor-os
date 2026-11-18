@@ -1,0 +1,43 @@
+#!/usr/bin/bash
+# TAYLOR OS start-up repair (2026-11-18). Runs as root on every boot, before the login screen, and changes only what is wrong:
+#  1. The first install (Fedora's installer with an image payload) left the PC starting in text mode, so the login screen
+#     never came up. If the default is not the graphical one, make it so and bring the login screen up now.
+#  2. Hyprland 0.57 reads only ~/.config/hypr/hyprland.lua and, when there is none, writes its own example there. Accounts
+#     made before TAYLOR OS shipped a .lua got that example instead of her desktop. Replace ONLY that exact example (or a
+#     missing file) with /etc/skel's copy; any other hyprland.lua is hers and is never touched. The old file is kept.
+set -u
+log() { echo "taylor-heal: $*"; }
+
+# 1. Start in picture mode
+if [ "$(systemctl get-default)" != "graphical.target" ]; then
+    log "default was $(systemctl get-default); setting graphical.target"
+    systemctl set-default graphical.target
+    systemctl start --no-block graphical.target
+fi
+
+# 2. Her desktop settings
+skel=/etc/skel/.config/hypr/hyprland.lua
+[ -f "$skel" ] || exit 0
+stamp=$(date +%Y%m%d-%H%M%S)
+getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+    [ -d "$home" ] || continue
+    dir="$home/.config/hypr"
+    target="$dir/hyprland.lua"
+    if [ -f "$target" ]; then
+        grep -q "TAYLOR-OS-DESKTOP" "$target" && continue                                # already hers from TAYLOR OS
+        grep -q "This is an example Hyprland Lua config file" "$target" || continue    # her own file: leave it alone
+        mv -f "$target" "$target.example-$stamp"
+        log "$name: Hyprland's example settings kept as hyprland.lua.example-$stamp"
+    fi
+    install -d -o "$uid" -g "$gid" "$home/.config" "$dir"
+    install -m 0644 -o "$uid" -g "$gid" "$skel" "$target"
+    log "$name: TAYLOR desktop settings put in place"
+    # the rest of her desktop (Quickshell) is copied too if it is missing, never over an existing file
+    if [ ! -e "$home/.config/quickshell" ] && [ -d /etc/skel/.config/quickshell ]; then
+        cp -a /etc/skel/.config/quickshell "$home/.config/quickshell"
+        chown -R "$uid:$gid" "$home/.config/quickshell"
+        log "$name: TAYLOR shell files put in place"
+    fi
+done
+exit 0

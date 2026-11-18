@@ -49,4 +49,11 @@ modules:
       - source: system
         destination: /
 
+  # Start-up repair (2026-11-18): picture mode at boot, and her desktop settings in an account made before the .lua
+  # existed (/usr/libexec/taylor-heal changes only what is wrong).
+  - type: systemd
+    system:
+      enabled:
+        - taylor-heal.service
+
   - type: signing # sets up the policy so the PC only accepts images signed with this repo's key

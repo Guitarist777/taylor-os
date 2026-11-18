@@ -15,6 +15,12 @@ bootc switch --mutate-in-place --enforce-container-sigpolicy --transport registr
 %end
 
 %post
+# Start in picture mode (the login screen). With an image payload the installer otherwise leaves the PC in text mode;
+# that is what her first install did (2026-11-18). taylor-heal.service in the image repairs a PC installed before this.
+systemctl set-default graphical.target
+%end
+
+%post
 # Secure Boot: queue Universal Blue's driver-signing key so the NVIDIA driver loads. On the first boot a blue
 # screen asks once to enroll it; the password it asks for is: universalblue
 mokutil --timeout -1 || :
