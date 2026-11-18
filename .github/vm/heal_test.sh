@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 # Test taylor-heal inside the TAYLOR OS image (run in a throwaway container, repo mounted at /repo):
 #   t1 = her PC's state on 2026-11-18 (Hyprland's example hyprland.lua), t2 = an account with its own edited file,
-#   t3 = an account with no Hyprland settings at all. Then a second run must change nothing, and real Hyprland must
-#   find no errors in the desktop file.
+#   t3 = an account with no Hyprland settings at all. Then a second run must change nothing, real Hyprland must find no
+#   errors in the desktop file, and the login screen's setting must name a desktop session that exists.
 set -u
 fail=0
 check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
@@ -14,15 +14,8 @@ printf -- '-- This is an example Hyprland Lua config file.\n' > /home/t1/.config
 echo '-- my own settings' > /home/t2/.config/hypr/hyprland.lua
 chown -R t1:t1 /home/t1; chown -R t2:t2 /home/t2
 systemctl set-default multi-user.target >/dev/null 2>&1
-# the login screen last used KDE (as a PC where she once picked it)
-install -d /var/lib/plasmalogin
-printf '[Last]\nUser=t1\nSession=/usr/share/wayland-sessions/plasma.desktop\n' > /var/lib/plasmalogin/state.conf
 
 bash /repo/files/system/usr/libexec/taylor-heal
-
-check "login screen: TAYLOR desktop offered first" 'grep -qx "Session=/usr/share/wayland-sessions/hyprland-uwsm.desktop" /var/lib/plasmalogin/state.conf'
-check "login screen: the remembered user is kept" 'grep -qx "User=t1" /var/lib/plasmalogin/state.conf'
-check "the session it names exists" '[ -f /usr/share/wayland-sessions/hyprland-uwsm.desktop ]'
 
 check "picture mode is the default again" '[ "$(systemctl get-default)" = graphical.target ]'
 check "t1 (her state): TAYLOR desktop in place" 'grep -q TAYLOR-OS-DESKTOP /home/t1/.config/hypr/hyprland.lua'
@@ -38,15 +31,11 @@ before=$(find /home -type f | sort | xargs md5sum)
 bash /repo/files/system/usr/libexec/taylor-heal
 check "a second run changes nothing" '[ "$before" = "$(find /home -type f | sort | xargs md5sum)" ]'
 
-# she picks KDE later: the repair must not switch it back (it changes the login screen only once)
-sed -i 's#^Session=.*#Session=/usr/share/wayland-sessions/plasma.desktop#' /var/lib/plasmalogin/state.conf
-bash /repo/files/system/usr/libexec/taylor-heal
-check "her later pick of KDE is left alone" 'grep -qx "Session=/usr/share/wayland-sessions/plasma.desktop" /var/lib/plasmalogin/state.conf'
-
-# a brand-new PC with no state file at all
-rm -f /var/lib/taylor-heal/login-session-set /var/lib/plasmalogin/state.conf
-bash /repo/files/system/usr/libexec/taylor-heal
-check "new PC: TAYLOR desktop offered first" 'grep -qx "Session=/usr/share/wayland-sessions/hyprland-uwsm.desktop" /var/lib/plasmalogin/state.conf'
+conf=/repo/files/system/usr/lib/plasmalogin/plasmalogin.conf.d/10-taylor.conf
+sess=$(sed -n 's/^PreselectedSession=//p' "$conf" | tr -d '\r')
+check "login screen setting names a session ($sess)" '[ -n "$sess" ]'
+check "that session exists in the image" '[ -f "/usr/share/wayland-sessions/$sess" ]'
+check "the login screen reads that folder (it exists in the image)" '[ -d /usr/lib/plasmalogin/plasmalogin.conf.d ]'
 
 out=$(setpriv --reuid t1 --regid t1 --init-groups env HOME=/home/t1 XDG_RUNTIME_DIR=/tmp Hyprland --verify-config -c /home/t1/.config/hypr/hyprland.lua 2>&1)
 echo "$out" | tail -6

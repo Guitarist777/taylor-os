@@ -118,7 +118,7 @@ jobs:
             "journalctl -b -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
             "grep -q TAYLOR-OS-DESKTOP ~/.config/hypr/hyprland.lua && echo 'PASS her desktop file is the TAYLOR one' || echo 'FAIL her desktop file is the TAYLOR one'" \
             "ls ~/.config/hypr/hyprland.lua.example-* >/dev/null 2>&1 && echo 'PASS Hyprland example kept beside it' || echo 'FAIL Hyprland example kept beside it'" \
-            "echo taylortest | sudo -S grep -q 'Session=.*hyprland-uwsm.desktop' /var/lib/plasmalogin/state.conf && echo 'PASS login screen offers the TAYLOR desktop' || echo 'FAIL login screen offers the TAYLOR desktop'" \
+            "grep -qx 'PreselectedSession=hyprland-uwsm.desktop' /usr/lib/plasmalogin/plasmalogin.conf.d/10-taylor.conf && echo 'PASS login screen is set to the TAYLOR desktop' || echo 'FAIL login screen is set to the TAYLOR desktop'" \
             "systemctl get-default" \
             "systemctl is-active display-manager.service plasmalogin.service taylor-heal.service" \
             "journalctl -b -u taylor-heal --no-pager" \
@@ -153,7 +153,9 @@ jobs:
 
       - name: The verdict (fails on any FAIL)
         run: |
-          grep -hE '^(PASS|FAIL) ' out/2-checks.txt out/5-desktop-checks.txt | sort -u | tee out/verdict.txt
+          # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
+          # (lines starting "$ " are the typed commands, which contain both words: skip them)
+          cat out/2-checks.txt out/5-desktop-checks.txt | tr -d '\r' | grep -v '^\$ ' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge 11
           ! grep -q '^FAIL ' out/verdict.txt
 
