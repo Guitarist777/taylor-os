@@ -117,4 +117,11 @@ if [ "$mode" != "rw" ]; then
     umount "$MNT"
     result "refused: the kernel would only open $dev read-only (Windows may not have shut down cleanly). Start Windows, shut it down normally, then start TAYLOR OS again"
 fi
+# ntfs3 gives the TOP folder mode 777 whatever umask says (found in the virtual PC, 2026-11-18): any account could
+# write into the root of C:. Close it to her account, every mount.
+chmod 0700 "$MNT"
+if [ "$(stat -c %a "$MNT")" != 700 ]; then
+    umount "$MNT"
+    result "refused: the top folder of $dev could not be closed to other accounts"
+fi
 result "mounted $dev rw for $USER_NAME"
