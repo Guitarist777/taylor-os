@@ -113,6 +113,12 @@ jobs:
       - name: What the test PC says about itself
         run: |
           python3 .github/vm/vmctl.py run tester taylortest out/2-checks.txt \
+            "[ \"\$(systemctl get-default)\" = graphical.target ] && echo 'PASS starts in picture mode' || echo 'FAIL starts in picture mode'" \
+            "systemctl is-active -q plasmalogin.service && echo 'PASS the login screen is running' || echo 'FAIL the login screen is running'" \
+            "journalctl -b -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
+            "grep -q TAYLOR-OS-DESKTOP ~/.config/hypr/hyprland.lua && echo 'PASS her desktop file is the TAYLOR one' || echo 'FAIL her desktop file is the TAYLOR one'" \
+            "ls ~/.config/hypr/hyprland.lua.example-* >/dev/null 2>&1 && echo 'PASS Hyprland example kept beside it' || echo 'FAIL Hyprland example kept beside it'" \
+            "echo taylortest | sudo -S grep -q 'Session=.*hyprland-uwsm.desktop' /var/lib/plasmalogin/state.conf && echo 'PASS login screen offers the TAYLOR desktop' || echo 'FAIL login screen offers the TAYLOR desktop'" \
             "systemctl get-default" \
             "systemctl is-active display-manager.service plasmalogin.service taylor-heal.service" \
             "journalctl -b -u taylor-heal --no-pager" \
@@ -130,6 +136,12 @@ jobs:
           sleep 90
           python3 .github/vm/vmctl.py shot "$PWD/out/4-after-login.png"
           python3 .github/vm/vmctl.py run tester taylortest out/5-desktop-checks.txt \
+            "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS logging in opens Hyprland' || echo 'FAIL logging in opens Hyprland'" \
+            "pgrep -u tester -f '^(/usr/bin/)?quickshell' >/dev/null && echo 'PASS her desktop shell (quickshell) is running' || echo 'FAIL her desktop shell (quickshell) is running'" \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr 2>/dev/null | head -1); hyprctl -j configerrors 2>/dev/null | tr -d ' \n' | grep -qxE '\[(\"\")?\]' && echo 'PASS Hyprland reports no settings errors' || echo 'FAIL Hyprland reports no settings errors'" \
+            "hyprctl layers 2>/dev/null | grep -q taylor-dock && echo 'PASS the dock is on screen' || echo 'FAIL the dock is on screen'" \
+            "hyprctl layers 2>/dev/null | grep -q taylor-clock && echo 'PASS the clock is on screen' || echo 'FAIL the clock is on screen'" \
+            "hyprctl -j configerrors 2>&1" \
             "loginctl list-sessions --no-legend" \
             "for s in \$(loginctl list-sessions --no-legend | awk '{print \$1}'); do loginctl show-session \$s -p Type -p Desktop -p Service -p State; done" \
             "pgrep -a -u tester 'Hyprland|quickshell|hyprpaper|plasmashell|kwin'" \
@@ -138,6 +150,12 @@ jobs:
             "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl layers 2>&1 | head -60" \
             "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1"
           cat out/5-desktop-checks.txt
+
+      - name: The verdict (fails on any FAIL)
+        run: |
+          grep -hE '^(PASS|FAIL) ' out/2-checks.txt out/5-desktop-checks.txt | sort -u | tee out/verdict.txt
+          test "$(grep -c '^PASS ' out/verdict.txt)" -ge 11
+          ! grep -q '^FAIL ' out/verdict.txt
 
       - name: Keep the pictures and logs
         if: always()

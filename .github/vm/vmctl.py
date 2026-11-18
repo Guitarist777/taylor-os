@@ -61,20 +61,24 @@ def wait_login(timeout):
 
 
 def run(user, password, outfile, cmds):
+    # 2026-11-18, first run: the end marker was matched in the ECHO of the typed command, so every answer was cut off.
+    # Now the typed text never contains the marker (printf builds it), and each step waits for the user's own prompt.
+    prompt = re.escape(user) + r"@[^:\s]+:~\$ "
     s = serial()
     send(s, "\r")
     read_until(s, r"login:\s*$", 60)
     send(s, user + "\r")
     read_until(s, r"[Pp]assword:\s*$", 30)
     send(s, password + "\r")
-    read_until(s, r"\$\s*$", 60)
-    send(s, "export PAGER=cat SYSTEMD_PAGER=cat TERM=dumb; stty cols 200\r")
-    read_until(s, r"\$\s*$", 20)
+    read_until(s, prompt, 90)
+    time.sleep(2)
+    send(s, "export PAGER=cat SYSTEMD_PAGER=cat TERM=dumb; stty cols 200 -echo\r")
+    read_until(s, prompt, 20)
     out = []
     for c in cmds:
-        marker = f"__DONE_{len(out)}__"
-        send(s, f"{c}; echo {marker}\r")
-        text = read_until(s, marker + r"\s*\r?\n", 180)
+        n = len(out)
+        send(s, f"{c}; printf '__DO%sNE_%s__\\n' '' {n}\r")
+        text = read_until(s, rf"__DONE_{n}__\r?\n", 180)
         out.append(f"$ {c}\n{text}")
     send(s, "exit\r")
     with open(outfile, "w", encoding="utf-8") as f:

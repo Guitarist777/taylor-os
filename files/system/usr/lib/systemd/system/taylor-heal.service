@@ -1,6 +1,6 @@
 [Unit]
 Description=TAYLOR OS start-up repair (picture mode, her desktop settings)
-After=local-fs.target home.mount var-home.mount systemd-user-sessions.service
+After=local-fs.target home.mount var-home.mount systemd-tmpfiles-setup.service systemd-user-sessions.service
 Before=display-manager.service plasmalogin.service sddm.service
 
 [Service]

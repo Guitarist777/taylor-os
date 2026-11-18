@@ -16,6 +16,28 @@ if [ "$(systemctl get-default)" != "graphical.target" ]; then
     systemctl start --no-block graphical.target
 fi
 
+# 3 (done first, as step 2 can end the script). The login screen offers her TAYLOR desktop (Hyprland) first, ONCE.
+# It remembers the desktop last used in state.conf, and a new PC has none, so it picked KDE (the 2026-11-18 virtual PC
+# test). After this one change it goes back to remembering what she last picked, so choosing KDE one day sticks.
+session=/usr/share/wayland-sessions/hyprland-uwsm.desktop
+done_flag=/var/lib/taylor-heal/login-session-set
+state=/var/lib/plasmalogin/state.conf
+if [ -f "$session" ] && [ ! -e "$done_flag" ] && [ -d /var/lib/plasmalogin ]; then
+    if [ -f "$state" ] && grep -q '^\[Last\]' "$state"; then
+        if grep -q '^Session=' "$state"; then
+            sed -i "s#^Session=.*#Session=$session#" "$state"
+        else
+            sed -i "/^\[Last\]/a Session=$session" "$state"
+        fi
+    else
+        printf '[Last]\nSession=%s\n' "$session" >> "$state"
+    fi
+    chown plasmalogin:plasmalogin "$state" 2>/dev/null || :
+    install -d /var/lib/taylor-heal
+    : > "$done_flag"
+    log "login screen: the TAYLOR desktop (Hyprland) is offered first"
+fi
+
 # 2. Her desktop settings
 skel=/etc/skel/.config/hypr/hyprland.lua
 [ -f "$skel" ] || exit 0
