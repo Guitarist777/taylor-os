@@ -44,6 +44,7 @@ modules:
         - qt6-qtsvg # draws the dock and tray line icons (SVG)
         - python3-hidapi # ChatMix: talks to her Arctis Nova Pro Wireless base station
         - pulseaudio-utils # ChatMix: pactl sets the GAME / VOICE channel volumes
+        - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
@@ -59,5 +60,6 @@ modules:
     system:
       enabled:
         - taylor-heal.service
+        - taylor-windows-mount.service # the Windows drive at /var/mnt/windows for TAYLOR (refuses a hibernated drive)
 
   - type: signing # sets up the policy so the PC only accepts images signed with this repo's key

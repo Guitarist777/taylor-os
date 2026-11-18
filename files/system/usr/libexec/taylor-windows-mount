@@ -1,0 +1,120 @@
+#!/usr/bin/bash
+# TAYLOR OS: mount the Windows drive at /var/mnt/windows (2026-11-18, "one TAYLOR, either side").
+#
+# TAYLOR's brain lives in the Windows user folder (C:\Users\...\taylor). When the PC is booted into TAYLOR OS, this
+# script finds the Windows partition and mounts it so TAYLOR can run from the same folder. Runs as root at every boot,
+# before any user manager starts (user@.service waits for it), and never fails the boot.
+#
+#  - Which partition: no disk ID is baked into the image. Every NTFS partition is opened READ-ONLY for a look; the one
+#    that holds both Windows/System32 and Users is the Windows drive. None: nothing to do. More than one: refuse.
+#    (A machine with several can name one in /etc/taylor-os/windows-drive.conf: DEVICE=/dev/...)
+#  - Hibernated (Windows Fast Startup, or Windows put into hibernation) or not shut down cleanly: REFUSE to mount it
+#    at all and say why. Writing to a hibernated Windows drive can destroy files when Windows wakes up.
+#  - Otherwise: the kernel's ntfs3 driver, owned by her account, umask=077 (only she and root can read it),
+#    windows_names (refuses file names Windows could not open), nofail, nodev, nosuid, noatime.
+#  - Her account: the only regular account on the PC, or USER= in the conf file. Two accounts and no USER=: refuse.
+#
+# The result is one line in /run/taylor-os/windows-drive ("mounted /dev/... rw" or "refused: <plain reason>" or
+# "none: ...") and in the journal (journalctl -u taylor-windows-mount).
+set -u
+MNT=/var/mnt/windows
+CONF=/etc/taylor-os/windows-drive.conf
+STATE_DIR=/run/taylor-os
+STATE=$STATE_DIR/windows-drive
+PROBE=$STATE_DIR/windows-probe
+OPTS_BASE="umask=077,windows_names,nofail,nodev,nosuid,noatime"
+
+mkdir -p "$STATE_DIR" "$MNT"
+log()    { echo "taylor-windows-mount: $*"; }
+result() { printf '%s\n' "$1" > "$STATE"; log "$1"; exit 0; }
+
+USER_NAME=""
+DEVICE=""
+if [ -f "$CONF" ]; then
+    USER_NAME=$(sed -n 's/^USER=//p' "$CONF" | tail -1)
+    DEVICE=$(sed -n 's/^DEVICE=//p' "$CONF" | tail -1)
+fi
+
+if mountpoint -q "$MNT"; then
+    result "mounted $(findmnt -no SOURCE "$MNT") $(findmnt -no OPTIONS "$MNT" | cut -d, -f1) (already)"
+fi
+
+# --- her account
+if [ -z "$USER_NAME" ]; then
+    mapfile -t regular < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 && $7 !~ /(nologin|false)$/ {print $1}')
+    if [ "${#regular[@]}" -eq 1 ]; then
+        USER_NAME=${regular[0]}
+    elif [ "${#regular[@]}" -eq 0 ]; then
+        result "refused: there is no regular account on this PC yet"
+    else
+        result "refused: this PC has ${#regular[@]} accounts (${regular[*]}); put USER=<name> in $CONF to say whose drive it is"
+    fi
+fi
+uid=$(id -u "$USER_NAME" 2>/dev/null) || result "refused: the account '$USER_NAME' does not exist"
+gid=$(id -g "$USER_NAME")
+
+# --- find the Windows partition (read-only look only)
+mkdir -p "$PROBE"
+looks_like_windows() {   # $1 = device; mounted read-only at $PROBE by the caller
+    [ -d "$PROBE/Windows/System32" ] && [ -d "$PROBE/Users" ]
+}
+hibernated_file() {      # Windows' own hibernation file says "hibr" (any case) while Windows is hibernated
+    [ -f "$PROBE/hiberfil.sys" ] || return 1
+    local sig
+    sig=$(head -c 4 "$PROBE/hiberfil.sys" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    [ "$sig" = "hibr" ]
+}
+
+if [ -n "$DEVICE" ]; then
+    candidates=("$DEVICE")
+else
+    mapfile -t candidates < <(lsblk -rpno NAME,FSTYPE | awk '$2 == "ntfs" {print $1}')
+fi
+[ "${#candidates[@]}" -gt 0 ] || result "none: no NTFS partition on this PC"
+
+found=()
+hib_found=()
+for dev in "${candidates[@]}"; do
+    [ -b "$dev" ] || continue
+    if ! mount -t ntfs3 -o ro,nodev,nosuid,noexec "$dev" "$PROBE" 2>/dev/null; then
+        log "$dev: could not be opened even read-only; skipped"
+        continue
+    fi
+    if looks_like_windows; then
+        found+=("$dev")
+        hibernated_file && hib_found+=("$dev")
+    fi
+    umount "$PROBE"
+done
+rmdir "$PROBE" 2>/dev/null
+
+[ "${#found[@]}" -gt 0 ] || result "none: no NTFS partition holds Windows (looked at ${candidates[*]})"
+[ "${#found[@]}" -eq 1 ] || result "refused: ${#found[@]} partitions look like Windows (${found[*]}); put DEVICE=<one of them> in $CONF"
+dev=${found[0]}
+
+# --- is it safe to write?
+if [ "${#hib_found[@]}" -gt 0 ]; then
+    result "refused: Windows on $dev is hibernated (Fast Startup or hibernation). Start Windows, turn Fast Startup off, shut down, then start TAYLOR OS again"
+fi
+if command -v ntfs-3g.probe >/dev/null 2>&1; then
+    ntfs-3g.probe --readwrite "$dev" >/dev/null 2>&1
+    rc=$?
+    case $rc in
+        0) ;;
+        14) result "refused: Windows on $dev is hibernated (Fast Startup or hibernation). Start Windows, turn Fast Startup off, shut down, then start TAYLOR OS again" ;;
+        15) result "refused: Windows on $dev did not shut down cleanly. Start Windows, shut it down normally, then start TAYLOR OS again" ;;
+        *)  result "refused: the Windows drive $dev failed the safety check (ntfs-3g.probe said $rc)" ;;
+    esac
+fi
+
+# --- mount it for her
+if ! err=$(mount -t ntfs3 -o "uid=$uid,gid=$gid,$OPTS_BASE" "$dev" "$MNT" 2>&1); then
+    result "refused: mounting $dev failed: $err"
+fi
+mode=$(findmnt -no OPTIONS "$MNT" | cut -d, -f1)
+if [ "$mode" != "rw" ]; then
+    # ntfs3 itself fell back to read-only (a volume it thinks is dirty): never leave TAYLOR a read-only brain
+    umount "$MNT"
+    result "refused: the kernel would only open $dev read-only (Windows may not have shut down cleanly). Start Windows, shut it down normally, then start TAYLOR OS again"
+fi
+result "mounted $dev rw for $USER_NAME"
