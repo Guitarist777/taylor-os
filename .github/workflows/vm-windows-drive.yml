@@ -44,6 +44,11 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q qemu-system-x86 qemu-utils ovmf ntfs-3g
           ls -l /dev/kvm /usr/share/OVMF/
+          # GitHub sometimes hands out a smaller machine (run 44403991732: 2 CPUs, "cannot set up guest memory"):
+          # size the test PC to what this one has, up to 4 CPUs and 8 GB
+          cpus=$(nproc); [ "$cpus" -gt 4 ] && cpus=4
+          mem=$(( $(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo) - 1536 )); [ "$mem" -gt 8192 ] && mem=8192
+          echo "VM_CPUS=$cpus" >> "$GITHUB_ENV"; echo "VM_MEM=$mem" >> "$GITHUB_ENV"; echo "test PC: $cpus CPUs, $mem MB"
 
       - name: The test kickstart (the real one plus test-only answers)
         run: |
@@ -93,7 +98,7 @@ jobs:
         run: |
           cp /usr/share/OVMF/OVMF_VARS_4M.fd vars.fd
           qemu-img create -f qcow2 disk.qcow2 60G
-          timeout 100m qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+          timeout 100m qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
             -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
             -drive if=pflash,format=raw,file=vars.fd \
             -drive file=disk.qcow2,if=virtio -cdrom test.iso \
@@ -122,7 +127,7 @@ jobs:
 
       - name: Start 1, Windows hibernated
         run: |
-          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
             -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
             -drive if=pflash,format=raw,file=vars.fd \
             -drive file=disk.qcow2,if=virtio -drive file=win.img,format=raw,if=virtio \
@@ -152,7 +157,7 @@ jobs:
       - name: Start 2, Windows shut down properly; SQLite WAL on it, kill -9 mid-write
         run: |
           rm -f /tmp/vm-serial.sock /tmp/vm-qmp.sock
-          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp $VM_CPUS -m $VM_MEM \
             -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
             -drive if=pflash,format=raw,file=vars.fd \
             -drive file=disk.qcow2,if=virtio -drive file=win.img,format=raw,if=virtio \
