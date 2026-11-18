@@ -14,6 +14,10 @@ on:
         description: "image tag to install (latest, or a test branch's tag)"
         required: true
         default: latest
+  # while it is new (a workflow can be started by hand only once it is on main): run on a push to its own branch
+  push:
+    branches: [feat/windows-drive]
+    paths: ['.github/workflows/vm-windows-drive.yml', '.github/vm/**']
 
 jobs:
   vm:
@@ -24,7 +28,7 @@ jobs:
       NETINST: Fedora-Everything-netinst-x86_64-45-1.4.iso
       CHECKSUM: Fedora-Everything-45-1.4-x86_64-CHECKSUM
       BASE_URL: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/iso
-      TAG: ${{ inputs.tag }}
+      TAG: ${{ inputs.tag || 'br-feat_windows-drive-45' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -193,5 +197,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vm-windows-drive-${{ inputs.tag }}
+          name: vm-windows-drive-${{ inputs.tag || 'br-feat_windows-drive-45' }}
           path: out/
