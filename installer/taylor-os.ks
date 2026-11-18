@@ -15,8 +15,8 @@ bootc switch --mutate-in-place --enforce-container-sigpolicy --transport registr
 %end
 
 %post
-# Start in picture mode (the login screen). With an image payload the installer otherwise leaves the PC in text mode;
-# that is what her first install did (2026-11-18). taylor-heal.service in the image repairs a PC installed before this.
+# Start in picture mode (the login screen), whatever the installer decides for an image payload. A safety net: her
+# first boot's text console (2026-11-18) came from the image itself (fixed in the recipe); taylor-heal checks this too.
 systemctl set-default graphical.target
 %end
 

@@ -1,7 +1,8 @@
 #!/usr/bin/bash
 # TAYLOR OS start-up repair (2026-11-18). Runs as root on every boot, before the login screen, and changes only what is wrong:
-#  1. The first install (Fedora's installer with an image payload) left the PC starting in text mode, so the login screen
-#     never came up. If the default is not the graphical one, make it so and bring the login screen up now.
+#  1. A safety net: if the PC is set to start in text mode, start it in picture mode (the login screen). Her first boot
+#     (2026-11-18) came up in text mode because the image had lost its login screen (removing Terra's Xwayland took it
+#     along; fixed in the recipe). A text-mode default left by any install, or by hand, is put right here too.
 #  2. Hyprland 0.57 reads only ~/.config/hypr/hyprland.lua and, when there is none, writes its own example there. Accounts
 #     made before TAYLOR OS shipped a .lua got that example instead of her desktop. Replace ONLY that exact example (or a
 #     missing file) with /etc/skel's copy; any other hyprland.lua is hers and is never touched. The old file is kept.
