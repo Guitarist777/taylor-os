@@ -76,7 +76,7 @@ jobs:
           curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
           want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
           test "$want" = "$(sha256sum "$NETINST" | awk '{print $1}')"
-          docker run --rm --privileged -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
+          docker run --rm --privileged -e NETINST -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
             dnf install -y -q --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum >/dev/null
             ksvalidator -v F45 test.ks
             mkksiso --ks test.ks -c "console=ttyS0,115200 inst.text" "$NETINST" test.iso
