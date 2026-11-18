@@ -12,11 +12,15 @@ image-version: stable
 
 modules:
   # Bazzite's Fedora 45 build ships Terra's Xwayland, which does not satisfy the Xwayland Hyprland asks for
-  # (a known clash, 2026-11). Take Terra's out first and use Fedora's Xwayland, as other Bazzite + Hyprland images do.
-  - type: dnf
-    remove:
-      packages:
-        - terra-xorg-x11-server-Xwayland
+  # (a known clash, 2026-11). Swap it for Fedora's Xwayland in ONE step.
+  # Removing Terra's on its own (as this recipe did until 2026-11-18) also removed everything that needs an Xwayland:
+  # KDE Plasma, KWin, the Plasma login screen and gamescope. The PC then booted to a text console with no login screen.
+  # A swap keeps them, because Fedora's Xwayland satisfies them too. The check after it fails the build if any is missing.
+  - type: script
+    snippets:
+      - "dnf5 -y swap terra-xorg-x11-server-Xwayland xorg-x11-server-Xwayland"
+      - "rpm -q xorg-x11-server-Xwayland plasma-workspace plasma-desktop kwin plasma-login-manager"
+      - "rpm -q terra-gamescope || rpm -q gamescope"
 
   # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
   - type: dnf
@@ -26,7 +30,6 @@ modules:
     install:
       packages:
         - hyprland
-        - xorg-x11-server-Xwayland # Fedora's, in place of Terra's (see above)
         - xdg-desktop-portal-hyprland # screen sharing and file pickers inside Hyprland
         - hyprpolkitagent # the "enter your password" window for admin prompts
         - hyprlock # lock screen
@@ -36,6 +39,7 @@ modules:
         - kitty # terminal Hyprland's default config opens
         - quickshell # draws her desktop from the mockup: clock, mixer, dock, tray (from Fedora itself)
         - fuzzel # app search on Windows key + Space
+        - mako # notification pop-ups (Hyprland has none of its own)
         - playerctl # play / pause / next keys
         - qt6-qtsvg # draws the dock and tray line icons (SVG)
         - python3-hidapi # ChatMix: talks to her Arctis Nova Pro Wireless base station

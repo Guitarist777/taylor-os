@@ -1,9 +1,14 @@
 -- TAYLOR OS: Hyprland, styled after her mockup "7 · Dock your way + mixer widget" (the TAYLOR theme).
--- Hyprland 0.57 reads only this Lua file (the old hyprland.conf format was dropped). This copy is put in a new
--- account's home by /etc/skel, and /usr/libexec/taylor-desktop puts it in place for an account made before it existed.
--- TAYLOR-OS-DESKTOP (this line tells taylor-desktop the file is ours; keep it if you edit the file)
+-- This file is copied into her home when her account is made; edit ~/.config/hypr/hyprland.lua to change it.
+-- Hyprland 0.57 reads only this Lua file (hyprland.conf is no longer read). Options: https://wiki.hypr.land/configuring/
+-- TAYLOR-OS-DESKTOP (taylor-heal recognises this file as TAYLOR's by this line; keep it if you edit the file)
 
-hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+hl.monitor({
+    output   = "",
+    mode     = "preferred",
+    position = "auto",
+    scale    = "auto",
+})
 
 -- What starts with the desktop
 hl.on("hyprland.start", function()
@@ -11,27 +16,27 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("quickshell")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("hypridle")
+    hl.exec_cmd("mako")
 end)
 
 hl.env("XCURSOR_SIZE", "24")
-hl.env("HYPRCURSOR_SIZE", "24")
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
 
 hl.config({
     general = {
-        gaps_in  = 6,
-        gaps_out = 14,
-        border_size = 2,
+        gaps_in          = 6,
+        gaps_out         = 14,
+        border_size      = 2,
         col = {
             active_border   = "rgba(4fb386ee)",
             inactive_border = "rgba(ffffff14)",
         },
-        layout = "dwindle",
+        layout           = "dwindle",
         resize_on_border = true,
     },
 
     decoration = {
-        rounding = 14,
+        rounding         = 14,
         active_opacity   = 1.0,
         inactive_opacity = 0.97,
         shadow = {
@@ -48,17 +53,17 @@ hl.config({
         },
     },
 
-    animations = { enabled = true },
+    animations = {
+        enabled = true,
+    },
 
     dwindle = {
-        pseudotile     = true,
         preserve_split = true,
     },
 
     misc = {
         disable_hyprland_logo    = true,
         disable_splash_rendering = true,
-        force_default_wallpaper  = 0,
         background_color         = "rgb(0f1010)",
     },
 
@@ -69,7 +74,16 @@ hl.config({
     },
 })
 
--- Calm motion
+-- Glass behind the dock, tray, clock and mixer (they draw their own see-through backgrounds)
+for _, name in ipairs({ "taylor-dock", "taylor-tray", "taylor-clock" }) do
+    hl.layer_rule({
+        name         = "glass-" .. name,
+        match        = { namespace = "^" .. name .. "$" },
+        blur         = true,
+        ignore_alpha = 0,
+    })
+end
+
 hl.curve("calm", { type = "bezier", points = { {0.22, 1}, {0.36, 1} } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 5, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 4, bezier = "calm", style = "popin 90%" })
@@ -77,13 +91,9 @@ hl.animation({ leaf = "fade",       enabled = true, speed = 5, bezier = "calm" }
 hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slidefade 15%" })
 hl.animation({ leaf = "layers",     enabled = true, speed = 4, bezier = "calm", style = "fade" })
 
--- Glass behind the dock, tray, clock and mixer (they draw their own see-through backgrounds)
-for _, ns in ipairs({ "taylor-dock", "taylor-tray", "taylor-clock" }) do
-    hl.layer_rule({ name = "glass-" .. ns, match = { namespace = "^" .. ns .. "$" }, blur = true, ignore_alpha = 0 })
-end
-
 -- Keys. SUPER is the Windows key.
 local mod = "SUPER"
+
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
 hl.bind(mod .. " + Space",  hl.dsp.exec_cmd("fuzzel"))
 hl.bind(mod .. " + E",      hl.dsp.exec_cmd("dolphin"))
@@ -92,7 +102,7 @@ hl.bind(mod .. " + Q",      hl.dsp.window.close())
 hl.bind(mod .. " + F",      hl.dsp.window.fullscreen())
 hl.bind(mod .. " + V",      hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + L",      hl.dsp.exec_cmd("hyprlock"))
-hl.bind(mod .. " + SHIFT + M", hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"))
+hl.bind(mod .. " + SHIFT + M", hl.dsp.exit())
 
 hl.bind(mod .. " + left",  hl.dsp.focus({ direction = "left" }))
 hl.bind(mod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -112,6 +122,5 @@ hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
 hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true })
 hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
