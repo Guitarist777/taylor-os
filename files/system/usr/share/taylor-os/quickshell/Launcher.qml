@@ -73,7 +73,23 @@ PanelWindow {
         for (let i = 0; i < all.length; i++) { const e = all[i]; if (e && !e.noDisplay && e.name) out.push(e); }
         return out;
     }
-    function appById(id) { const a = apps(); for (let i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+    function appById(id) {
+        const a = apps(), bare = id.replace(/\.desktop$/, "");
+        for (let i = 0; i < a.length; i++) if (a[i].id === id || a[i].id === bare || a[i].id === bare + ".desktop") return a[i];
+        return null;
+    }
+    // The app list arrives a moment after the desktop starts: show the list again when it does.
+    Connections {
+        target: DesktopEntries.applications
+        function onValuesChanged() { if (win.open) win.render(); }
+    }
+    // Best first: a name that starts with what she typed, then one with a word that starts with it, then the rest.
+    function rank(name, lo) {
+        const n = name.toLowerCase(), at = n.indexOf(lo);
+        if (at < 0) return -1;
+        if (at === 0) return 0;
+        return (" -_.(".indexOf(n[at - 1]) >= 0) ? 1 : 2;
+    }
 
     // Files and folders in her home (four folders deep, hidden ones skipped), asked a moment after she stops typing.
     Process {
@@ -126,12 +142,24 @@ PanelWindow {
                 if (e && !list.some(x => x.id === e.id)) list.push({ k: "App", n: e.name, id: e.id, entry: e });
             }
         } else {
-            const a = apps();
-            for (let i = 0; i < a.length && list.length < 5; i++)
-                if (a[i].name.toLowerCase().indexOf(lo) >= 0) list.push({ k: "App", n: a[i].name, id: a[i].id, entry: a[i] });
-            if (list.length < 5 && "mixer".indexOf(lo) >= 0) list.push({ k: "App", n: "Mixer", id: "", mixer: true });
+            const found = [], a = apps();
+            for (let i = 0; i < a.length; i++) {
+                const r = rank(a[i].name, lo);
+                if (r >= 0) found.push({ r: r, g: 0, it: { k: "App", n: a[i].name, id: a[i].id, entry: a[i] } });
+            }
+            const rm = rank("Mixer", lo);
+            if (rm >= 0) found.push({ r: rm, g: 0, it: { k: "App", n: "Mixer", id: "", mixer: true } });
             if (fileHits.q === q)
-                for (let f = 0; f < fileHits.list.length && list.length < 5; f++) list.push(fileHits.list[f]);
+                for (let f = 0; f < fileHits.list.length; f++) found.push({ r: rank(fileHits.list[f].n, lo), g: 1, it: fileHits.list[f] });
+            // apps before files at the same rank; then shorter names, then A to Z
+            found.sort((p, q2) => (p.r - q2.r) || (p.g - q2.g) || (p.it.n.length - q2.it.n.length) || p.it.n.localeCompare(q2.it.n));
+            const seen = {};
+            for (let i = 0; i < found.length && list.length < 5; i++) {
+                const key = found[i].it.k + "|" + found[i].it.n;
+                if (seen[key]) continue;
+                seen[key] = true;
+                list.push(found[i].it);
+            }
             list.push({ k: "TAYLOR", n: "Ask TAYLOR: “" + q + "”" });
         }
         rows = list;
@@ -164,12 +192,14 @@ PanelWindow {
             input.text = preset;
             render();
             focusSoon.start();
+            renderLater.start();   // and once more, in case the app list was still arriving
             if (preset) findSoon.restart();
         } else {
             input.focus = false;
         }
     }
     Timer { id: focusSoon; interval: 260; onTriggered: input.forceActiveFocus() }
+    Timer { id: renderLater; interval: 700; onTriggered: win.render() }
 
     // ---- the drawing: the dim, the bar growing, the dial on its way ----
     Canvas {
