@@ -18,6 +18,9 @@ var Dd = 1.75;            // her dial draw time
 var tb = -1;              // seconds into the hand-off (B), -1 before it
 var skipCover = 0;        // a key or click during the opening jumps to the login; this dark lifts over half a second
 var FONT = 'Manrope';
+// Qt's canvas takes a font line only as "<size>px <family>" (with normal/bold): a number weight such as 500 makes it
+// throw the whole line away and draw at its tiny default size (2026-11-19 VM test).
+function fontAt(px) { return Math.round(px) + 'px ' + FONT; }
 var name = '';
 
 // C, the login
@@ -326,9 +329,9 @@ function drawLogin(x, dt) {
     if (L > 0) {
         var d0 = new Date(), h = d0.getHours() % 12 || 12;
         x.globalAlpha = L * 0.95; x.fillStyle = '#EDEFEE';
-        x.font = '500 ' + Math.round(Math.min(68 * k, W * 0.11)) + 'px "' + FONT + '"';
+        x.font = fontAt(Math.min(68 * k, W * 0.11));
         x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (1 - L) * 8) * k);
-        x.globalAlpha = L * 0.85; x.fillStyle = '#9AA19D'; x.font = '400 ' + Math.round(15 * k) + 'px "' + FONT + '"';
+        x.globalAlpha = L * 0.85; x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
         x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (1 - L) * 8) * k);
     }
 
@@ -379,9 +382,9 @@ function drawLogin(x, dt) {
     if (hint === 'Type a password first' && T - hintT > 2.2) hint = 'Type your password';
 
     if (N > 0) {
-        x.globalAlpha = N * 0.95; x.fillStyle = '#EDEFEE'; x.font = '500 ' + Math.round(15 * k) + 'px "' + FONT + '"';
+        x.globalAlpha = N * 0.95; x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         x.fillText(name, cx, 298 * k);
-        x.globalAlpha = N * 0.85; x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = '400 ' + Math.round(12 * k) + 'px "' + FONT + '"';
+        x.globalAlpha = N * 0.85; x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
         x.fillText(hint, cx, 318 * k);
     }
     x.globalAlpha = 1;
