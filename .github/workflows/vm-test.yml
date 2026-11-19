@@ -237,6 +237,10 @@ jobs:
           read -r sw sh < <(tr -d '\r' < out/7b-dial.txt | grep -oE 'SCREENWH [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
           # the ring's centre is the dial's spot: half way across its window, 390/900 of the screen down
           cx=$((dx + dw / 2)); cy=$((sh * 390 / 900))
+          # (a look only) the mixer sits on the same desktop layer: does its Headphones button take a click?
+          python3 .github/vm/vmctl.py click $((sw * 350 / 1280)) $((sh * 170 / 800)) "$sw" "$sh"
+          sleep 2
+          python3 .github/vm/vmctl.py shot "$PWD/out/7b2-mixer-headphones.png"
           echo "dial window $dx $dy $dw $dh on $sw x $sh: clicking $cx, $cy"
           python3 .github/vm/vmctl.py click $cx $cy "$sw" "$sh"
           sleep 3

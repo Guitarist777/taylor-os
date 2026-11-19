@@ -21,7 +21,7 @@ PanelWindow {
     readonly property var sp: Dial.spot(screen ? screen.width : 1920, screen ? screen.height : 1080)
     readonly property real ext: Math.ceil(sp.r + 20 * sp.r / 30)        // the outer arcs and their stroke
     readonly property real below: Math.ceil(118 * sp.k + 14 * sp.k)    // down to the status line
-    readonly property real side: Math.ceil(110 * sp.k)                 // room for a longer status line
+    readonly property real side: Math.ceil(70 * sp.k)                  // room for a longer status line ("OPENING SETTINGS.")
 
     anchors { top: true; left: true }
     margins { left: Math.round(sp.x - ext - side); top: Math.round(sp.y - ext) }
@@ -31,8 +31,8 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Bottom
     WlrLayershell.namespace: "taylor-dial"
-    // only the dial's ring takes a click; the rest of this window lets clicks through to the desktop
-    mask: Region { item: ring }
+    // No input mask: with "mask: Region { item: ring }" the test PC's click never reached the dial (2026-11-19). The
+    // window is kept narrow enough to stay clear of the mixer, and nothing else on the desktop under it takes a click.
 
     property real spin: 0
     Canvas {
