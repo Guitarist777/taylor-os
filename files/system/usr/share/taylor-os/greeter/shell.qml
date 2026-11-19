@@ -130,7 +130,7 @@ ShellRoot {
                     Greetd.launch(root.session, root.sessionEnv, true);
                 } else {
                     console.info("taylor-greeter: demo signed in");
-                    Qt.quit();
+                    root.fade = 0;   // the demo stays on "Welcome back", for the preview's picture
                 }
             }
         }

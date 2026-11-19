@@ -33,7 +33,7 @@ PanelWindow {
     // The window is 100 x 100 for a moment before the screen's size arrives: in the first second and a half a new
     // size starts the scene again at the real size; later, it only resizes.
     function begin() {
-        if (width <= 0 || height <= 0) return;
+        if (width <= 200 || height <= 200) return;   // the 100 x 100 placeholder: wait for the real size
         if (started && Date.now() - startedMs > 1500) { Eng.setSize(width, height); return; }
         started = true;
         startedMs = Date.now();

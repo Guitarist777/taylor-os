@@ -85,7 +85,7 @@ jobs:
             kill $QS; wait $QS 2>/dev/null
             # her login screen (demo mode: no greetd here): the opening, the hand-off to the stars, the dial, letters typed,
             # a wrong password and a good one. NAME-FROM-TYPED-ANSWER, then when the screenshot is taken.
-            for SPEC in open1-0--x-3 open2-9--x-2 handoff1-16--x-2 handoff2-18.5--x-2 login-24--x-2 typed-24-7-x-3.2 wrong-24-7-wrong-2.9 ok-24-10-ok-3.6 ok2-24-10-ok-4.4; do
+            for SPEC in open1-0--x-3 open2-9--x-6 handoff1-16--x-9 handoff2-18.5--x-10 login-24--x-12 typed-24-7-x-12 ok-24-10-ok-14; do
               IFS=- read NAME FROM TYPED ANSWER WAIT <<< "$SPEC"
               [ "$TYPED" = "" ] && TYPED=""; [ "$ANSWER" = "x" ] && ANSWER=""
               TAYLOR_GREETER_FROM=$FROM TAYLOR_GREETER_TYPED=$TYPED TAYLOR_GREETER_ANSWER=$ANSWER QT_QUICK_BACKEND=software quickshell -p /repo/files/system/usr/share/taylor-os/greeter > /tmp/out/greeter-$NAME.log 2>&1 &
