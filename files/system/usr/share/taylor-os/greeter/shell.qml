@@ -21,9 +21,9 @@ ShellRoot {
     property bool launching: false
     property real fade: 0
 
-    // The screen between her login and her desktop stays dark: the text screen is cleared and its cursor hidden, and
-    // uwsm's start-up lines go to the journal, not her screen (the test PC showed them for a few seconds, 2026-11-19).
-    readonly property var session: ["sh", "-c", "TERM=linux setterm --cursor off --clear all 2>/dev/null; exec systemd-cat -t taylor-session uwsm start -e -D Hyprland hyprland.desktop"]
+    // Started exactly so: on 2026-11-19 wrapping it (screen cleared, its lines sent to the journal) made uwsm stop at
+    // once and her login came back. uwsm's start-up lines still show on the text screen until Hyprland's first picture.
+    readonly property var session: ["uwsm", "start", "-e", "-D", "Hyprland", "hyprland.desktop"]
     readonly property var sessionEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland", "XDG_SESSION_DESKTOP=Hyprland"]
 
     signal sTyped()
