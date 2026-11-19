@@ -241,13 +241,19 @@ jobs:
           python3 .github/vm/vmctl.py click $cx $cy "$sw" "$sh"
           sleep 3
           python3 .github/vm/vmctl.py shot "$PWD/out/7c-launcher-open.png"
+          # (the console names her home /home/tester, her desktop /var/home/tester: the running desktop is found by its process)
+          python3 .github/vm/vmctl.py run tester taylortest out/7e-launcher.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS a click on the dial opens her launcher' || echo 'FAIL a click on the dial opens her launcher'" \
+            "timeout 10 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -E 'taylor-(dial|desktop)' | tail -20" \
+            "quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call launcher close; sleep 1; hyprctl layers | grep -q taylor-launcher && echo 'NOTE still open' || echo 'NOTE shut before the keys'"
+          # Windows key + Space, as she would press it
+          python3 .github/vm/vmctl.py key meta_l-spc
+          sleep 3
+          python3 .github/vm/vmctl.py run tester taylortest out/7e2-keys.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS Windows key + Space opens her launcher' || echo 'FAIL Windows key + Space opens her launcher'"
           python3 .github/vm/vmctl.py type 'kitt'
           sleep 2
           python3 .github/vm/vmctl.py shot "$PWD/out/7d-launcher-typed.png"
-          python3 .github/vm/vmctl.py run tester taylortest out/7e-launcher.txt \
-            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS a click on the dial opens her launcher' || echo 'FAIL a click on the dial opens her launcher'" \
-            "timeout 10 quickshell log 2>&1 | grep -E 'taylor-(dial|desktop)' | tail -20" \
-            "hyprctl layers | grep -q taylor-launcher || { quickshell ipc call launcher open; sleep 2; hyprctl layers | grep -q taylor-launcher && echo 'NOTE the launcher opens by ipc' || echo 'NOTE the launcher does not open by ipc either'; quickshell ipc call launcher close; sleep 1; }"
           python3 .github/vm/vmctl.py key ret
           sleep 1.2
           python3 .github/vm/vmctl.py shot "$PWD/out/7f-opening-status.png"
@@ -258,7 +264,7 @@ jobs:
             "hyprctl layers | grep -q taylor-launcher && echo 'FAIL her launcher closes after she picks' || echo 'PASS her launcher closes after she picks'" \
             "cat ~/.local/state/taylor-os/launcher-recent.json; echo" \
             "pkill -x kitty; echo closed"
-          cat out/7e-launcher.txt out/7h-launched.txt
+          cat out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt
 
       - name: Sign out, and watch her opening play on the login screen
         run: |
@@ -279,8 +285,8 @@ jobs:
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7h-launched.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=23; [ -n "$UPDATE_TO" ] && want=25
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=24; [ -n "$UPDATE_TO" ] && want=26
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 
