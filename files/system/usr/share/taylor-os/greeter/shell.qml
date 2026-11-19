@@ -121,8 +121,8 @@ ShellRoot {
         property real faded: -1
         onTriggered: {
             const w = sceneList.count > 0 ? sceneList.objectAt(0).welcomeFor() : 2;
-            if (w < 1.6) return;
-            root.fade = Math.min(1, (w - 1.6) / 0.5);
+            if (w < 4.6) return;   // her unlock plays to the end: the desktop dial drawn, the last faint star in
+            root.fade = Math.min(1, (w - 4.6) / 0.4);
             if (root.fade >= 1) {
                 stop();
                 if (Greetd.available) {

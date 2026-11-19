@@ -83,12 +83,23 @@ jobs:
             sleep 15
             grim /tmp/out/desktop-live-weather.png
             kill $QS; wait $QS 2>/dev/null
+            # her arrival after signing in, held at four moments: the login night with the dial, letting go of it,
+            # the dock / clock / mixer coming in, all in with the tray and ALL CLEAR.
+            for AT in 0.6 1.4 2.0 2.9; do
+              TAYLOR_SKY_HOUR=13 TAYLOR_ARRIVE_AT=$AT QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-arrive-$AT.log 2>&1 &
+              QS=$!
+              sleep 10
+              grim /tmp/out/arrive-$AT.png
+              kill $QS; wait $QS 2>/dev/null
+            done
             # her login screen (demo mode: no greetd here): the opening, the hand-off to the stars, the dial, letters typed,
-            # a wrong password and a good one. NAME-FROM-TYPED-ANSWER, then when the screenshot is taken.
-            for SPEC in open1-0--x-3 open2-9--x-6 handoff1-16--x-9 handoff2-18.5--x-10 login-24--x-12 typed-24-7-x-12 ok-24-10-ok-14; do
-              IFS=- read NAME FROM TYPED ANSWER WAIT <<< "$SPEC"
+            # a wrong password and a good one, then her unlock held at three moments. NAME-FROM-TYPED-ANSWER-WAIT[-UNLOCK]:
+            # WAIT is when the screenshot is taken, UNLOCK holds the unlock that many seconds after Welcome back.
+            for SPEC in open1-0--x-3 open2-9--x-6 handoff1-16--x-9 handoff2-18.5--x-10 login-24--x-12 typed-24-7-x-12 ok-24-10-ok-14-0.3 unlock1-24-10-ok-16-2.0 unlock2-24-10-ok-16-3.0 unlock3-24-10-ok-16-4.4; do
+              UNLOCK=
+              IFS=- read NAME FROM TYPED ANSWER WAIT UNLOCK <<< "$SPEC"
               [ "$TYPED" = "" ] && TYPED=""; [ "$ANSWER" = "x" ] && ANSWER=""
-              TAYLOR_GREETER_FROM=$FROM TAYLOR_GREETER_TYPED=$TYPED TAYLOR_GREETER_ANSWER=$ANSWER QT_QUICK_BACKEND=software quickshell -p /repo/files/system/usr/share/taylor-os/greeter > /tmp/out/greeter-$NAME.log 2>&1 &
+              TAYLOR_GREETER_FROM=$FROM TAYLOR_GREETER_TYPED=$TYPED TAYLOR_GREETER_ANSWER=$ANSWER TAYLOR_GREETER_UNLOCK_AT=$UNLOCK QT_QUICK_BACKEND=software quickshell -p /repo/files/system/usr/share/taylor-os/greeter > /tmp/out/greeter-$NAME.log 2>&1 &
               QS=$!
               sleep $WAIT
               grim /tmp/out/greeter-$NAME.png
@@ -107,6 +118,7 @@ jobs:
           echo "--- chatmix"; cat out/chatmix.txt || true
           echo "--- mixer channels"; cat out/channels.txt || true
           for H in 13 16.75 22 7 13-cloudy 13-rain 22-snow live-weather; do test -s out/desktop-$H.png; done
+          for AT in 0.6 1.4 2.0 2.9; do test -s out/arrive-$AT.png; done
           for f in out/greeter-*.log; do echo "--- $f"; cat "$f"; done
           grep -h "taylor-sky: weather" out/quickshell-live-weather.log
 

@@ -15,6 +15,12 @@ PanelWindow {
         const v = parseFloat(Quickshell.env("TAYLOR_GREETER_FROM") || "");
         return isNaN(v) ? 0 : v;
     }
+    // TAYLOR_GREETER_UNLOCK_AT=2 holds her unlock 2 seconds after "Welcome back" (the preview's frames).
+    readonly property real unlockAt: {
+        const v = parseFloat(Quickshell.env("TAYLOR_GREETER_UNLOCK_AT") || "");
+        return isNaN(v) ? -1 : v;
+    }
+    property bool held: false
     property bool started: false
     property double startedMs: 0
     signal skipped()
@@ -84,7 +90,16 @@ PanelWindow {
 
     FrameAnimation {
         running: win.started
-        onTriggered: { Eng.advance(frameTime); art.requestPaint(); }
+        onTriggered: {
+            if (!win.held) {
+                Eng.advance(frameTime);
+                if (win.unlockAt >= 0 && Eng.welcomeFor() >= 0) {
+                    while (Eng.welcomeFor() < win.unlockAt) Eng.advance(1 / 60);
+                    win.held = true;
+                }
+            }
+            art.requestPaint();
+        }
     }
 
     // Her keys (only the screen with the keyboard): letters, Backspace, Enter, Escape.

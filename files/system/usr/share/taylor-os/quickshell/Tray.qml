@@ -8,6 +8,7 @@ import QtQuick
 PanelWindow {
     id: win
     property QtObject theme
+    property real arrive: 1           // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     anchors { bottom: true; right: true }
     margins { bottom: 14; right: 14 }
     implicitWidth: pill.width
@@ -24,6 +25,7 @@ PanelWindow {
     Rectangle {
         id: pill
         height: 52
+        opacity: win.arrive
         width: content.width + 32
         radius: 14
         color: win.theme.bar

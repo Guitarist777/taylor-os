@@ -1,4 +1,5 @@
 .import "intro_points.js" as Pts
+.import "dial_draw.js" as Dial
 // Her login scene, three of her own pieces played as one, moved over line for line (the numbers are hers):
 //   A. the opening (TaylorOS_boot_animation.html): sparks pour in, swirl into a ball, the dial draws round it, the ball
 //      pulls back, the sparks spell "TaylorOS", two run off to play and hop home, a ripple goes out;
@@ -8,6 +9,9 @@
 //   C. the login (tayloros_step2_login_screen_interactive_v2.html): each letter typed pulls a star down onto the dial
 //      as a green dot; a good password fills the ring, spins it and sends a pulse out ("Welcome back"); a wrong one
 //      shakes the dial and scatters the dots.
+//   D. the unlock (tayloros_login_unlock_to_desktop_full_sequence.html): after "Welcome back" a pulse goes out, the
+//      login fades, the dots on the ring rise to become stars, faint stars fall into her spot right of centre and
+//      her desktop dial draws itself there. The desktop (quickshell/Arrival.qml) takes over from that picture.
 // Her mockups are 380 px tall; here every length is multiplied by k = screen height / 380, so it is her layout, larger.
 // Not a library on purpose: each screen gets its own copy.
 
@@ -26,6 +30,7 @@ var name = '';
 // C, the login
 var SL = 24, dots = [], free = [], mode = 'idle', tm = 0, fillDur = 0, hint = 'Type your password', hintT = 0, rot = 0;
 var stars = [];           // the sparks that became stars (B), with their resting places
+var fly = [], fall = [];  // D: the ring's dots rising to stars, and the faint stars falling into the desktop dial
 
 function cl(v) { return Math.max(0, Math.min(1, v)); }
 function sm(v) { v = cl(v); return v * v * (3 - 2 * v); }
@@ -279,8 +284,30 @@ function rejected() {
     }
 }
 
-// Seconds since "Welcome back" (-1 before it), for the launch.
+// Seconds since "Welcome back" (-1 before it), for the launch: her unlock ends at 4.6 (0.7 + 3.9, the last faint star in).
 function welcomeFor() { return mode === 'ok' ? T - tm : -1; }
+
+// D: made when the unlock starts. Her numbers: 90 rise from the ring, 64 fall onto the desktop dial (70% onto it, the
+// rest onto its outer arcs).
+function makeAfter(cx, cy, Rd, sp) {
+    fly = []; fall = [];
+    var three = [cols[0], cols[1], cols[3]], i, a, b, r1;
+    for (i = 0; i < 90; i++) {
+        a = Math.random() * 6.2832;
+        fly.push({ sx: cx + Math.cos(a) * Rd, sy: cy + Math.sin(a) * Rd, ex: Math.random() * W, ey: (8 + Math.pow(Math.random(), 1.3) * 380 * 0.62) * k,
+            dl: Math.random() * 0.6, r: (1.3 + Math.random() * 1.3) * k, sr: (0.5 + Math.random() * 0.9) * k,
+            ph: Math.random() * 6.28, tw: 0.6 + Math.random() * 1.6, col: three[i % 3] });
+    }
+    for (i = 0; i < 64; i++) {
+        b = Math.random() * 6.2832; r1 = Math.random() < 0.7 ? sp.r : sp.r + 36 * k;
+        fall.push({ sx: sp.x + (Math.random() - 0.5) * W * 0.7, sy: (8 + Math.random() * 190) * k, ex: sp.x + Math.cos(b) * r1, ey: sp.y + Math.sin(b) * r1,
+            born: 1.7 + Math.random() * 1.3, r: (0.7 + Math.random() * 0.6) * k });
+    }
+}
+function dot(x, px, py, r, al, col) {
+    if (al <= 0) return;
+    x.globalAlpha = cl(al); x.fillStyle = col; x.beginPath(); x.arc(px, py, Math.max(0.3, r), 0, 6.2832, false); x.fill();
+}
 
 function drawLogin(x, dt) {
     var u0 = tb;
@@ -288,6 +315,8 @@ function drawLogin(x, dt) {
     var cx = W / 2, DY = 238 * k, Rd = 30 * k;
     if (mode === 'fill' && T - tm > fillDur) { mode = 'ok'; tm = T; hint = 'Welcome back'; }
     var e = T - tm;
+    // D: her unlock clock starts 0.7 s after "Welcome back" (when the spin has settled).
+    var tt = mode === 'ok' ? e - 0.7 : -1, A = tt >= 0 ? sm((tt - 0.4) / 0.8) : 0, da = tt >= 0 ? 1 - sm((tt - 0.9) / 0.6) : 1;
 
     x.globalAlpha = 1; x.fillStyle = '#0B0D0C'; x.fillRect(0, 0, W, H);
     if (K > 0) {
@@ -312,7 +341,7 @@ function drawLogin(x, dt) {
             var backK = p.gone ? (T < p.gone ? 1 : sm((T - p.gone - 1.5) / 2)) : 1;
             if (u2 < 1) { x.globalAlpha = (p.t ? 0.9 : 0.6) * (1 - u2); x.fillStyle = p.col; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill(); }
             if (u2 > 0) {
-                x.globalAlpha = u2 * twk * backK * (1 - 0.5 * L * Math.exp(-((px - cx) * (px - cx)) / (2 * 150 * k * 150 * k)));
+                x.globalAlpha = u2 * twk * backK * (1 - 0.5 * L * (1 - A) * Math.exp(-((px - cx) * (px - cx)) / (2 * 150 * k * 150 * k)));
                 x.fillStyle = '#E4EEE8'; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill();
             }
         } else {
@@ -329,25 +358,25 @@ function drawLogin(x, dt) {
     x.textAlign = 'center'; x.textBaseline = 'middle';
     if (L > 0) {
         var d0 = new Date(), h = d0.getHours() % 12 || 12;
-        x.globalAlpha = L * 0.95; x.fillStyle = '#EDEFEE';
+        x.globalAlpha = L * 0.95 * (1 - A); x.fillStyle = '#EDEFEE';
         x.font = fontAt(Math.min(68 * k, W * 0.11));
-        x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (1 - L) * 8) * k);
-        x.globalAlpha = L * 0.85; x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
-        x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (1 - L) * 8) * k);
+        x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (1 - L) * 8 - A * 10) * k);
+        x.globalAlpha = L * 0.85 * (1 - A); x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
+        x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (1 - L) * 8 - A * 10) * k);
     }
 
-    if (D > 0) {
+    if (D > 0 && da > 0) {
         var shake = mode === 'wrong' ? Math.sin(e * 42) * 7 * k * Math.exp(-e * 5) : 0, dx = cx + shake;
         var okp = mode === 'ok' ? sm(e / 0.9) : 0;
         var s0 = -1.5708, s1 = s0 + D * 6.2832;
         x.lineCap = 'round'; x.strokeStyle = ACC;
-        x.globalAlpha = 0.12 + 0.2 * okp; x.lineWidth = (7 + 4 * okp) * k; x.beginPath(); x.arc(dx, DY, Rd, s0, s1, false); x.stroke();
-        x.globalAlpha = 0.95; x.lineWidth = (1.5 + 1.5 * okp) * k; x.beginPath(); x.arc(dx, DY, Rd, s0, s1, false); x.stroke();
+        x.globalAlpha = (0.12 + 0.2 * okp) * da; x.lineWidth = (7 + 4 * okp) * k; x.beginPath(); x.arc(dx, DY, Rd, s0, s1, false); x.stroke();
+        x.globalAlpha = 0.95 * da; x.lineWidth = (1.5 + 1.5 * okp) * k; x.beginPath(); x.arc(dx, DY, Rd, s0, s1, false); x.stroke();
         x.strokeStyle = '#EDEFEE'; x.lineWidth = k;
         var nt = Math.floor(48 * D);
         for (var q = 0; q < nt; q++) {
             var an = s0 + q / 48 * 6.2832, big = q % 4 === 0;
-            x.globalAlpha = big ? 0.5 : 0.25;
+            x.globalAlpha = (big ? 0.5 : 0.25) * da;
             x.beginPath(); x.moveTo(dx + Math.cos(an) * (Rd + 6 * k), DY + Math.sin(an) * (Rd + 6 * k));
             x.lineTo(dx + Math.cos(an) * (Rd + (big ? 12 : 9) * k), DY + Math.sin(an) * (Rd + (big ? 12 : 9) * k)); x.stroke();
         }
@@ -356,7 +385,7 @@ function drawLogin(x, dt) {
             x.strokeStyle = ACC; x.lineWidth = 2 * k;
             for (var j = 0; j < 3; j++) {
                 var st = rot + j * 2.0944;
-                x.globalAlpha = 0.8 * B * (0.85 + 0.15 * Math.sin(T * 0.8));
+                x.globalAlpha = 0.8 * B * da * (0.85 + 0.15 * Math.sin(T * 0.8));
                 x.beginPath(); x.arc(dx, DY, Rd + 18 * k, st, st + 0.2 + 0.7 * B, false); x.stroke();
             }
         }
@@ -367,7 +396,7 @@ function drawLogin(x, dt) {
         }
         for (var m2 = 0; m2 < dots.length; m2++) {
             var d = dots[m2], px2, py2, al2 = 1, r2 = 2.6 * k;
-            if (T < d.born) continue;
+            if (T < d.born || tt >= 0.9) continue;
             if (mode === 'wrong') {
                 var f = Math.exp(-3 * dt); d.vx *= f; d.vy *= f; d.x += d.vx * dt; d.y += d.vy * dt;
                 px2 = d.x; py2 = d.y; al2 = 1 - sm((e - 0.5) / 0.9);
@@ -375,17 +404,40 @@ function drawLogin(x, dt) {
                 var spin = mode === 'ok' ? okp * okp * 6.2832 * 1.5 : 0, sp3 = slotPos(d.slot, spin), uu = sm((T - d.born) / 0.45);
                 px2 = d.fx + (sp3[0] - d.fx) * uu + shake; py2 = d.fy + (sp3[1] - d.fy) * uu; r2 = (1.2 + 1.4 * uu) * k;
             }
-            x.globalAlpha = cl(al2); x.fillStyle = d.col; x.beginPath(); x.arc(px2, py2, r2, 0, 6.2832, false); x.fill();
+            x.globalAlpha = cl(al2) * da; x.fillStyle = d.col; x.beginPath(); x.arc(px2, py2, r2, 0, 6.2832, false); x.fill();
         }
+    }
+    // D: the desktop dial draws itself at her spot while the ring's dots rise and faint stars fall into it.
+    if (tt >= 0) {
+        var sp = Dial.spot(W, H);
+        if (!fly.length) makeAfter(cx, DY, Rd, sp);
+        Dial.draw(x, sp.x, sp.y, sp.r, 1, sm((tt - 2.1) / 1.5), sm((tt - 2.9) / 1.0), 0, Dial.arcAngle(), T);
+        if (tt >= 0.9) {
+            var f, u;
+            for (var q3 = 0; q3 < fly.length; q3++) {
+                f = fly[q3]; u = sm((tt - 0.9 - f.dl) / 1.3);
+                var rx = f.sx + (f.ex - f.sx) * u, ry = f.sy + (f.ey - f.sy) * u, rr = f.r + (f.sr - f.r) * u;
+                dot(x, rx, ry, rr, (1 - u) * 0.95, f.col);
+                dot(x, rx, ry, rr, u * (0.55 + 0.4 * Math.sin(T * f.tw + f.ph)), '#E4EEE8');
+            }
+            for (var q4 = 0; q4 < fall.length; q4++) {
+                f = fall[q4]; if (tt < f.born) continue;
+                u = sm((tt - f.born) / 0.7);
+                var gone = 1 - sm((tt - f.born - 0.6) / 0.3);
+                if (gone <= 0) continue;
+                dot(x, f.sx + (f.ex - f.sx) * u, f.sy + (f.ey - f.sy) * u, f.r, 0.6 * gone * Math.min(1, (tt - f.born) / 0.15), '#CFE9DC');
+            }
+        }
+        x.globalAlpha = 1;
     }
     if (mode === 'wrong' && e > 1.5) { dots = []; shuffle(); mode = 'idle'; }
     if (mode === 'idle' && hint === 'Not quite. Try again.' && e > 3.2) hint = 'Type your password';
     if (hint === 'Type a password first' && T - hintT > 2.2) hint = 'Type your password';
 
     if (N > 0) {
-        x.globalAlpha = N * 0.95; x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
+        x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         x.fillText(name, cx, 298 * k);
-        x.globalAlpha = N * 0.85; x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
+        x.globalAlpha = N * 0.85 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
         x.fillText(hint, cx, 318 * k);
     }
     x.globalAlpha = 1;

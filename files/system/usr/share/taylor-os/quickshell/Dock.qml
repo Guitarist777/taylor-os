@@ -9,6 +9,7 @@ PanelWindow {
     id: win
     property QtObject theme
     property bool mixerShown: true
+    property real arrive: 1           // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     signal toggleMixer()
     anchors { top: true }
     margins { top: 10 }
@@ -37,6 +38,8 @@ PanelWindow {
     Rectangle {
         id: pill
         height: 56
+        opacity: win.arrive
+        transform: Translate { y: -(1 - win.arrive) * 66 }   // drops in from the top
         width: icons.width + 16
         radius: 16
         color: win.theme.dock
