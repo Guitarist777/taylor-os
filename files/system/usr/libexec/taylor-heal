@@ -21,9 +21,8 @@ fi
 
 # 2. Her desktop settings
 skel=/etc/skel/.config/hypr/hyprland.lua
-[ -f "$skel" ] || exit 0
 stamp=$(date +%Y%m%d-%H%M%S)
-getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+[ -f "$skel" ] && getent passwd | while IFS=: read -r name _ uid gid _ home _; do
     [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
     [ -d "$home" ] || continue
     dir="$home/.config/hypr"
@@ -37,13 +36,32 @@ getent passwd | while IFS=: read -r name _ uid gid _ home _; do
     install -d -o "$uid" -g "$gid" "$home/.config" "$dir"
     install -m 0644 -o "$uid" -g "$gid" "$skel" "$target"
     log "$name: TAYLOR desktop settings put in place"
-    # the rest of her desktop (Quickshell) is copied too if it is missing, never over an existing file
-    if [ ! -e "$home/.config/quickshell" ] && [ -d /etc/skel/.config/quickshell ]; then
-        cp -a /etc/skel/.config/quickshell "$home/.config/quickshell"
-        chown -R "$uid:$gid" "$home/.config/quickshell"
-        log "$name: TAYLOR shell files put in place"
-    fi
 done
+
+# 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system
+#     (/usr/share/taylor-os/quickshell) so every update brings the new version. Each account's ~/.config/quickshell
+#     points there. A copy TAYLOR OS made earlier (its shell.qml says "TAYLOR OS desktop") is kept beside the pointer;
+#     a folder of her own is never touched.
+shell=/usr/share/taylor-os/quickshell
+if [ -f "$shell/shell.qml" ]; then
+    getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+        [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+        [ -d "$home" ] || continue
+        q="$home/.config/quickshell"
+        [ -L "$q" ] && continue                                                # already a pointer: leave it
+        if [ -d "$q" ]; then
+            grep -q "TAYLOR OS desktop" "$q/shell.qml" 2>/dev/null || continue   # her own desktop files: leave them
+            mv -f "$q" "$q.taylor-old-$stamp"
+            log "$name: the old copy of the TAYLOR desktop kept as quickshell.taylor-old-$stamp"
+        elif [ -e "$q" ]; then
+            continue                                                           # something else of hers: leave it
+        fi
+        install -d -o "$uid" -g "$gid" "$home/.config"
+        ln -s "$shell" "$q"
+        chown -h "$uid:$gid" "$q"
+        log "$name: the TAYLOR desktop now comes from the system (updates reach it)"
+    done
+fi
 
 # 3. Bazzite's welcome window ("Bazzite Portal") opens at every login until it is switched off, on top of her TAYLOR desktop
 #    (2026-11-18 virtual PC test). Keep it to KDE: add NotShowIn=Hyprland to Bazzite's own start-up file in each account.
