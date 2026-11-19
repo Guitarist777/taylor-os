@@ -1,0 +1,5 @@
+#!/bin/sh
+# Runs inside the login screen's Hyprland: her login scene (Quickshell), then closes that Hyprland, so greetd can start
+# her desktop (after a good password) or show the login screen again (if the scene stopped for any other reason).
+quickshell -p /usr/share/taylor-os/greeter > /tmp/taylor-greeter-scene.log 2>&1
+hyprctl dispatch exit >/dev/null 2>&1

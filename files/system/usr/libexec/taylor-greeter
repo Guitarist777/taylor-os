@@ -1,0 +1,26 @@
+#!/bin/sh
+# TAYLOR OS login screen, started by greetd (as the greeter account) on every boot and after every sign-out.
+# It runs a bare Hyprland that shows her login scene (her opening, then the night sky and TAYLOR's dial).
+#
+# The safety net: if her login screen fails twice in a row without anyone signing in (a broken update, a graphics
+# problem), the plain text sign-in (tuigreet) takes over, so she is never locked out. It still starts her TAYLOR
+# desktop, and F3 there can pick KDE Plasma instead. The count lives in /tmp, so a restart tries her screen again.
+
+fails="/tmp/taylor-greeter-fails-$(id -u)"
+n=$(cat "$fails" 2>/dev/null || echo 0)
+case "$n" in ''|*[!0-9]*) n=0 ;; esac
+
+if [ "$n" -ge 2 ]; then
+    echo "taylor-greeter: her login screen failed $n times; using the text sign-in" >&2
+    exec tuigreet --time --remember --asterisks \
+        --greeting "TAYLOR OS" \
+        --cmd "uwsm start -e -D Hyprland hyprland.desktop"
+fi
+
+echo $((n + 1)) > "$fails"
+rm -f /tmp/taylor-greeter-ok
+Hyprland -c /usr/share/taylor-os/greeter/hyprland.lua
+# The scene writes this file only when greetd accepted her password and her desktop is about to start.
+if [ -e /tmp/taylor-greeter-ok ]; then
+    echo 0 > "$fails"
+fi

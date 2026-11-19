@@ -1,0 +1,8 @@
+# TAYLOR OS: greetd starts her login screen (/usr/libexec/taylor-greeter) on the first screen console.
+# Read through the greetd.service drop-in (--config), so the package's own /etc/greetd/config.toml is not used.
+[terminal]
+vt = 1
+
+[default_session]
+command = "/usr/libexec/taylor-greeter"
+user = "greetd"
