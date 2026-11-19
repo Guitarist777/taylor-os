@@ -38,6 +38,7 @@ PanelWindow {
         started = true;
         startedMs = Date.now();
         Eng.setSize(width, height);
+        if (manrope.status === FontLoader.Ready) Eng.setFont(manrope.name);
         Eng.setName(who);
         Eng.spawn();
         if (startFrom > 0) Eng.settleTo(startFrom);
@@ -57,6 +58,17 @@ PanelWindow {
     function rejected() { Eng.rejected(); }
     function skip() { Eng.skipToLogin(); }
     function welcomeFor() { return Eng.welcomeFor(); }
+
+    // Manrope from its own file: the greeter account's font list did not have it on the 2026-11-19 VM test, and the
+    // canvas then drew every word at its tiny default size.
+    FontLoader {
+        id: manrope
+        source: "file:///usr/share/fonts/taylor/Manrope-Variable.ttf"
+        onStatusChanged: {
+            if (status === FontLoader.Ready) { Eng.setFont(name); console.log("taylor-greeter: font " + name); }
+            else if (status === FontLoader.Error) console.log("taylor-greeter: Manrope did not load");
+        }
+    }
 
     Canvas {
         id: art

@@ -37,6 +37,7 @@ function setSize(w, h) {
     k = H / 380;
 }
 function setName(n) { name = n; }
+function setFont(f) { if (f) FONT = f; }
 
 function targets() {
     var F = Math.min(H * 0.3, W * 0.165), st = F * Pts.STEP, c = Pts.cells(), pts = [];
