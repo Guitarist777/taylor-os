@@ -27,9 +27,13 @@ PanelWindow {
     property bool started: false
     property int frames: 0
 
+    // The window is 100 x 100 for a moment before the screen's size arrives, so a size change in the first second and a
+    // half starts it again at the real size (preview run 44479181462 drew it 100 x 100 in the corner).
     function begin() {
-        if (started || width <= 0 || height <= 0) return;
+        if (width <= 0 || height <= 0 || done) return;
+        if (started && stillAt < 0 && Eng.elapsed() > 1.5) { Eng.setSize(width, height); return; }
         started = true;
+        frames = 0;
         Eng.setSize(width, height);
         Eng.spawn();
         if (stillAt >= 0) Eng.settleTo(stillAt);
