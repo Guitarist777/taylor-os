@@ -163,7 +163,9 @@ jobs:
         run: |
           python3 .github/vm/vmctl.py shot "$PWD/out/3-login-screen.png"
           python3 .github/vm/vmctl.py type 'taylortest\n'
-          sleep 90
+          sleep 9
+          python3 .github/vm/vmctl.py shot "$PWD/out/3b-opening.png"
+          sleep 81
           python3 .github/vm/vmctl.py shot "$PWD/out/4-after-login.png"
           python3 .github/vm/vmctl.py run tester taylortest out/5-desktop-checks.txt \
             "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS logging in opens Hyprland' || echo 'FAIL logging in opens Hyprland'" \
@@ -171,6 +173,8 @@ jobs:
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr 2>/dev/null | head -1); hyprctl -j configerrors 2>/dev/null | tr -d ' \t\n' | grep -qxE '\[(\"\")?\]' && echo 'PASS Hyprland reports no settings errors' || echo 'FAIL Hyprland reports no settings errors'" \
             "hyprctl layers 2>/dev/null | grep -q taylor-dock && echo 'PASS the dock is on screen' || echo 'FAIL the dock is on screen'" \
             "hyprctl layers 2>/dev/null | grep -q taylor-clock && echo 'PASS the clock is on screen' || echo 'FAIL the clock is on screen'" \
+            "test -e /run/user/1000/taylor-intro-played && echo 'PASS the opening played at sign-in' || echo 'FAIL the opening played at sign-in'" \
+            "hyprctl layers 2>/dev/null | grep -q taylor-intro && echo 'FAIL the opening ended and left the desktop' || echo 'PASS the opening ended and left the desktop'" \
             "pgrep -u tester -f yafti_gtk >/dev/null && echo 'FAIL Bazzite welcome window stays shut' || echo 'PASS Bazzite welcome window stays shut'" \
             "grep -qx 'NotShowIn=Hyprland;' ~/.config/autostart/bazzite-portal.desktop && echo 'PASS the repair kept Bazzite welcome to KDE' || echo 'FAIL the repair kept Bazzite welcome to KDE'" \
             "hyprctl -j configerrors 2>&1" \
@@ -213,7 +217,7 @@ jobs:
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
           cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=16; [ -n "$UPDATE_TO" ] && want=18
+          want=18; [ -n "$UPDATE_TO" ] && want=20
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 
