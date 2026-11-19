@@ -163,7 +163,7 @@ jobs:
         run: |
           python3 .github/vm/vmctl.py shot "$PWD/out/3-login-screen.png"
           python3 .github/vm/vmctl.py type 'wrongpass\n'
-          sleep 1.5
+          sleep 3
           python3 .github/vm/vmctl.py shot "$PWD/out/3a-wrong-password.png"
           sleep 4
           python3 .github/vm/vmctl.py type 'taylortest'
