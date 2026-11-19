@@ -226,6 +226,8 @@ jobs:
 
       - name: Her launcher, from a click on TAYLOR's dial (her design 2026-11-19)
         run: |
+          # a fresh PC opens Steam's first-run box (a kdialog) over the dial: close it first, as she would
+          python3 .github/vm/vmctl.py run tester taylortest out/7a-clear.txt "pkill -x kdialog; sleep 2; echo cleared"
           python3 .github/vm/vmctl.py run tester taylortest out/7b-dial.txt \
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep taylor-dial | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/DIALXYWH \\1 \\2 \\3 \\4/'" \
             "hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'" \
@@ -253,7 +255,7 @@ jobs:
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl clients | grep -q 'class: kitty' && echo 'PASS her launcher opens the app she picked' || echo 'FAIL her launcher opens the app she picked'" \
             "hyprctl layers | grep -q taylor-launcher && echo 'FAIL her launcher closes after she picks' || echo 'PASS her launcher closes after she picks'" \
             "cat ~/.local/state/taylor-os/launcher-recent.json; echo" \
-            "hyprctl dispatch closewindow class:kitty"
+            "pkill -x kitty; echo closed"
           cat out/7e-launcher.txt out/7h-launched.txt
 
       - name: Sign out, and watch her opening play on the login screen
