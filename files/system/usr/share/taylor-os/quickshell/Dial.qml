@@ -1,7 +1,9 @@
-// TAYLOR's dial on her desktop, right of centre, with "ALL CLEAR." under it (her "login unlock to desktop" mockup).
-// The login screen draws it into this spot as she signs in; from then on it stays here, its three arcs turning slowly.
-// It sits on the desktop (under windows) and takes no clicks. "ALL CLEAR." is her mockup's wording; it is not tied to
-// anything yet (TAYLOR does not run on Linux).
+// TAYLOR's dial on her desktop, right of centre, with its status line under it (her "login unlock to desktop" and
+// "app launcher and search" mockups). The login screen draws it into this spot as she signs in; from then on it stays
+// here, its three arcs turning slowly. A click on it opens her launcher (the dial itself shrinks into the search bar:
+// Launcher.qml draws it while the launcher is open, so this one steps aside). After she picks something the line says
+// what it is doing ("OPENING STEAM.") and the arcs turn faster for a moment, then it is "ALL CLEAR." again.
+// "ALL CLEAR." is her mockup's wording; it is not tied to anything yet (TAYLOR does not run on Linux).
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -10,22 +12,29 @@ import "dial_draw.js" as Dial
 PanelWindow {
     id: win
     property QtObject theme
-    property real arrive2: 1          // "ALL CLEAR." fades in with the tray as she arrives
+    property real arrive2: 1          // the status line fades in with the tray as she arrives
+    property string status: "ALL CLEAR."
+    property bool busy: false         // a moment after she picked something: the arcs turn faster
+    property bool stepAside: false    // the launcher is open and draws the dial itself
+    signal clicked()
 
     readonly property var sp: Dial.spot(screen ? screen.width : 1920, screen ? screen.height : 1080)
     readonly property real ext: Math.ceil(sp.r + 20 * sp.r / 30)        // the outer arcs and their stroke
-    readonly property real below: Math.ceil(118 * sp.k + 14 * sp.k)    // down to "ALL CLEAR."
+    readonly property real below: Math.ceil(118 * sp.k + 14 * sp.k)    // down to the status line
+    readonly property real side: Math.ceil(110 * sp.k)                 // room for a longer status line
 
     anchors { top: true; left: true }
-    margins { left: Math.round(sp.x - ext); top: Math.round(sp.y - ext) }
-    implicitWidth: 2 * ext
+    margins { left: Math.round(sp.x - ext - side); top: Math.round(sp.y - ext) }
+    implicitWidth: 2 * (ext + side)
     implicitHeight: ext + below
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
-    mask: Region {}
     WlrLayershell.layer: WlrLayer.Bottom
     WlrLayershell.namespace: "taylor-dial"
+    // only the dial's ring takes a click; the rest of this window lets clicks through to the desktop
+    mask: Region { item: ring }
 
+    property real spin: 0
     Canvas {
         id: art
         anchors.fill: parent
@@ -33,12 +42,29 @@ PanelWindow {
         onPaint: {
             const x = getContext("2d");
             x.reset();
-            const T = Date.now() / 1000;
-            Dial.draw(x, win.ext, win.ext, win.sp.r, 1, 1, 1, 0, Dial.arcAngle(), T);
-            Dial.words(x, win.ext, win.ext + 118 * win.sp.k, win.sp.k, win.arrive2, Math.round(11 * win.sp.k) + "px " + win.theme.sans);
+            if (win.stepAside) return;
+            const T = Date.now() / 1000, cx = win.ext + win.side;
+            Dial.draw(x, cx, win.ext, win.sp.r, 1, 1, 1, 0, Dial.arcAngle() + win.spin, T);
+            Dial.words(x, cx, win.ext + 118 * win.sp.k, win.sp.k, win.arrive2, Math.round(11 * win.sp.k) + "px " + win.theme.sans, win.status);
         }
     }
     onArrive2Changed: art.requestPaint()
-    // The arcs turn at her 0.12 a second: twenty pictures a second is smooth for that.
-    Timer { interval: 50; repeat: true; running: true; onTriggered: art.requestPaint() }
+    onStatusChanged: art.requestPaint()
+    onStepAsideChanged: art.requestPaint()
+    // The arcs turn at her 0.12 a second (faster for a moment after she picks something): twenty pictures a second.
+    Timer { interval: 50; repeat: true; running: true; onTriggered: { if (win.busy) win.spin += 0.5 * 0.05; art.requestPaint(); } }
+
+    Item {
+        id: ring
+        width: 2 * win.ext; height: 2 * win.ext
+        x: win.side; y: 0
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: (m) => {
+                const dx = m.x - width / 2, dy = m.y - height / 2;
+                if (dx * dx + dy * dy <= win.ext * win.ext) win.clicked();
+            }
+        }
+    }
 }

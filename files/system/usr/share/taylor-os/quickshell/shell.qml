@@ -9,6 +9,10 @@
 // in from the left, the tray and "ALL CLEAR." fade in. A restart of the desktop in the same sign-in does not play it
 // again (a mark in her runtime folder, gone when she signs out). TAYLOR_ARRIVE_AT=1.5 holds it at 1.5 seconds (the
 // preview's pictures).
+//
+// Her launcher (Launcher.qml, her "app launcher and search" mockup) opens from a click on the dial, or from Windows key +
+// Space (Hyprland runs "quickshell ipc call launcher toggle"). TAYLOR_LAUNCHER_PREVIEW=st opens it at start with "st"
+// typed (the preview's pictures; "-" opens it empty).
 import Quickshell
 import Quickshell.Io
 import QtQuick
@@ -36,6 +40,21 @@ ShellRoot {
     }
 
     property bool mixerShown: true
+
+    // ---- her launcher ----
+    readonly property string launcherPreview: Quickshell.env("TAYLOR_LAUNCHER_PREVIEW") || ""
+    property bool launcherOpen: launcherPreview !== ""
+    property real launcherO: launcherOpen ? 1 : 0
+    Behavior on launcherO { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+    property string dialStatus: "ALL CLEAR."
+    property bool dialBusy: false
+    Timer { id: statusBack; interval: 2400; onTriggered: { root.dialStatus = "ALL CLEAR."; root.dialBusy = false; } }
+    IpcHandler {
+        target: "launcher"
+        function toggle(): void { root.launcherOpen = !root.launcherOpen; }
+        function open(): void { root.launcherOpen = true; }
+        function close(): void { root.launcherOpen = false; }
+    }
 
     // ---- her arrival ----
     readonly property real holdAt: {
@@ -70,7 +89,12 @@ ShellRoot {
                 id: perScreen
                 required property var modelData
                 Sky { screen: perScreen.modelData; theme: root.c }
-                Dial { screen: perScreen.modelData; theme: root.c; arrive2: root.arriveU2 }
+                Dial {
+                    screen: perScreen.modelData; theme: root.c; arrive2: root.arriveU2
+                    status: root.dialStatus; busy: root.dialBusy
+                    stepAside: root.launcherO > 0.001 && perScreen.modelData === Quickshell.screens[0]
+                    onClicked: root.launcherOpen = true
+                }
                 ClockCard { screen: perScreen.modelData; theme: root.c; arrive: root.arriveU }
                 Mixer { screen: perScreen.modelData; theme: root.c; visible: root.mixerShown; arrive: root.arriveU }
                 Dock { screen: perScreen.modelData; theme: root.c; mixerShown: root.mixerShown; onToggleMixer: root.mixerShown = !root.mixerShown; arrive: root.arriveU }
@@ -79,5 +103,18 @@ ShellRoot {
                 Arrival { screen: perScreen.modelData; at: root.arriveT; visible: root.arriving && (arriveRun.running || root.holdAt >= 0) }
             }
         }
+    }
+
+    // one launcher, on the main screen
+    Launcher {
+        screen: Quickshell.screens.length ? Quickshell.screens[0] : null
+        theme: root.c
+        o: root.launcherO
+        open: root.launcherOpen
+        status: root.dialStatus
+        preset: root.launcherPreview === "-" ? "" : root.launcherPreview
+        onCloseMe: root.launcherOpen = false
+        onPicked: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
+        onToggleMixer: root.mixerShown = !root.mixerShown
     }
 }

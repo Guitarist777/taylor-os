@@ -38,6 +38,19 @@ stamp=$(date +%Y%m%d-%H%M%S)
     log "$name: TAYLOR desktop settings put in place"
 done
 
+# 2a. Windows key + Space opens her launcher (2026-11-19, her design) instead of fuzzel. Her settings file is hers, so
+#     only TAYLOR's own line, exactly as TAYLOR OS wrote it, is changed; a copy of the file is kept first.
+old_space='hl.bind(mod .. " + Space",  hl.dsp.exec_cmd("fuzzel"))'
+new_space='hl.bind(mod .. " + Space",  hl.dsp.exec_cmd("quickshell ipc call launcher toggle"))   -- her launcher (TAYLOR'"'"'s dial)'
+getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+    target="$home/.config/hypr/hyprland.lua"
+    [ -f "$target" ] && grep -q "TAYLOR-OS-DESKTOP" "$target" && grep -qxF "$old_space" "$target" || continue
+    cp -p "$target" "$target.before-launcher-$stamp"
+    tmp=$(mktemp) && awk -v o="$old_space" -v n="$new_space" '$0 == o { print n; next } { print }' "$target" > "$tmp" \
+        && cat "$tmp" > "$target" && rm -f "$tmp" && log "$name: Windows key + Space now opens her launcher (old file kept)"
+done
+
 # 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system
 #     (/usr/share/taylor-os/quickshell) so every update brings the new version. Each account's ~/.config/quickshell
 #     points there. A copy TAYLOR OS made earlier (its shell.qml says "TAYLOR OS desktop") is kept beside the pointer;

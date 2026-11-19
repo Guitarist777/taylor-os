@@ -42,10 +42,11 @@ function draw(x, px, py, R, al, prog, arcB, hot, rot, T) {
     x.globalAlpha = 1;
 }
 
-// Her "ALL CLEAR." under the dial, letter-spaced.
-function words(x, px, py, k, al, font) {
+// The status line under the dial, letter-spaced: her "ALL CLEAR.", or what the launcher just did ("OPENING STEAM.").
+function words(x, px, py, k, al, font, str) {
     if (al <= 0) return;
-    var str = 'ALL CLEAR.', gap = 3 * k, w = 0, i;
+    str = str || 'ALL CLEAR.';
+    var gap = 3 * k, w = 0, i;
     x.font = font; x.fillStyle = '#C8CCCA'; x.globalAlpha = 0.85 * al; x.textBaseline = 'middle';
     for (i = 0; i < str.length; i++) w += x.measureText(str[i]).width + gap;
     w -= gap;

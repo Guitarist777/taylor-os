@@ -224,6 +224,38 @@ jobs:
             "hyprctl clients | grep -E 'class|title'"
           cat out/7-closed.txt
 
+      - name: Her launcher, from a click on TAYLOR's dial (her design 2026-11-19)
+        run: |
+          python3 .github/vm/vmctl.py run tester taylortest out/7b-dial.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep taylor-dial | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/DIALXYWH \\1 \\2 \\3 \\4/'" \
+            "hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'" \
+            "grep -qF 'quickshell ipc call launcher toggle' ~/.config/hypr/hyprland.lua && echo 'PASS Windows key + Space is set to her launcher' || echo 'FAIL Windows key + Space is set to her launcher'"
+          cat out/7b-dial.txt
+          read -r dx dy dw dh < <(tr -d '\r' < out/7b-dial.txt | grep -oE 'DIALXYWH [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+          read -r sw sh < <(tr -d '\r' < out/7b-dial.txt | grep -oE 'SCREENWH [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+          # the ring's centre is the dial's spot: half way across its window, 390/900 of the screen down
+          cx=$((dx + dw / 2)); cy=$((sh * 390 / 900))
+          echo "dial window $dx $dy $dw $dh on $sw x $sh: clicking $cx, $cy"
+          python3 .github/vm/vmctl.py click $cx $cy "$sw" "$sh"
+          sleep 3
+          python3 .github/vm/vmctl.py shot "$PWD/out/7c-launcher-open.png"
+          python3 .github/vm/vmctl.py type 'kitt'
+          sleep 2
+          python3 .github/vm/vmctl.py shot "$PWD/out/7d-launcher-typed.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/7e-launcher.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS a click on the dial opens her launcher' || echo 'FAIL a click on the dial opens her launcher'"
+          python3 .github/vm/vmctl.py key ret
+          sleep 1.2
+          python3 .github/vm/vmctl.py shot "$PWD/out/7f-opening-status.png"
+          sleep 8
+          python3 .github/vm/vmctl.py shot "$PWD/out/7g-launched.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/7h-launched.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl clients | grep -q 'class: kitty' && echo 'PASS her launcher opens the app she picked' || echo 'FAIL her launcher opens the app she picked'" \
+            "hyprctl layers | grep -q taylor-launcher && echo 'FAIL her launcher closes after she picks' || echo 'PASS her launcher closes after she picks'" \
+            "cat ~/.local/state/taylor-os/launcher-recent.json; echo" \
+            "hyprctl dispatch closewindow class:kitty"
+          cat out/7e-launcher.txt out/7h-launched.txt
+
       - name: Sign out, and watch her opening play on the login screen
         run: |
           # Signing out ends her desktop; greetd shows her login screen again, from the opening.
@@ -243,8 +275,8 @@ jobs:
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=19; [ -n "$UPDATE_TO" ] && want=21
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7h-launched.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=23; [ -n "$UPDATE_TO" ] && want=25
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 

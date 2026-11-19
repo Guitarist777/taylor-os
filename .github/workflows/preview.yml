@@ -85,6 +85,15 @@ jobs:
             kill $QS; wait $QS 2>/dev/null
             # her arrival after signing in, held at four moments: the login night with the dial, letting go of it,
             # the dock / clock / mixer coming in, all in with the tray and ALL CLEAR.
+            # her launcher: opened empty (Recent), and with "st" typed
+            for LQ in -:empty st:typed; do
+              L=${LQ%%:*}; LN=${LQ##*:}
+              TAYLOR_SKY_HOUR=22 TAYLOR_LAUNCHER_PREVIEW=$L QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-launcher-$LN.log 2>&1 &
+              QS=$!
+              sleep 10
+              grim /tmp/out/launcher-$LN.png
+              kill $QS; wait $QS 2>/dev/null
+            done
             for AT in 0.6 1.4 2.0 2.9; do
               TAYLOR_SKY_HOUR=13 TAYLOR_ARRIVE_AT=$AT QT_QUICK_BACKEND=software quickshell -p ~/.config/quickshell > /tmp/out/quickshell-arrive-$AT.log 2>&1 &
               QS=$!
@@ -119,6 +128,7 @@ jobs:
           echo "--- mixer channels"; cat out/channels.txt || true
           for H in 13 16.75 22 7 13-cloudy 13-rain 22-snow live-weather; do test -s out/desktop-$H.png; done
           for AT in 0.6 1.4 2.0 2.9; do test -s out/arrive-$AT.png; done
+          for LN in empty typed; do test -s out/launcher-$LN.png; done
           for f in out/greeter-*.log; do echo "--- $f"; cat "$f"; done
           grep -h "taylor-sky: weather" out/quickshell-live-weather.log
 
