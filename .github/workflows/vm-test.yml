@@ -145,7 +145,7 @@ jobs:
           python3 .github/vm/vmctl.py run tester taylortest out/2-checks.txt \
             "[ \"\$(systemctl get-default)\" = graphical.target ] && echo 'PASS starts in picture mode' || echo 'FAIL starts in picture mode'" \
             "systemctl is-active -q plasmalogin.service && echo 'PASS the login screen is running' || echo 'FAIL the login screen is running'" \
-            "journalctl -b -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
+            "journalctl -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
             "grep -q TAYLOR-OS-DESKTOP ~/.config/hypr/hyprland.lua && echo 'PASS her desktop file is the TAYLOR one' || echo 'FAIL her desktop file is the TAYLOR one'" \
             "ls ~/.config/hypr/hyprland.lua.example-* >/dev/null 2>&1 && echo 'PASS Hyprland example kept beside it' || echo 'FAIL Hyprland example kept beside it'" \
             "grep -qx 'PreselectedSession=hyprland-uwsm.desktop' /usr/lib/plasmalogin/plasmalogin.conf.d/10-taylor.conf && echo 'PASS login screen is set to the TAYLOR desktop' || echo 'FAIL login screen is set to the TAYLOR desktop'" \
