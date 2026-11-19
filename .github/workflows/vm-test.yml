@@ -245,7 +245,9 @@ jobs:
           sleep 2
           python3 .github/vm/vmctl.py shot "$PWD/out/7d-launcher-typed.png"
           python3 .github/vm/vmctl.py run tester taylortest out/7e-launcher.txt \
-            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS a click on the dial opens her launcher' || echo 'FAIL a click on the dial opens her launcher'"
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep -q taylor-launcher && echo 'PASS a click on the dial opens her launcher' || echo 'FAIL a click on the dial opens her launcher'" \
+            "timeout 10 quickshell log 2>&1 | grep -E 'taylor-(dial|desktop)' | tail -20" \
+            "hyprctl layers | grep -q taylor-launcher || { quickshell ipc call launcher open; sleep 2; hyprctl layers | grep -q taylor-launcher && echo 'NOTE the launcher opens by ipc' || echo 'NOTE the launcher does not open by ipc either'; quickshell ipc call launcher close; sleep 1; }"
           python3 .github/vm/vmctl.py key ret
           sleep 1.2
           python3 .github/vm/vmctl.py shot "$PWD/out/7f-opening-status.png"

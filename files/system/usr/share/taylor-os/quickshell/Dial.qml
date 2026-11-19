@@ -61,9 +61,12 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
+            onPressed: (m) => console.info("taylor-dial: pressed at", Math.round(m.x), Math.round(m.y))
             onClicked: (m) => {
                 const dx = m.x - width / 2, dy = m.y - height / 2;
-                if (dx * dx + dy * dy <= win.ext * win.ext) win.clicked();
+                const inside = dx * dx + dy * dy <= win.ext * win.ext;
+                console.info("taylor-dial: clicked", Math.round(dx), Math.round(dy), inside ? "inside" : "outside");
+                if (inside) win.clicked();
             }
         }
     }

@@ -93,7 +93,7 @@ ShellRoot {
                     screen: perScreen.modelData; theme: root.c; arrive2: root.arriveU2
                     status: root.dialStatus; busy: root.dialBusy
                     stepAside: root.launcherO > 0.001 && perScreen.modelData === Quickshell.screens[0]
-                    onClicked: root.launcherOpen = true
+                    onClicked: { console.info("taylor-desktop: the dial opens her launcher"); root.launcherOpen = true; }
                 }
                 ClockCard { screen: perScreen.modelData; theme: root.c; arrive: root.arriveU }
                 Mixer { screen: perScreen.modelData; theme: root.c; visible: root.mixerShown; arrive: root.arriveU }
