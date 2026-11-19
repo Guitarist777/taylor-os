@@ -1,23 +1,10 @@
 #!/bin/bash
-# What a TAYLOR login screen would need, read from the built image.
-echo "=== packages installed"
-rpm -q greetd tuigreet greetd-tuigreet cage quickshell hyprland uwsm plasma-login-manager kwallet-pam pam-kwallet gnome-keyring-pam 2>&1
-echo "=== packages available"
-dnf -q repoquery --available greetd tuigreet greetd-tuigreet greetd-agreety cage 2>&1 | head -20
-dnf -q info greetd 2>&1 | head -12
-echo "=== quickshell modules"
-ls /usr/lib64/qt6/qml/Quickshell/Services/ 2>&1
-ls /usr/lib64/qt6/qml/Quickshell/ 2>&1
-find / -path /proc -prune -o -type d -iname "*greetd*" -print 2>/dev/null | head
-echo "=== quickshell version"
-quickshell --version 2>&1 | head -3
-echo "=== login screen PAM and units"
-for f in /etc/pam.d/plasmalogin /usr/lib/pam.d/plasmalogin /etc/pam.d/sddm /etc/pam.d/greetd; do echo "--- $f"; cat "$f" 2>&1; done
-systemctl get-default 2>&1
-ls -l /etc/systemd/system/display-manager.service 2>&1
-systemctl cat plasmalogin.service 2>&1 | head -30
-echo "=== sessions"
-ls /usr/share/wayland-sessions 2>&1
-cat /usr/share/wayland-sessions/hyprland-uwsm.desktop 2>&1
-echo "=== users"
-getent passwd greeter greetd plasmalogin 2>&1
+echo "=== greetd qml"
+ls -la /usr/lib64/qt6/qml/Quickshell/Services/Greetd/
+cat /usr/lib64/qt6/qml/Quickshell/Services/Greetd/qmldir
+for f in /usr/lib64/qt6/qml/Quickshell/Services/Greetd/*.qmltypes; do grep -nE "Signal|Method|Property|name:|Enum|values" "$f" | head -80; done
+echo "=== io"
+grep -lE "StdioCollector" /usr/lib64/qt6/qml/Quickshell/Io/*.qmltypes && grep -nE "name: \"(Process|StdioCollector)\"" -A3 /usr/lib64/qt6/qml/Quickshell/Io/*.qmltypes | head
+echo "=== greetd package"
+dnf -y -q install greetd tuigreet >/dev/null 2>&1; rpm -ql greetd | head -30; cat /etc/greetd/config.toml; getent passwd greeter greetd; cat /etc/pam.d/greetd 2>&1; ls /usr/lib/sysusers.d | grep -i greet; cat /usr/lib/sysusers.d/*greet* 2>&1
+systemctl cat greetd.service 2>&1 | head -30
