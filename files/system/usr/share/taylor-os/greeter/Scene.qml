@@ -18,10 +18,10 @@ PanelWindow {
     property bool started: false
     property double startedMs: 0
     signal skipped()
-    signal typed(string text)
-    signal backspace()
-    signal enter()
-    signal escape()
+    signal keyTyped(string text)
+    signal keyErase()
+    signal keyEnter()
+    signal keyEscape()
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "#0B0D0C"
@@ -81,10 +81,10 @@ PanelWindow {
         focus: win.primary
         Keys.onPressed: (event) => {
             event.accepted = true;
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) win.enter();
-            else if (event.key === Qt.Key_Backspace) win.backspace();
-            else if (event.key === Qt.Key_Escape) win.escape();
-            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) win.typed(event.text);
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) win.keyEnter();
+            else if (event.key === Qt.Key_Backspace) win.keyErase();
+            else if (event.key === Qt.Key_Escape) win.keyEscape();
+            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) win.keyTyped(event.text);
             else event.accepted = false;
         }
     }

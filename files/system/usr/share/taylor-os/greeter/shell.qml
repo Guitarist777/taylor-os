@@ -149,10 +149,10 @@ ShellRoot {
                 primary: modelData === Quickshell.screens[0]
                 who: root.who
                 fade: root.fade
-                onTyped: (text) => root.typed(text)
-                onBackspace: root.erase()
-                onEnter: root.submit()
-                onEscape: root.clear()
+                onKeyTyped: (text) => root.typed(text)
+                onKeyErase: root.erase()
+                onKeyEnter: root.submit()
+                onKeyEscape: root.clear()
                 onSkipped: root.sSkip()
                 Connections {
                     target: root

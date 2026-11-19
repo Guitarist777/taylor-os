@@ -144,28 +144,35 @@ jobs:
         run: |
           python3 .github/vm/vmctl.py run tester taylortest out/2-checks.txt \
             "[ \"\$(systemctl get-default)\" = graphical.target ] && echo 'PASS starts in picture mode' || echo 'FAIL starts in picture mode'" \
-            "systemctl is-active -q plasmalogin.service && echo 'PASS the login screen is running' || echo 'FAIL the login screen is running'" \
+            "systemctl is-active -q greetd.service && echo 'PASS the login screen is running' || echo 'FAIL the login screen is running'" \
             "journalctl -u taylor-heal --no-pager | grep -q 'TAYLOR desktop settings put in place' && echo 'PASS the repair put her desktop in place' || echo 'FAIL the repair put her desktop in place'" \
             "grep -q TAYLOR-OS-DESKTOP ~/.config/hypr/hyprland.lua && echo 'PASS her desktop file is the TAYLOR one' || echo 'FAIL her desktop file is the TAYLOR one'" \
             "ls ~/.config/hypr/hyprland.lua.example-* >/dev/null 2>&1 && echo 'PASS Hyprland example kept beside it' || echo 'FAIL Hyprland example kept beside it'" \
-            "grep -qx 'PreselectedSession=hyprland-uwsm.desktop' /usr/lib/plasmalogin/plasmalogin.conf.d/10-taylor.conf && echo 'PASS login screen is set to the TAYLOR desktop' || echo 'FAIL login screen is set to the TAYLOR desktop'" \
+            "pgrep -u greetd -f '^(/usr/bin/)?quickshell -p /usr/share/taylor-os/greeter' >/dev/null && ! pgrep -u greetd tuigreet >/dev/null && echo 'PASS her login screen is the one showing' || echo 'FAIL her login screen is the one showing'" \
             "systemctl get-default" \
-            "systemctl is-active display-manager.service plasmalogin.service taylor-heal.service" \
+            "systemctl is-active display-manager.service greetd.service plasmalogin.service taylor-heal.service" \
             "journalctl -b -u taylor-heal --no-pager" \
             "ls -la ~/.config/hypr ~/.config/quickshell" \
             "head -4 ~/.config/hypr/hyprland.lua" \
             "rpm -q hyprland quickshell" \
             "ls /usr/share/wayland-sessions /usr/share/xsessions" \
-            "echo taylortest | sudo -S sh -c 'ls -la /var/lib/plasmalogin; cat /var/lib/plasmalogin/state.conf; ls /etc/plasmalogin.conf.d /usr/lib/plasmalogin.conf.d; cat /etc/plasmalogin.conf.d/* /usr/lib/plasmalogin.conf.d/*' 2>&1"
+            "echo taylortest | sudo -S sh -c 'readlink /etc/systemd/system/display-manager.service; pgrep -a -u greetd; cat /tmp/taylor-greeter-scene.log; cat /tmp/taylor-greeter-fails-*; journalctl -b -u greetd --no-pager | tail -30; cat /usr/lib/pam.d/greetd' 2>&1"
           cat out/2-checks.txt
 
       - name: Log in on the login screen and look at the desktop
         run: |
           python3 .github/vm/vmctl.py shot "$PWD/out/3-login-screen.png"
-          python3 .github/vm/vmctl.py type 'taylortest\n'
-          sleep 9
-          python3 .github/vm/vmctl.py shot "$PWD/out/3b-opening.png"
-          sleep 81
+          python3 .github/vm/vmctl.py type 'wrongpass\n'
+          sleep 1.5
+          python3 .github/vm/vmctl.py shot "$PWD/out/3a-wrong-password.png"
+          sleep 4
+          python3 .github/vm/vmctl.py type 'taylortest'
+          sleep 1
+          python3 .github/vm/vmctl.py shot "$PWD/out/3b-typed.png"
+          python3 .github/vm/vmctl.py type '\n'
+          sleep 2
+          python3 .github/vm/vmctl.py shot "$PWD/out/3c-welcome-back.png"
+          sleep 85
           python3 .github/vm/vmctl.py shot "$PWD/out/4-after-login.png"
           python3 .github/vm/vmctl.py run tester taylortest out/5-desktop-checks.txt \
             "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS logging in opens Hyprland' || echo 'FAIL logging in opens Hyprland'" \
@@ -173,8 +180,6 @@ jobs:
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr 2>/dev/null | head -1); hyprctl -j configerrors 2>/dev/null | tr -d ' \t\n' | grep -qxE '\[(\"\")?\]' && echo 'PASS Hyprland reports no settings errors' || echo 'FAIL Hyprland reports no settings errors'" \
             "hyprctl layers 2>/dev/null | grep -q taylor-dock && echo 'PASS the dock is on screen' || echo 'FAIL the dock is on screen'" \
             "hyprctl layers 2>/dev/null | grep -q taylor-clock && echo 'PASS the clock is on screen' || echo 'FAIL the clock is on screen'" \
-            "test -e /run/user/1000/taylor-intro-played && echo 'PASS the opening played at sign-in' || echo 'FAIL the opening played at sign-in'" \
-            "hyprctl layers 2>/dev/null | grep -q taylor-intro && echo 'FAIL the opening ended and left the desktop' || echo 'PASS the opening ended and left the desktop'" \
             "pgrep -u tester -f yafti_gtk >/dev/null && echo 'FAIL Bazzite welcome window stays shut' || echo 'PASS Bazzite welcome window stays shut'" \
             "grep -qx 'NotShowIn=Hyprland;' ~/.config/autostart/bazzite-portal.desktop && echo 'PASS the repair kept Bazzite welcome to KDE' || echo 'FAIL the repair kept Bazzite welcome to KDE'" \
             "hyprctl -j configerrors 2>&1" \
@@ -212,12 +217,27 @@ jobs:
             "hyprctl clients | grep -E 'class|title'"
           cat out/7-closed.txt
 
+      - name: Sign out, and watch her opening play on the login screen
+        run: |
+          # Signing out ends her desktop; greetd shows her login screen again, from the opening.
+          python3 .github/vm/vmctl.py run tester taylortest out/8-signout.txt \
+            "s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1); echo session \$s; echo taylortest | sudo -S loginctl terminate-session \$s"
+          cat out/8-signout.txt
+          for at in 3 8 13 19 27; do
+            sleep 5
+            python3 .github/vm/vmctl.py shot "$PWD/out/9-opening-$at.png"
+          done
+          python3 .github/vm/vmctl.py run tester taylortest out/9-opening.txt \
+            "pgrep -u greetd -f '^(/usr/bin/)?quickshell -p /usr/share/taylor-os/greeter' >/dev/null && echo 'PASS her login screen comes back after signing out' || echo 'FAIL her login screen comes back after signing out'" \
+            "echo taylortest | sudo -S cat /tmp/taylor-greeter-scene.log"
+          cat out/9-opening.txt
+
       - name: The verdict (fails on any FAIL)
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=18; [ -n "$UPDATE_TO" ] && want=20
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=17; [ -n "$UPDATE_TO" ] && want=19
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 
