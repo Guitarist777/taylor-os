@@ -440,7 +440,7 @@ function drawLogin(x, dt) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         x.fillText(name, cx, 298 * k);
         x.globalAlpha = N * 0.85 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
-        x.fillText(kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  ·  KDE next' : 'KDE next') : hint, cx, 318 * k);
+        x.fillText(kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
     x.globalAlpha = 1;
 }
