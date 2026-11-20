@@ -28,6 +28,7 @@ PanelWindow {
     signal keyErase()
     signal keyEnter()
     signal keyEscape()
+    signal keyKde()
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "#0B0D0C"
@@ -63,6 +64,7 @@ PanelWindow {
     function accepted() { Eng.accepted(); }
     function rejected() { Eng.rejected(); }
     function skip() { Eng.skipToLogin(); }
+    function setKde(on) { Eng.skipToLogin(); Eng.setKde(on); }
     function welcomeFor() { return Eng.welcomeFor(); }
 
     // Manrope from its own file: the greeter account's font list did not have it on the 2026-11-19 VM test, and the
@@ -102,7 +104,7 @@ PanelWindow {
         }
     }
 
-    // Her keys (only the screen with the keyboard): letters, Backspace, Enter, Escape.
+    // Her keys (only the screen with the keyboard): letters, Backspace, Enter, Escape, and F2 (the KDE backup, once).
     Item {
         anchors.fill: parent
         focus: win.primary
@@ -111,6 +113,7 @@ PanelWindow {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) win.keyEnter();
             else if (event.key === Qt.Key_Backspace) win.keyErase();
             else if (event.key === Qt.Key_Escape) win.keyEscape();
+            else if (event.key === Qt.Key_F2) win.keyKde();
             else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) win.keyTyped(event.text);
             else event.accepted = false;
         }

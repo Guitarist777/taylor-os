@@ -335,12 +335,31 @@ jobs:
             "echo taylortest | sudo -S cat /tmp/taylor-greeter-scene.log"
           cat out/9-opening.txt
 
+      - name: The KDE backup sign-in, F2 on her login screen (her build brief)
+        run: |
+          # F2 before the password: the hint says KDE next, and this sign-in opens KDE Plasma instead of her TAYLOR desktop.
+          python3 .github/vm/vmctl.py key f2
+          sleep 3
+          python3 .github/vm/vmctl.py shot "$PWD/out/11a-kde-next.png"
+          python3 .github/vm/vmctl.py type 'taylortest'
+          sleep 1
+          python3 .github/vm/vmctl.py type '\n'
+          sleep 60
+          python3 .github/vm/vmctl.py shot "$PWD/out/11b-kde.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/11-kde.txt \
+            "echo taylortest | sudo -S grep -q 'next sign-in opens the KDE backup' /tmp/taylor-greeter-scene.log && echo 'PASS F2 on her login screen picks the KDE backup' || echo 'FAIL F2 on her login screen picks the KDE backup'" \
+            "pgrep -u tester -x plasmashell >/dev/null && ! pgrep -u tester -x Hyprland >/dev/null && echo 'PASS the KDE backup sign-in opens KDE Plasma' || echo 'FAIL the KDE backup sign-in opens KDE Plasma'" \
+            "pgrep -a -u tester 'Hyprland|quickshell|plasmashell|kwin'" \
+            "for s in \$(loginctl list-sessions --no-legend | awk '{print \$1}'); do loginctl show-session \$s -p Type -p Desktop -p Service -p State; done" \
+            "echo taylortest | sudo -S sh -c 'tail -20 /tmp/taylor-greeter-scene.log; journalctl -b -u greetd --no-pager | tail -20'"
+          cat out/11-kde.txt
+
       - name: The verdict (fails on any FAIL)
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=33; [ -n "$UPDATE_TO" ] && want=35
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt out/11-kde.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=35; [ -n "$UPDATE_TO" ] && want=37
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 
