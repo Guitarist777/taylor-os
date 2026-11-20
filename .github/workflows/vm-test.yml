@@ -227,7 +227,7 @@ jobs:
       - name: Her launcher, from a click on TAYLOR's dial (her design 2026-11-19)
         run: |
           # a fresh PC opens Steam's first-run box (a kdialog) over the dial: close it first, as she would
-          python3 .github/vm/vmctl.py run tester taylortest out/7a-clear.txt "pkill -x kdialog; sleep 2; echo cleared"
+          python3 .github/vm/vmctl.py run tester taylortest out/7a-clear.txt "pkill -x kdialog; quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes clear; sleep 2; echo cleared"
           python3 .github/vm/vmctl.py run tester taylortest out/7b-dial.txt \
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); hyprctl layers | grep taylor-dial | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/DIALXYWH \\1 \\2 \\3 \\4/'" \
             "hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'" \
@@ -273,6 +273,9 @@ jobs:
       - name: Her notifications, dots round the dial, the green count and her list (her design tour, part 5)
         run: |
           # Made-up notifications only. Nothing pops up: each becomes a dot round the dial and the green count by the clock.
+          # Start from none waiting (Bazzite sends its own notice at first sign-in), and with Steam's first-run updater
+          # shut (its window sat over the dial on run 44776081561).
+          python3 .github/vm/vmctl.py run tester taylortest out/10-start.txt "pkill -u tester -f -i steam; quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes clear; sleep 3; echo cleared"
           python3 .github/vm/vmctl.py run tester taylortest out/10a-notes.txt \
             "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; o=\$(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.GetConnectionUnixProcessID org.freedesktop.Notifications | grep -oE '[0-9]+' | tail -1); [ \"\$(cat /proc/\$o/comm 2>/dev/null)\" = quickshell ] && echo 'PASS her desktop receives notifications itself' || echo 'FAIL her desktop receives notifications itself'" \
             "gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Download finished' 'Game update is ready' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Timer done' '10 minute break is over' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Backup' 'Copy checked' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Chat' '3 new messages' '[]' '{}' 5000 >/dev/null; echo sent" \

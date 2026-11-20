@@ -143,6 +143,7 @@ ShellRoot {
         target: "notes"
         function waiting(): int { return root.notesWaiting; }
         function toggle(): void { root.toggleList(); }
+        function clear(): void { for (const n of root.notes.filter((n) => n.st === "in")) root.noteDismiss(n); }
     }
 
     // ---- her arrival ----
