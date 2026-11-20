@@ -15,6 +15,12 @@ PanelWindow {
         const v = parseFloat(Quickshell.env("TAYLOR_GREETER_FROM") || "");
         return isNaN(v) ? 0 : v;
     }
+    // TAYLOR_GREETER_UNLOCK_AT=2 holds her unlock 2 seconds after "Welcome back" (the preview's frames).
+    readonly property real unlockAt: {
+        const v = parseFloat(Quickshell.env("TAYLOR_GREETER_UNLOCK_AT") || "");
+        return isNaN(v) ? -1 : v;
+    }
+    property bool held: false
     property bool started: false
     property double startedMs: 0
     signal skipped()
@@ -22,6 +28,7 @@ PanelWindow {
     signal keyErase()
     signal keyEnter()
     signal keyEscape()
+    signal keyKde()
 
     anchors { top: true; bottom: true; left: true; right: true }
     color: "#0B0D0C"
@@ -57,6 +64,7 @@ PanelWindow {
     function accepted() { Eng.accepted(); }
     function rejected() { Eng.rejected(); }
     function skip() { Eng.skipToLogin(); }
+    function setKde(on) { Eng.skipToLogin(); Eng.setKde(on); }
     function welcomeFor() { return Eng.welcomeFor(); }
 
     // Manrope from its own file: the greeter account's font list did not have it on the 2026-11-19 VM test, and the
@@ -84,10 +92,19 @@ PanelWindow {
 
     FrameAnimation {
         running: win.started
-        onTriggered: { Eng.advance(frameTime); art.requestPaint(); }
+        onTriggered: {
+            if (!win.held) {
+                Eng.advance(frameTime);
+                if (win.unlockAt >= 0 && Eng.welcomeFor() >= 0) {
+                    while (Eng.welcomeFor() < win.unlockAt) Eng.advance(1 / 60);
+                    win.held = true;
+                }
+            }
+            art.requestPaint();
+        }
     }
 
-    // Her keys (only the screen with the keyboard): letters, Backspace, Enter, Escape.
+    // Her keys (only the screen with the keyboard): letters, Backspace, Enter, Escape, and F2 (the KDE backup, once).
     Item {
         anchors.fill: parent
         focus: win.primary
@@ -96,6 +113,7 @@ PanelWindow {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) win.keyEnter();
             else if (event.key === Qt.Key_Backspace) win.keyErase();
             else if (event.key === Qt.Key_Escape) win.keyEscape();
+            else if (event.key === Qt.Key_F2) win.keyKde();
             else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) win.keyTyped(event.text);
             else event.accepted = false;
         }

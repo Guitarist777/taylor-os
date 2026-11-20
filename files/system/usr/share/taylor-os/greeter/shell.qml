@@ -21,8 +21,15 @@ ShellRoot {
     property bool launching: false
     property real fade: 0
 
+    // Started exactly so: on 2026-11-19 wrapping it (screen cleared, its lines sent to the journal) made uwsm stop at
+    // once and her login came back. uwsm's start-up lines still show on the text screen until Hyprland's first picture.
     readonly property var session: ["uwsm", "start", "-e", "-D", "Hyprland", "hyprland.desktop"]
     readonly property var sessionEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland", "XDG_SESSION_DESKTOP=Hyprland"]
+    // The KDE backup (her build brief: KDE always works as a backup login). F2 on this screen picks it for the next
+    // sign-in only; the hint says "KDE next" while it is picked, and F2 again takes it back.
+    property bool kde: false
+    readonly property var kdeSession: ["/usr/libexec/taylor-kde-session"]
+    readonly property var kdeEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=KDE", "XDG_SESSION_DESKTOP=KDE"]
 
     signal sTyped()
     signal sErase(int left)
@@ -32,6 +39,7 @@ ShellRoot {
     signal sAccepted()
     signal sRejected()
     signal sSkip()
+    signal sKde(bool on)
 
     // Whose PC it is: the first person's account (her name as the account has it, else the account name).
     Process {
@@ -65,6 +73,12 @@ ShellRoot {
         if (busy || launching) return;
         pw = "";
         sClear();
+    }
+    function toggleKde() {
+        if (busy || launching) return;
+        kde = !kde;
+        console.info("taylor-greeter: next sign-in opens " + (kde ? "the KDE backup" : "her TAYLOR desktop"));
+        sKde(kde);
     }
     function submit() {
         if (busy || launching) return;
@@ -121,13 +135,13 @@ ShellRoot {
         property real faded: -1
         onTriggered: {
             const w = sceneList.count > 0 ? sceneList.objectAt(0).welcomeFor() : 2;
-            if (w < 1.6) return;
-            root.fade = Math.min(1, (w - 1.6) / 0.5);
+            if (w < 4.6) return;   // her unlock plays to the end: the desktop dial drawn, the last faint star in
+            root.fade = Math.min(1, (w - 4.6) / 0.4);
             if (root.fade >= 1) {
                 stop();
                 if (Greetd.available) {
-                    console.info("taylor-greeter: starting her desktop");
-                    Greetd.launch(root.session, root.sessionEnv, true);
+                    console.info("taylor-greeter: starting " + (root.kde ? "the KDE backup" : "her desktop"));
+                    Greetd.launch(root.kde ? root.kdeSession : root.session, root.kde ? root.kdeEnv : root.sessionEnv, true);
                 } else {
                     console.info("taylor-greeter: demo signed in");
                     root.fade = 0;   // the demo stays on "Welcome back", for the preview's picture
@@ -154,6 +168,7 @@ ShellRoot {
                 onKeyEnter: root.submit()
                 onKeyEscape: root.clear()
                 onSkipped: root.sSkip()
+                onKeyKde: root.toggleKde()
                 Connections {
                     target: root
                     function onSTyped() { sc.letter(); }
@@ -164,6 +179,7 @@ ShellRoot {
                     function onSAccepted() { sc.accepted(); }
                     function onSRejected() { sc.rejected(); }
                     function onSSkip() { sc.skip(); }
+                    function onSKde(on) { sc.setKde(on); }
                 }
             }
         }

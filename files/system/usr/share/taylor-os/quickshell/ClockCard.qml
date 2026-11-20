@@ -6,6 +6,7 @@ import QtQuick
 PanelWindow {
     id: win
     property QtObject theme
+    property real arrive: 1           // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     anchors { top: true; left: true }
     margins { top: 40; left: 40 }
     implicitWidth: 380
@@ -19,6 +20,8 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
+        opacity: win.arrive
+        transform: Translate { x: -(1 - win.arrive) * 80 }   // slides in from the left
         radius: 22
         color: win.theme.glass
         border.color: win.theme.line
