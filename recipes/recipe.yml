@@ -39,7 +39,6 @@ modules:
         - kitty # terminal Hyprland's default config opens
         - quickshell # draws her desktop from the mockup: clock, mixer, dock, tray (from Fedora itself)
         - fuzzel # app search on Windows key + Space
-        - mako # notification pop-ups (Hyprland has none of its own)
         - playerctl # play / pause / next keys
         - qt6-qtsvg # draws the dock and tray line icons (SVG)
         - python3-hidapi # ChatMix: talks to her Arctis Nova Pro Wireless base station

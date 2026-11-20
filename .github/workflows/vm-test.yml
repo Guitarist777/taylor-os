@@ -270,6 +270,56 @@ jobs:
             "pkill -x kitty; echo closed"
           cat out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt
 
+      - name: Her notifications, dots round the dial, the green count and her list (her design tour, part 5)
+        run: |
+          # Made-up notifications only. Nothing pops up: each becomes a dot round the dial and the green count by the clock.
+          python3 .github/vm/vmctl.py run tester taylortest out/10a-notes.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; o=\$(gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.GetConnectionUnixProcessID org.freedesktop.Notifications | grep -oE '[0-9]+' | tail -1); [ \"\$(cat /proc/\$o/comm 2>/dev/null)\" = quickshell ] && echo 'PASS her desktop receives notifications itself' || echo 'FAIL her desktop receives notifications itself'" \
+            "gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Download finished' 'Game update is ready' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Timer done' '10 minute break is over' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Backup' 'Copy checked' '[]' '{}' 5000 >/dev/null; sleep 1.5; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Chat' '3 new messages' '[]' '{}' 5000 >/dev/null; echo sent" \
+            "sleep 2; n=\$(quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes waiting); [ \"\$n\" = 4 ] && echo 'PASS four notifications wait by her dial' || echo \"FAIL four notifications wait by her dial (\$n)\"" \
+            "pgrep -x mako >/dev/null || hyprctl layers | grep -q 'namespace: notifications' && echo 'FAIL nothing pops up' || echo 'PASS nothing pops up'" \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep taylor-tray | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/TRAYXYWH \\1 \\2 \\3 \\4/'" \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep taylor-dial | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/DIALXYWH \\1 \\2 \\3 \\4/'" \
+            "hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'"
+          cat out/10a-notes.txt
+          python3 .github/vm/vmctl.py shot "$PWD/out/10a-four-waiting.png"
+          read -r tx ty tw th < <(tr -d '\r' < out/10a-notes.txt | grep -oE 'TRAYXYWH( [0-9]+)+' | tail -1 | cut -d' ' -f2-)
+          read -r dx dy dw dh < <(tr -d '\r' < out/10a-notes.txt | grep -oE 'DIALXYWH( [0-9]+)+' | tail -1 | cut -d' ' -f2-)
+          read -r sw sh < <(tr -d '\r' < out/10a-notes.txt | grep -oE 'SCREENWH( [0-9]+)+' | tail -1 | cut -d' ' -f2-)
+          # the green count is the tray's leftmost 32 pixels
+          python3 .github/vm/vmctl.py click $((tx + 16)) $((ty + th / 2)) "$sw" "$sh"
+          sleep 2
+          python3 .github/vm/vmctl.py shot "$PWD/out/10b-list.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/10b-list.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep -q taylor-notes && echo 'PASS a click on the green count shows her list' || echo 'FAIL a click on the green count shows her list'" \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep taylor-notes | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/LISTXYWH \\1 \\2 \\3 \\4/'"
+          cat out/10b-list.txt
+          read -r lx ly lw lh < <(tr -d '\r' < out/10b-list.txt | grep -oE 'LISTXYWH( [0-9]+)+' | tail -1 | cut -d' ' -f2-)
+          # the shortest line sits at the bottom, nearest the clock; its right end is the list's right edge
+          python3 .github/vm/vmctl.py click $((lx + lw - 40)) $((ly + lh - 8 - 17)) "$sw" "$sh"
+          sleep 3
+          python3 .github/vm/vmctl.py shot "$PWD/out/10c-one-dismissed.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/10c-dismissed.txt "sleep 2; n=\$(quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes waiting); [ \"\$n\" = 3 ] && echo 'PASS a click on a line dismisses it' || echo \"FAIL a click on a line dismisses it (\$n)\""
+          # a click on the empty desktop shuts the list
+          python3 .github/vm/vmctl.py click $((sw * 45 / 100)) $((sh * 80 / 100)) "$sw" "$sh"
+          sleep 2
+          python3 .github/vm/vmctl.py run tester taylortest out/10d-away.txt "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep -q taylor-notes && echo 'FAIL a click away shuts her list' || echo 'PASS a click away shuts her list'"
+          # with some waiting, a click on the dial shows the list (not the launcher)
+          python3 .github/vm/vmctl.py click $((dx + dw / 2)) $((sh * 390 / 900)) "$sw" "$sh"
+          sleep 2
+          python3 .github/vm/vmctl.py shot "$PWD/out/10e-dial-list.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/10e-dial.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; hyprctl layers | grep -q taylor-notes && echo 'PASS a click on the dial shows her list while some wait' || echo 'FAIL a click on the dial shows her list while some wait'" \
+            "quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes toggle; echo toggled"
+          # at most five wait (a sixth sends the oldest away), and an app that takes one back takes its dot away
+          python3 .github/vm/vmctl.py run tester taylortest out/10f-five.txt \
+            "export HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1); export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'One' 'more' '[]' '{}' 5000 >/dev/null; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Two' 'more' '[]' '{}' 5000 >/dev/null; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Three' 'more' '[]' '{}' 5000 >/dev/null; echo sent" \
+            "sleep 2; n=\$(quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes waiting); [ \"\$n\" = 5 ] && echo 'PASS at most five wait' || echo \"FAIL at most five wait (\$n)\"" \
+            "i=\$(gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify Test 0 '' 'Taken' 'back' '[]' '{}' 5000 | grep -oE '[0-9]+' | tail -1); sleep 1; gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.CloseNotification \$i >/dev/null; echo closed \$i" \
+            "sleep 2; n=\$(quickshell ipc --pid \$(pgrep -u tester -x quickshell | head -1) call notes waiting); [ \"\$n\" = 4 ] && echo 'PASS an app taking one back takes its dot away' || echo \"FAIL an app taking one back takes its dot away (\$n)\""
+          python3 .github/vm/vmctl.py shot "$PWD/out/10f-after.png"
+          cat out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt
+
       - name: Sign out, and watch her opening play on the login screen
         run: |
           # Signing out ends her desktop; greetd shows her login screen again, from the opening.
@@ -289,8 +339,8 @@ jobs:
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=24; [ -n "$UPDATE_TO" ] && want=26
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=33; [ -n "$UPDATE_TO" ] && want=35
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 
