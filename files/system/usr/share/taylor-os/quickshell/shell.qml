@@ -1,4 +1,4 @@
-//@ pragma IconTheme breeze-dark
+//@ pragma IconTheme Slot-Dark-Icons
 // TAYLOR OS desktop, from her mockup "7 · Dock your way + mixer widget" (the TAYLOR theme).
 // Quickshell draws it on top of Hyprland: the live Horizon sky is the wallpaper, the clock card and mixer sit on the desktop (under windows),
 // the dock floats at the top, the tray sits bottom right, TAYLOR's dial sits right of centre (her "login unlock to
@@ -178,7 +178,16 @@ ShellRoot {
     }
     ClockCard { screen: root.mainScreen; theme: root.c; arrive: root.arriveU }
     Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU }
-    Dock { screen: root.mainScreen; theme: root.c; mixerShown: root.mixerShown; onToggleMixer: root.mixerShown = !root.mixerShown; arrive: root.arriveU }
+    // the taskbar (Dock.qml): its dial opens the launcher, its Mixer slot the Mixer window, its lines go to her status
+    property bool mixerWindowOpen: false     // the Mixer window (the mixer piece shows its window from this)
+    property bool dockHidden: false          // true full screen (the windows piece sets it)
+    Dock {
+        screen: root.mainScreen; theme: root.c; arrive: root.arriveU
+        hiddenForFullscreen: root.dockHidden
+        onOpenLauncher: root.launcherOpen = true
+        onOpenMixer: root.mixerWindowOpen = true
+        onSay: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
+    }
     Tray {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU2
         waiting: root.notesWaiting

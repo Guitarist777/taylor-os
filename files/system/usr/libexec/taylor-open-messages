@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# Google Messages for web (the taskbar's Messages slot, 2026-11-21): in her default browser, as its own app window when
+# that browser can make one (Edge and Chrome can; Firefox opens it as an ordinary window).
+set -u
+url="https://messages.google.com/web"
+def=$(xdg-settings get default-web-browser 2>/dev/null || true)
+have() { flatpak info "$1" >/dev/null 2>&1; }
+case "$def" in
+    *[Ee]dge*)   have com.microsoft.Edge && exec flatpak run com.microsoft.Edge --app="$url" ;;
+    *[Cc]hrome*) have com.google.Chrome && exec flatpak run com.google.Chrome --app="$url" ;;
+esac
+# no default set, or the default cannot make an app window: her default browser as it is
+if [ -n "$def" ]; then exec xdg-open "$url"; fi
+have com.microsoft.Edge && exec flatpak run com.microsoft.Edge --app="$url"
+have com.google.Chrome && exec flatpak run com.google.Chrome --app="$url"
+exec xdg-open "$url"

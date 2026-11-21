@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Messages
+GenericName=Google Messages for web
+Comment=Your phone's texts, in its own window
+Exec=/usr/libexec/taylor-open-messages
+Icon=taylor-messages
+Categories=Network;Chat;
+Terminal=false

@@ -1,0 +1,74 @@
+#!/usr/bin/bash
+# The taskbar's apps (2026-11-21), set up at her sign-in by taylor-apps-setup.service (a user service, quiet: no window,
+# a log at ~/.local/state/taylor-os/apps-setup.log). It does only what is missing, so later sign-ins are a quick look.
+#  1. Her icon set, Slot-Dark-Icons, for the other apps too (KDE/Qt apps: kdeglobals; GTK apps: gsettings), once, so a
+#     set she picks herself later is never undone.
+#  2. From Flathub, as her own flatpaks: Edge, Chrome and Spotify, and Firefox if the system's own is not there.
+#     (Bazzite installs its system Firefox on the first start; that is waited for first, so it is never there twice.)
+#  3. Google Messages' own icon (its web page's icon) for the Messages slot.
+# EA and Battle.net are not installed here: they are Windows programs, set up through Lutris (on the PC already) the
+# first time she picks them on the taskbar. Steam is on the PC already.
+# Exit 1 when something could not be done (no network yet): the service tries again in 10 minutes.
+set -u
+state="${XDG_STATE_HOME:-$HOME/.local/state}/taylor-os"
+mkdir -p "$state"
+exec >>"$state/apps-setup.log" 2>&1
+say() { echo "$(date '+%F %T') $*"; }
+say "start"
+fail=0
+
+# 1. the icon set, once
+if [ ! -e "$state/icons-set" ] && [ -d /usr/share/icons/Slot-Dark-Icons ]; then
+    cur=$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)
+    if [ -z "$cur" ] || [ "$cur" = breeze ] || [ "$cur" = breeze-dark ]; then
+        kwriteconfig6 --file kdeglobals --group Icons --key Theme Slot-Dark-Icons && say "icons: Qt and KDE apps use Slot-Dark-Icons"
+    else
+        say "icons: her own pick ($cur) kept for Qt and KDE apps"
+    fi
+    gsettings set org.gnome.desktop.interface icon-theme Slot-Dark-Icons 2>/dev/null && say "icons: GTK apps use Slot-Dark-Icons"
+    : > "$state/icons-set"
+fi
+
+# 2. the apps, from Flathub
+# wait (up to 20 minutes) while Bazzite is still installing its own first-start apps (Firefox among them)
+for i in $(seq 1 120); do
+    systemctl is-active --quiet bazzite-flatpak-manager.service 2>/dev/null || break
+    [ "$i" = 1 ] && say "waiting for Bazzite's first-start apps"
+    sleep 10
+done
+have() { flatpak info "$1" >/dev/null 2>&1; }
+want="com.microsoft.Edge com.google.Chrome com.spotify.Client"
+have org.mozilla.firefox || command -v firefox >/dev/null || want="org.mozilla.firefox $want"
+missing=""
+for a in $want; do have "$a" || missing="$missing $a"; done
+if [ -n "$missing" ]; then
+    flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+        || { say "could not add Flathub (no network yet?)"; fail=1; }
+    for a in $missing; do
+        say "installing $a"
+        if flatpak install --user --noninteractive -y flathub "$a" </dev/null >"$state/apps-setup-$a.log" 2>&1; then
+            say "installed $a"
+        else
+            say "could not install $a yet (see apps-setup-$a.log); trying again later"
+            fail=1
+        fi
+    done
+else
+    say "the taskbar's apps are all here"
+fi
+
+# 3. Google Messages' own icon
+icon="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/192x192/apps/taylor-messages.png"
+if [ ! -s "$icon" ]; then
+    mkdir -p "$(dirname "$icon")"
+    if curl -fsSL --max-time 30 --max-filesize 200000 -o "$icon.part" \
+         https://ssl.gstatic.com/android-messages-web/images/2026/favicon_default_192.png \
+       && head -c 8 "$icon.part" | od -An -c | grep -q 'P   N   G'; then
+        mv "$icon.part" "$icon"; say "fetched the Messages icon"
+    else
+        rm -f "$icon.part"; say "could not fetch the Messages icon yet (the slot shows a stand-in from her set)"
+    fi
+fi
+
+say "done (exit $fail)"
+exit $fail
