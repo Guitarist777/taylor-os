@@ -5,7 +5,7 @@
 . .github/vm/checks/lib.sh
 SESSION="s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1)"
 KR='XDG_CONFIG_DIRS=$HOME/.config/kdedefaults:/etc/xdg kreadconfig6'  # as the KDE session reads its settings
-expect kde 14
+expect kde 15
 # the panel check, sent to the VM as one line
 PANELPY=$(base64 -w0 <<'PY'
 import configparser, os, sys
@@ -43,6 +43,7 @@ vm kde-1 \
   "$(ok 'the icon theme is Slot-Dark-Icons and it is installed' "[ \"\$($KR --file kdeglobals --group Icons --key Theme)\" = Slot-Dark-Icons ] && grep -q '^Name=Slot-Dark-Icons' /usr/share/icons/Slot-Dark-Icons/index.theme && test -f /usr/share/icons/Slot-Dark-Icons/LICENSE")" \
   "$(ok 'the Plasma theme is TAYLOR' "[ \"\$($KR --file plasmarc --group Theme --key name)\" = TAYLOR ]")" \
   "$(ok 'the window title bars are TAYLOR' "[ \"\$($KR --file kwinrc --group org.kde.kdecoration2 --key theme)\" = __aurorae__svg__TAYLOR ]")" \
+  "$(ok 'the KDE start-up splash is a real one (Breeze)' "[ \"\$($KR --file ksplashrc --group KSplash --key Theme)\" = org.kde.breeze.desktop ]")" \
   "$(ok 'the wallpaper is the TAYLOR sky' "grep -q 'TAYLOR-Sky' ~/.config/plasma-org.kde.plasma.desktop-appletsrc")" \
   "$(ok 'one bottom panel with the menu, apps, tray and clock' "echo $PANELPY | base64 -d | python3")" \
   "cat ~/.local/state/taylor-os/kde-look.log" \

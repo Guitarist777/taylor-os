@@ -70,6 +70,10 @@ if [ -d /usr/share/aurorae/themes/TAYLOR ]; then
     dbus-send --session --type=signal /KWin org.kde.KWin.reloadConfig 2>/dev/null
     say "window title bars TAYLOR"
 fi
+# The TAYLOR global theme has no splash of its own: Plasma's Breeze splash, so a KDE start never shows a blank one.
+kwriteconfig6 --file ksplashrc --group KSplash --key Engine KSplashQML
+kwriteconfig6 --file ksplashrc --group KSplash --key Theme org.kde.breeze.desktop
+say "start-up splash: Breeze"
 
 if [ "$ok" = yes ]; then
     touch "$done_mark"; rm -f "$tries_file"; say "done"
