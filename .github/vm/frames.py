@@ -81,7 +81,8 @@ def main():
             print("FAIL the boot screen shows her dark")
             return
         print("PASS the boot screen shows her dark")
-        first = kinds.index("dark")
+        # her boot screen: the first run of at least 3 frames of her dark (a single dark frame can be the old session ending)
+        first = next((i for i in range(len(kinds) - 2) if kinds[i:i + 3] == ["dark"] * 3), kinds.index("dark"))
         op = kinds.index("opening", first) if "opening" in kinds[first:] else -1
         if op < 0:
             print("FAIL her opening follows the boot screen")
