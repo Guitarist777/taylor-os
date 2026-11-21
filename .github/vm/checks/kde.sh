@@ -4,7 +4,7 @@
 # looked at, then KDE is ended and her own login screen must come back, and her TAYLOR desktop must still open.
 . .github/vm/checks/lib.sh
 SESSION="s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1)"
-KENV='export XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus WAYLAND_DISPLAY=wayland-0 XDG_CURRENT_DESKTOP=KDE QT_QPA_PLATFORM=wayland'
+KR='XDG_CONFIG_DIRS=$HOME/.config/kdedefaults:/etc/xdg kreadconfig6'  # as the KDE session reads its settings
 expect kde 14
 # the panel check, sent to the VM as one line
 PANELPY=$(base64 -w0 <<'PY'
@@ -39,18 +39,21 @@ vm kde-1 \
   "$(ok 'F2 on her login screen picks the KDE backup' "echo taylortest | sudo -S grep -q 'next sign-in opens the KDE backup' /tmp/taylor-greeter-scene.log")" \
   "$(ok 'KDE Plasma runs (plasmashell, no Hyprland)' "pgrep -u tester -x plasmashell >/dev/null && ! pgrep -u tester -x Hyprland >/dev/null")" \
   "$(ok 'the TAYLOR look was put on once and marked done' "test -e ~/.local/state/taylor-os/kde-look-applied && grep -q 'global theme TAYLOR applied' ~/.local/state/taylor-os/kde-look.log")" \
-  "$(ok 'the colour scheme is TAYLOR' "[ \"\$(kreadconfig6 --file kdeglobals --group General --key ColorScheme)\" = TAYLOR ]")" \
-  "$(ok 'the icon theme is Slot-Dark-Icons and it is installed' "[ \"\$(kreadconfig6 --file kdeglobals --group Icons --key Theme)\" = Slot-Dark-Icons ] && grep -q '^Name=Slot-Dark-Icons' /usr/share/icons/Slot-Dark-Icons/index.theme && test -f /usr/share/icons/Slot-Dark-Icons/LICENSE")" \
-  "$(ok 'the Plasma theme is TAYLOR' "[ \"\$(kreadconfig6 --file plasmarc --group Theme --key name)\" = TAYLOR ]")" \
-  "$(ok 'the window title bars are TAYLOR' "[ \"\$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme)\" = __aurorae__svg__TAYLOR ]")" \
+  "$(ok 'the colour scheme is TAYLOR' "[ \"\$($KR --file kdeglobals --group General --key ColorScheme)\" = TAYLOR ]")" \
+  "$(ok 'the icon theme is Slot-Dark-Icons and it is installed' "[ \"\$($KR --file kdeglobals --group Icons --key Theme)\" = Slot-Dark-Icons ] && grep -q '^Name=Slot-Dark-Icons' /usr/share/icons/Slot-Dark-Icons/index.theme && test -f /usr/share/icons/Slot-Dark-Icons/LICENSE")" \
+  "$(ok 'the Plasma theme is TAYLOR' "[ \"\$($KR --file plasmarc --group Theme --key name)\" = TAYLOR ]")" \
+  "$(ok 'the window title bars are TAYLOR' "[ \"\$($KR --file kwinrc --group org.kde.kdecoration2 --key theme)\" = __aurorae__svg__TAYLOR ]")" \
   "$(ok 'the wallpaper is the TAYLOR sky' "grep -q 'TAYLOR-Sky' ~/.config/plasma-org.kde.plasma.desktop-appletsrc")" \
   "$(ok 'one bottom panel with the menu, apps, tray and clock' "echo $PANELPY | base64 -d | python3")" \
   "cat ~/.local/state/taylor-os/kde-look.log" \
+  "grep -H -E 'ColorScheme|^Theme=|^name=|^theme=|^library=' ~/.config/kdedefaults/* ~/.config/kdeglobals ~/.config/plasmarc ~/.config/kwinrc" \
   "grep -n -A3 'Wallpaper' ~/.config/plasma-org.kde.plasma.desktop-appletsrc | head -20"
 
+# Dolphin started inside her KDE session (its user manager has the session's display), Bazzite's welcome window shut first.
 vm kde-2 \
-  "$KENV; (setsid -f dolphin --new-window /usr/share >/tmp/dolphin.log 2>&1 &); sleep 10" \
-  "$(ok 'a Dolphin window opens in KDE' "pgrep -u tester -x dolphin >/dev/null")"
+  "pkill -u tester -f yafti; export XDG_RUNTIME_DIR=/run/user/1000; systemd-run --user --collect --unit=taylor-check-dolphin dolphin --new-window /usr/share; sleep 12" \
+  "$(ok 'a Dolphin window opens in KDE' "pgrep -u tester -x dolphin >/dev/null")" \
+  "journalctl --user -u taylor-check-dolphin --no-pager | tail -15"
 shot kde-3-dolphin
 
 vm kde-3 \
