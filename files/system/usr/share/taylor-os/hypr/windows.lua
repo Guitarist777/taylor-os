@@ -301,7 +301,7 @@ local function dragTick(w, cur)
         local ax, ay = xy(w.at); local sw, sh = xy(w.size)
         if not d.moving and (ax ~= d.ax or ay ~= d.ay) and sw == d.sw and sh == d.sh then
             d.moving = true
-            log("drag starts " .. tostring(w.class) .. " via " .. T.btn_method)
+            log("drag starts " .. tostring(w.class) .. " via " .. T.btn_method .. " at tick " .. tostring(T.n))
             -- a snapped window dragged away gets its floating size back, under the pointer as in her tour
             local s = T.snaps[w.address]
             if s and s.zone then
@@ -318,6 +318,7 @@ local function dragTick(w, cur)
                 if z then
                     local r = T.rect(z, m)
                     emit("zone " .. z .. " " .. table.concat(r, " "))
+                    log("zone " .. z .. " at tick " .. tostring(T.n))
                 else
                     emit("zone none 0 0 0 0")
                 end
@@ -328,6 +329,7 @@ local function dragTick(w, cur)
     if not down and d then
         T.drag = nil
         if d.moving then
+            log("let go at tick " .. tostring(T.n))
             if d.zone then
                 emit("zone none 0 0 0 0")
                 local ww = byAddr(d.addr) or w

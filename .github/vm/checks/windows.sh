@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 25
+expect windows 26
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -97,9 +97,12 @@ shot windows-7-dropped
 vm windows-drag \
   "$(ok 'a window dragged to the left edge snaps to the left half' "python3 /tmp/w.py active L")" \
   "$(ok 'the dotted outline showed while dragging' "$QSLOG | grep -q 'drag zone L'")" \
-  "$(ok 'the dotted outline is a layer on the screen for a zone and gone after' "\$Q call windows preview TR $((W/2)) 0 $((W/2)) $((HH/2)) >/dev/null; sleep 1; python3 /tmp/w.py layer taylor-snap present && \$Q call windows preview none 0 0 0 0 >/dev/null && sleep 1 && python3 /tmp/w.py layer taylor-snap absent")" \
+  "$(ok 'the dotted outline is a layer on the screen for a zone' "\$Q call windows preview TR $((W/2)) 0 $((W/2)) $((HH/2)) >/dev/null; sleep 1; python3 /tmp/w.py layer taylor-snap present")" \
   "hyprctl repl 'taylor.tail()'" "hyprctl repl 'taylor.state()'" \
   "$QSLOG | grep taylor-windows | tail -12"
+shot windows-6b-outline-top-right
+vm windows-outline-gone \
+  "$(ok 'the dotted outline goes when the drag ends' "\$Q call windows preview none 0 0 0 0 >/dev/null; sleep 1; python3 /tmp/w.py layer taylor-snap absent")"
 if ! tr -d '\r' < out/windows-drag.txt | grep -qE '^(tester@[^ ]* )?PASS a window dragged'; then
   # a second try with the button binds (not counted): says whether they are what the watcher needs
   vm windows-drag2-prep "hyprctl dispatch 'hl.dsp.window.move({ x = 300, y = 200 })'"
