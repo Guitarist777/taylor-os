@@ -85,7 +85,7 @@ PanelWindow {
             x.globalAlpha = 1;
 
             const line = win.busy ? win.status : win.waiting === 1 ? "ONE NEW." : win.waiting > 1 ? win.waiting + " NEW." : win.status;
-            Dial.words(x, cx, cy + 118 * k, k, win.arrive2, Math.round(11 * k) + "px " + win.theme.sans, line);
+            if (Prefs.statusLine) Dial.words(x, cx, cy + 118 * k, k, win.arrive2, Math.round(11 * k) + "px " + win.theme.sans, line);   // her Settings switch
 
             // the quiet line as one comes in: fades in, stays about four seconds, fades out
             const wh = win.whisper;

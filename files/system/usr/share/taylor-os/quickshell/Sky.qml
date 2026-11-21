@@ -41,6 +41,7 @@ PanelWindow {
     readonly property real sr: Math.min(sx, sy)
 
     function repaintAll() { sky.requestPaint(); clouds.requestPaint(); hillsLayer.requestPaint(); }
+    Connections { target: Prefs; function onSkyDeeperChanged() { win.repaintAll(); } }
 
     SystemClock { id: clock; precision: SystemClock.Minutes; onDateChanged: win.repaintAll() }
 
@@ -120,6 +121,8 @@ PanelWindow {
             dusk: { top: '#1E1830', mid: '#6E3A58', bottom: '#E07A4F', h: ['#3B2442', '#2A1A32', '#1A1222'] },
             day: { top: '#2F6E95', mid: '#5E9BBB', bottom: '#A9CFDB', h: ['#5B8A6E', '#3E6A51', '#2A4B39'] }
         };
+        // her Settings switch "Deeper daytime sky" (her brief: about #1E3A4C to #2F5568 to #4A7480)
+        if (Prefs.skyDeeper) { P.day.top = '#1E3A4C'; P.day.mid = '#2F5568'; P.day.bottom = '#4A7480'; }
         const blend = (A, B2, t) => ({ top: mix(A.top, B2.top, t), mid: mix(A.mid, B2.mid, t), bottom: mix(A.bottom, B2.bottom, t), h: [0, 1, 2].map((i) => mix(A.h[i], B2.h[i], t)) });
         const twi = morning ? P.dawn : P.dusk;
         let skyC;

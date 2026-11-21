@@ -185,6 +185,11 @@ ShellRoot {
         onCountClicked: root.toggleList()
     }
     WindowBar { screen: root.mainScreen; theme: root.c }
+    // her Settings window, the volume and brightness ring (on the main screen; it shows over a full-screen window),
+    // and warmer colours at night (Settings.qml, Osd.qml, Warm.qml)
+    Settings {}
+    Osd { screen: root.mainScreen; theme: root.c }
+    Warm {}
     Variants {
         model: Quickshell.screens
         delegate: Component {

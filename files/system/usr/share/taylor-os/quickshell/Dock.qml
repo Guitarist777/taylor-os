@@ -70,7 +70,7 @@ PanelWindow {
                         visible: btn.modelData.divider !== true
                         anchors.fill: parent
                         radius: 12
-                        color: hover.hovered ? Qt.rgba(1, 1, 1, 0.07) : "transparent"
+                        color: hover.hovered ? win.theme.chip : "transparent"
                         HoverHandler { id: hover }
 
                         // TAYLOR's chip

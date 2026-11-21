@@ -160,7 +160,7 @@ PanelWindow {
                 seen[key] = true;
                 list.push(found[i].it);
             }
-            list.push({ k: "TAYLOR", n: "Ask TAYLOR: “" + q + "”" });
+            if (Prefs.askTaylor) list.push({ k: "TAYLOR", n: "Ask TAYLOR: “" + q + "”" });   // her Settings switch
         }
         rows = list;
         if (sel >= list.length) sel = list.length - 1;
@@ -218,24 +218,24 @@ PanelWindow {
             const sp = Dial.spot(width, height);
             x.globalAlpha = 0.34 * e; x.fillStyle = "#000"; x.fillRect(0, 0, width, height);
             const bwid = Math.max(46 * U, win.bw * e);
-            x.globalAlpha = 0.97 * Math.min(1, e * 1.6); x.fillStyle = "#171918"; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.fill();
+            x.globalAlpha = 0.97 * Math.min(1, e * 1.6); x.fillStyle = String(win.theme.panel); rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.fill();
             x.globalAlpha = 0.6 * e; x.strokeStyle = "rgba(255,255,255,0.16)"; x.lineWidth = 1; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.stroke();
             // the dial: from her spot to the bar's icon, shrinking; its ticks, arcs and line fade on the way
             const px = sp.x + (win.bx + 23 * U - sp.x) * e, py = sp.y + (win.by + 22 * U - sp.y) * e;
             const R = sp.r + (12 * U - sp.r) * e, k = R / 30, ks = sp.k + (U - sp.k) * e;
-            x.lineCap = "round"; x.strokeStyle = "#4FB386";
+            x.lineCap = "round"; x.strokeStyle = String(win.theme.accent);
             x.globalAlpha = 0.12 * (1 - e) + 0.05; x.lineWidth = 7 * k; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
             x.globalAlpha = 0.95; x.lineWidth = 1.5 * ks; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
             if (e < 1) {
                 x.globalAlpha = 0.35 * (1 - e); x.lineWidth = ks; x.beginPath(); x.arc(px, py, R * 0.62, 0, 6.2832, false); x.stroke();
-                x.strokeStyle = "#EDEFEE";
+                x.strokeStyle = String(win.theme.text);
                 for (let t2 = 0; t2 < 48; t2++) {
                     const an = -1.5708 + t2 / 48 * 6.2832, big = t2 % 4 === 0;
                     x.globalAlpha = (big ? 0.5 : 0.25) * (1 - e);
                     x.beginPath(); x.moveTo(px + Math.cos(an) * (R + 6 * k), py + Math.sin(an) * (R + 6 * k));
                     x.lineTo(px + Math.cos(an) * (R + (big ? 12 : 9) * k), py + Math.sin(an) * (R + (big ? 12 : 9) * k)); x.stroke();
                 }
-                x.strokeStyle = "#4FB386"; x.lineWidth = 2.5 * ks;
+                x.strokeStyle = String(win.theme.accent); x.lineWidth = 2.5 * ks;
                 const rot = Dial.arcAngle();
                 for (let j = 0; j < 3; j++) {
                     const st = rot + j * 2.0944;
@@ -244,7 +244,7 @@ PanelWindow {
                 }
                 Dial.words(x, sp.x, sp.y + 118 * sp.k, sp.k, 1 - e, Math.round(11 * sp.k) + "px " + win.theme.sans, win.status);
             }
-            if (e > 0.2) { x.globalAlpha = e; x.fillStyle = "#4FB386"; x.beginPath(); x.arc(px, py, 2.2 * U, 0, 6.2832, false); x.fill(); }
+            if (e > 0.2) { x.globalAlpha = e; x.fillStyle = String(win.theme.accent); x.beginPath(); x.arc(px, py, 2.2 * U, 0, 6.2832, false); x.fill(); }
             x.globalAlpha = 1;
         }
     }
@@ -266,8 +266,8 @@ PanelWindow {
             x: win.bx + 46 * win.u; y: win.by + 6 * win.u
             width: win.bw - 60 * win.u; height: 32 * win.u
             verticalAlignment: TextInput.AlignVCenter
-            color: "#EDEFEE"
-            selectionColor: Qt.rgba(79 / 255, 179 / 255, 134 / 255, 0.4)
+            color: win.theme.text
+            selectionColor: win.theme.alpha(win.theme.accent, 0.4)
             font.family: win.theme.sans
             font.pixelSize: Math.round(15 * win.u)
             clip: true
@@ -282,8 +282,8 @@ PanelWindow {
                 anchors.fill: parent
                 verticalAlignment: Text.AlignVCenter
                 visible: input.text.length === 0
-                text: "Search apps, files, or ask TAYLOR"
-                color: "#9AA19D"
+                text: Prefs.askTaylor ? "Search apps, files, or ask TAYLOR" : "Search apps or files"
+                color: win.theme.muted
                 font: input.font
             }
         }
@@ -294,8 +294,8 @@ PanelWindow {
             width: win.bw
             height: list.height + 12 * win.u
             radius: 12 * win.u
-            color: "#171918"
-            border.color: Qt.rgba(1, 1, 1, 0.14)
+            color: win.theme.panel
+            border.color: win.theme.line
             border.width: 1
             MouseArea { anchors.fill: parent }   // a click in the list (between rows) keeps it open
             Column {
@@ -305,7 +305,7 @@ PanelWindow {
                 Text {
                     visible: input.text.trim().length === 0
                     text: "Recent"
-                    color: "#9AA19D"
+                    color: win.theme.muted
                     font.family: win.theme.sans
                     font.pixelSize: Math.round(12 * win.u)
                     leftPadding: 10 * win.u; topPadding: 4 * win.u; bottomPadding: 6 * win.u
@@ -319,12 +319,12 @@ PanelWindow {
                         width: list.width
                         height: 30 * win.u
                         radius: 8 * win.u
-                        color: index === win.sel ? Qt.rgba(79 / 255, 179 / 255, 134 / 255, 0.18) : "transparent"
+                        color: index === win.sel ? win.theme.alpha(win.theme.accent, 0.18) : "transparent"
                         Text {
                             anchors { left: parent.left; leftMargin: 10 * win.u; right: kind.left; rightMargin: 12 * win.u; verticalCenter: parent.verticalCenter }
                             text: row.modelData.n
                             elide: Text.ElideRight
-                            color: row.modelData.k === "TAYLOR" ? "#A8E3C6" : "#EDEFEE"
+                            color: row.modelData.k === "TAYLOR" ? win.theme.soft : win.theme.text
                             font.family: win.theme.sans
                             font.pixelSize: Math.round(14 * win.u)
                         }
@@ -332,7 +332,7 @@ PanelWindow {
                             id: kind
                             anchors { right: parent.right; rightMargin: 10 * win.u; verticalCenter: parent.verticalCenter }
                             text: row.modelData.k
-                            color: "#9AA19D"
+                            color: win.theme.muted
                             font.family: win.theme.sans
                             font.pixelSize: Math.round(12 * win.u)
                         }

@@ -29,6 +29,10 @@ Singleton {
     property alias askTaylor: a.askTaylor
     // Display
     property alias brightness: a.brightness
+    property alias warmNight: a.warmNight           // warmer colours at night (hyprsunset, Warm.qml)
+    // About: the last "Check now" (uptodate | staged | newer | offline | unknown, and when, in ms)
+    property alias updateState: a.updateState
+    property alias updateCheckedAt: a.updateCheckedAt
     // the last app picked in each dock group slot (an app id, e.g. "firefox", "steam"; "" = the first)
     property alias lastBrowser: a.lastBrowser
     property alias lastGames: a.lastGames
@@ -59,6 +63,9 @@ Singleton {
             property bool statusLine: true
             property bool askTaylor: true
             property real brightness: 80
+            property bool warmNight: false
+            property string updateState: ""
+            property real updateCheckedAt: 0
             property string lastBrowser: ""
             property string lastGames: ""
         }

@@ -1,0 +1,39 @@
+#!/usr/bin/bash
+# TaylorOS: Settings > Network (2026-11-21), through NetworkManager (nmcli), as her, no root.
+#   taylor-network state          one line per thing:  WIFI on|off|none / NET <inuse 0|1> <signal> <known 0|1> <secure 0|1> <ssid> / WIRED <state>
+#   taylor-network wifi on|off    the Wi-Fi radio
+#   taylor-network connect SSID   a network this PC already knows (NetworkManager keeps its password)
+#   taylor-network join SSID      a new network: its password is read from the first line of stdin (never an argument
+#                                 to this script, never printed; nmcli may ask for her account password the first time)
+set -u
+case "${1:-state}" in
+state)
+    if nmcli -t -f TYPE dev 2>/dev/null | grep -qx wifi; then
+        echo "WIFI $(nmcli radio wifi 2>/dev/null | grep -q enabled && echo on || echo off)"
+    else
+        echo "WIFI none"
+    fi
+    # the SSIDs of the Wi-Fi connections this PC already has
+    known=$(nmcli -t -f NAME,TYPE con show 2>/dev/null | awk -F: '$2=="802-11-wireless"{print $1}' | while IFS= read -r c; do
+        nmcli -g 802-11-wireless.ssid con show "$c" 2>/dev/null; done)
+    nmcli -t -f IN-USE,SIGNAL,SECURITY,SSID dev wifi list --rescan auto 2>/dev/null | while IFS= read -r line; do
+        inuse=${line%%:*}; rest=${line#*:}; sig=${rest%%:*}; rest=${rest#*:}; sec=${rest%%:*}; ssid=${rest#*:}
+        ssid=${ssid//\\:/:}
+        [ -n "$ssid" ] || continue
+        k=0; printf '%s\n' "$known" | grep -qxF -- "$ssid" && k=1
+        s=1; [ -z "$sec" ] || [ "$sec" = "--" ] && s=0
+        echo "NET $([ "$inuse" = "*" ] && echo 1 || echo 0) ${sig:-0} $k $s $ssid"
+    done | sort -k2,2nr -k3,3nr | awk '{ s = $0; for (i = 1; i <= 5; i++) sub(/^[^ ]* /, "", s); if (!seen[s]++) print }' | head -12
+    nmcli -t -f TYPE,STATE dev 2>/dev/null | awk -F: '$1=="ethernet"{print "WIRED " $2}'
+    ;;
+wifi)
+    nmcli radio wifi "${2:-on}" ;;
+connect)
+    ssid="${2:?}"
+    c=$(nmcli -t -f NAME,TYPE con show | awk -F: '$2=="802-11-wireless"{print $1}' | while IFS= read -r n; do
+        [ "$(nmcli -g 802-11-wireless.ssid con show "$n")" = "$ssid" ] && { echo "$n"; break; }; done)
+    if [ -n "$c" ]; then nmcli con up id "$c"; else nmcli dev wifi connect "$ssid"; fi ;;
+join)
+    ssid="${2:?}"; IFS= read -r pw || pw=""
+    if [ -n "$pw" ]; then nmcli dev wifi connect "$ssid" password "$pw"; else nmcli dev wifi connect "$ssid"; fi ;;
+esac

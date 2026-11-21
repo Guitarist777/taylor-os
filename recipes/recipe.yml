@@ -46,6 +46,7 @@ modules:
         - greetd # runs her login screen (2026-11-19: her own design, drawn by Quickshell; replaces the Plasma login screen)
         - tuigreet # the plain text sign-in, only if her login screen fails twice (never locked out)
         - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)
+        - hyprsunset # Settings > Display, "Warmer colors at night" (Hyprland's own night-light; ddcutil and skopeo, used by Settings too, are already in Bazzite)
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
