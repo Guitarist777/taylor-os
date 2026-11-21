@@ -136,7 +136,8 @@ ShellRoot {
         Greetd.createSession(user);
     }
     // times, for /tmp/taylor-greeter-times.log (seconds since boot; nothing private): where the wait after her
-    // password goes. taylor-greeter adds the line for Hyprland ending.
+    // password goes. taylor-greeter adds "login screen starting"; her desktop's start is logind's (the session's
+    // TimestampMonotonic): greetd ends taylor-greeter itself before it could write anything after Hyprland.
     function mark(what) {
         Quickshell.execDetached(["sh", "-c", "echo \"$(cut -d' ' -f1 /proc/uptime) $1\" >> /tmp/taylor-greeter-times.log", "sh", what]);
     }
