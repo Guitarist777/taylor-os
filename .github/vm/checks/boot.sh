@@ -98,7 +98,7 @@ vm boot-9 \
 
 # ---- a disk password would still be asked on her boot screen: run her boot screen on another text screen and ask
 vm boot-10 \
-  "$(gsudo 'chvt 8; sleep 1; plymouthd --tty=tty8 --mode=boot --kernel-command-line="rhgb quiet splash"; sleep 1; plymouth show-splash; sleep 2')"
+  "$(gsudo 'chvt 8; sleep 1; plymouthd --tty=tty8 --mode=boot --kernel-command-line="rhgb quiet splash plymouth.ignore-serial-consoles"; sleep 1; plymouth show-splash; sleep 2')"
 shot boot-plymouth-dark
 vm boot-11 "$(gsudo '(plymouth ask-for-password --prompt="Unlock disk" > /tmp/pw.out 2>&1 &) ; sleep 2')"
 $V type 'abc'
