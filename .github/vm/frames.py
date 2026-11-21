@@ -8,10 +8,11 @@
 
 Each frame is one of:
     black    almost all pure black (#000000): the firmware, or the PC's own text screen
+    off      the virtual PC's "Display output is not active" (the picture switched off for a moment; counts as black)
     dark     almost all her dark (#0B0D0C, or the #0F1010 her login fades to), nothing on it
     text     mostly black or dark, with grey/white on it (letters on a text screen; more than a mouse pointer)
     opening  her green sparks on her dark (the opening / login scene)
-    other    anything else (a firmware logo, her desktop's sky, ...)
+    other    anything else (a firmware logo, her desktop's sky, a window on her desktop, ...)
 Prints one line per frame and PASS / FAIL lines for the check.
 """
 import sys
@@ -22,6 +23,18 @@ DARKS = [(11, 13, 12), (15, 16, 16)]
 
 def near(p, c, d=4):
     return abs(p[0] - c[0]) <= d and abs(p[1] - c[1]) <= d and abs(p[2] - c[2]) <= d
+
+
+def window(im, px):
+    """A window on her desktop (one solid light box, e.g. Steam's first-run note), not lines of text: the light pixels
+    sit in one small box and fill much of it."""
+    pts = [(i % im.width, i // im.width) for i, p in enumerate(px) if min(p) > 90 and max(p) - min(p) < 25]
+    if not pts:
+        return False
+    xs = [x for x, _ in pts]
+    ys = [y for _, y in pts]
+    box = (max(xs) - min(xs) + 1) * (max(ys) - min(ys) + 1)
+    return box < 0.2 * im.width * im.height and len(pts) > 0.3 * box
 
 
 def classify(path):
@@ -35,8 +48,15 @@ def classify(path):
     green = sum(1 for p in px if p[1] > 80 and p[1] > p[0] + 25 and p[1] > p[2] + 10)
     if black > 0.97 * n:
         kind = "text" if grey > 150 else "black"
+        if kind == "text" and grey < 600:
+            # QEMU's own "Display output is not active." in the middle: the PC switched its picture off for a moment
+            rows = [i // im.width for i, p in enumerate(px) if min(p) > 90 and max(p) - min(p) < 25]
+            if rows and min(rows) > 0.4 * im.height and max(rows) < 0.6 * im.height:
+                kind = "off"
     elif dark > 0.97 * n and green < 5:
         kind = "text" if grey > 150 else "dark"
+    elif dark + black > 0.9 * n and grey > 150 and window(im, px):
+        kind = "other"
     elif dark + black > 0.9 * n and green >= 5:
         # lines of start-up text (white, with green [ OK ]s) are text; her opening is green sparks with little white
         kind = "text" if grey > 3000 else "opening"
@@ -68,7 +88,7 @@ def main():
             return
         print("PASS her opening follows the boot screen")
         between = kinds[first:op]
-        if "black" in between:
+        if "black" in between or "off" in between:
             print("FAIL no black screen between the boot screen and her opening")
         else:
             print("PASS no black screen between the boot screen and her opening")
@@ -82,7 +102,14 @@ def main():
         else:
             print("FAIL her boot screen is her dark with nothing on it")
     elif mode == "signin":
-        if "black" in kinds:
+        # from her login to the first picture of her desktop (after it, her desktop's own windows are not this check's)
+        start = kinds.index("dark") if "dark" in kinds else 0
+        end = start
+        while end < len(kinds) and kinds[end] in ("dark", "black", "off", "text"):
+            end += 1
+        kinds = kinds[:end]
+        print("WINDOW", start + 1, "to", end)
+        if "black" in kinds or "off" in kinds:
             print("FAIL no black screen between her login and her desktop")
         else:
             print("PASS no black screen between her login and her desktop")
