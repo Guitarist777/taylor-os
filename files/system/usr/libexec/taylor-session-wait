@@ -18,9 +18,12 @@ say "starting $1 (graphical session: $(state))"
 i=0
 while [ "$i" -lt 40 ] && up; do
     [ "$i" = 0 ] && say "the last desktop is still closing; waiting"
-    if [ "$i" = 12 ] && ! desktop_running; then
-        say "no desktop is running but its session is still up: closing what it left"
-        systemctl --user stop graphical-session.target graphical-session-pre.target 2>/dev/null
+    # Her login screen only starts a desktop when no session of hers is on the screen (one seat, her PC), so after 6 s
+    # what is still up is left over from the one that ended: stop it (and Plasma's own, which can outlive its session:
+    # run 44912797929 had KDE's pieces still running after KDE had ended).
+    if [ "$i" = 12 ]; then
+        say "still up after 6 s (a desktop process left: $(desktop_running && echo yes || echo no)): closing what the last desktop left"
+        systemctl --user stop plasma-workspace.target graphical-session.target graphical-session-pre.target 2>/dev/null
     fi
     sleep 0.5
     i=$((i + 1))
