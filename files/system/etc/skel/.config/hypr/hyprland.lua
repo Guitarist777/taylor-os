@@ -123,5 +123,6 @@ hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locke
 -- Her windows and workspaces (her brief): edge-to-edge snaps, the dotted outline while dragging, the dock and clock
 -- stepping away from a full-screen window, workspaces sliding, the outline in her colour scheme, less motion.
 -- It lives in the system so every update reaches it. TAYLOR-WINDOWS (taylor-heal looks for this word)
+taylor_fresh_binds = true   -- this file binds no arrow keys itself
 local taylorOk, taylorErr = pcall(dofile, "/usr/share/taylor-os/hypr/windows.lua")
 if not taylorOk then taylor_windows_error = tostring(taylorErr) end

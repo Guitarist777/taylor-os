@@ -4,6 +4,7 @@
 // still say "save changes?"). The bar is hidden when no window is open.
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Widgets
 import QtQuick
 
@@ -16,7 +17,9 @@ PanelWindow {
 
     // her windows (Covers.qml): it steps away with the dock when a snapped or full-screen window reaches the top, so it never
     // sits over the window's own corner, and comes back with the dock at the top edge
-    visible: top !== null && Covers.dockMapped
+    // and it is not shown on an empty workspace (the last window she used is on another one)
+    readonly property bool wsHasWindows: Hyprland.focusedWorkspace === null || Hyprland.focusedWorkspace.toplevels.values.length > 0
+    visible: top !== null && Covers.dockMapped && wsHasWindows
     anchors { top: true; right: true }
     margins { top: 18; right: 14 }
     implicitWidth: pill.width

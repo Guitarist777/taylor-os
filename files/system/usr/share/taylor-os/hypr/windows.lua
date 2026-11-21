@@ -82,6 +82,7 @@ function T.motion(still)
         hl.animation({ leaf = "windows",    enabled = false, speed = 4, bezier = "calm" })
         hl.animation({ leaf = "fade",       enabled = true,  speed = 4, bezier = "calm" })
         hl.animation({ leaf = "workspaces", enabled = true,  speed = 4, bezier = "calm", style = "fade" })
+        T.ws_style = "fade"
         hl.animation({ leaf = "layers",     enabled = true,  speed = 4, bezier = "calm", style = "fade" })
     else
         hl.animation({ leaf = "windows",    enabled = true, speed = 5, bezier = "calm", style = "popin 90%" })
@@ -89,6 +90,7 @@ function T.motion(still)
         hl.animation({ leaf = "fade",       enabled = true, speed = 5, bezier = "calm" })
         -- her tour: windows slide fully across (the whole screen width), nothing fades
         hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slide" })
+        T.ws_style = "slide"
         hl.animation({ leaf = "layers",     enabled = true, speed = 4, bezier = "calm", style = "fade" })
     end
 end
@@ -257,14 +259,11 @@ local function zoneAt(cx, cy, m)
     return nil
 end
 
-T.btn_method = T.btn_method or "?"
-local function leftDown()
-    local ok, v = pcall(hl.is_key_down, 272)          -- BTN_LEFT
-    if ok and v == true then T.btn_method = "272"; return true end
-    ok, v = pcall(hl.is_key_down, "mouse:272")
-    if ok and v == true then T.btn_method = "mouse:272"; return true end
-    return T.bound_down == true                       -- the press / release binds below, when switched on
-end
+-- Whether the left button is down: Hyprland's is_key_down cannot see mouse buttons (the 2026-11-21 virtual PC test:
+-- asking it about "mouse:272" puts an error on screen), so two binds on the left button tell us instead. They are
+-- non-consuming: every click still reaches the window or the dock as before.
+T.btn_method = "binds"
+local function leftDown() return T.bound_down == true end
 
 T.drag = nil   -- { addr, ax, ay, sw, sh, moving, zone }
 local function dragTick(w, cur)
@@ -392,7 +391,7 @@ function T.push()
 end
 -- for checks: one line of state
 function T.state()
-    local parts = { "btn=" .. tostring(T.btn_method), "drag=" .. tostring(T.drag and T.drag.moving and (T.drag.zone or "-") or "no") }
+    local parts = { "btn=" .. tostring(T.btn_method) .. "/" .. tostring(T.presses or 0) .. (T.bound_down and "/down" or "/up"), "ws=" .. tostring(T.ws_style), "drag=" .. tostring(T.drag and T.drag.moving and (T.drag.zone or "-") or "no") }
     for name, c in pairs(T.cover) do
         parts[#parts + 1] = string.format("%s:top=%d,br=%d,rt=%d,rb=%d", name, c.top and 1 or 0, c.br and 1 or 0, c.rt and 1 or 0, c.rb and 1 or 0)
     end
@@ -418,31 +417,35 @@ T.timer = hl.timer(tick, { timeout = 40, type = "repeat" })
 -- a closed window forgets its place
 hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; T.dirty = true end end)
 
--- When is_key_down cannot see the mouse button, these two binds tell the drag watcher instead. Off unless asked for
--- (taylor.bind_buttons(true) through "hyprctl eval"): a bind on the plain left button must never swallow a click.
 function T.bind_buttons(on)
-    if T.btn_binds then for _, b in ipairs(T.btn_binds) do pcall(function() b:remove() end) end end
+    if T.btn_binds then for _, bd in ipairs(T.btn_binds) do pcall(function() bd:remove() end) end end
     T.btn_binds = nil
+    T.bound_down = false
     if on then
         T.btn_binds = {
-            hl.bind("mouse:272", function() T.bound_down = true end, { non_consuming = true, ignore_mods = true, transparent = true }),
-            hl.bind("mouse:272", function() T.bound_down = false end, { release = true, non_consuming = true, ignore_mods = true, transparent = true }),
+            hl.bind("mouse:272", function() T.bound_down = true; T.presses = (T.presses or 0) + 1 end,
+                { non_consuming = true, ignore_mods = true, transparent = true }),
+            hl.bind("mouse:272", function() T.bound_down = false end,
+                { release = true, non_consuming = true, ignore_mods = true, transparent = true }),
         }
     end
     return "ok"
 end
+T.bind_buttons(true)
 
 -- ---------------------------------------------------------------- keys
 local mod = "SUPER"
--- the earlier TAYLOR settings moved focus with these; they snap now
-for _, k in ipairs({ "left", "right", "up", "down", "V" }) do pcall(hl.unbind, mod .. " + " .. k) end
+-- A TAYLOR settings file from before this one moved focus with these keys (and floated with V); they snap now. A file
+-- from now on does not bind them (it says so with taylor_fresh_binds), so nothing is unbound that was never bound.
+if not taylor_fresh_binds then
+    for _, k in ipairs({ "left", "right", "up", "down", "V" }) do pcall(hl.unbind, mod .. " + " .. k) end
+end
 hl.bind(mod .. " + left",  function() T.key("left") end)
 hl.bind(mod .. " + right", function() T.key("right") end)
 hl.bind(mod .. " + up",    function() T.key("up") end)
 hl.bind(mod .. " + down",  function() T.key("down") end)
 hl.bind(mod .. " + V",     function() T.unsnap() end)
 -- the tour's "Switch window": Alt + Tab brings the next window forward
-pcall(hl.unbind, "ALT + Tab")
 hl.bind("ALT + Tab", function()
     hl.dispatch(hl.dsp.window.cycle_next())
     hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top" }))

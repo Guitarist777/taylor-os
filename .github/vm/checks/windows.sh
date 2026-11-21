@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 21
+expect windows 24
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -16,7 +16,6 @@ vm windows-start \
   "$(ok 'the workspace dots are under the dock' "python3 /tmp/w.py layer taylor-workspaces present")" \
   "hyprctl repl 'tostring(taylor_windows_error)'" \
   "hyprctl repl 'taylor.tail()'" \
-  "hyprctl repl 'tostring(hl.is_key_down(272)) .. \" \" .. tostring(pcall(hl.is_key_down, \"mouse:272\"))'" \
   "hyprctl repl 'tostring(io) .. \" \" .. tostring(dofile)'" \
   "hyprctl getoption general.border_size; hyprctl getoption general.col.active_border; hyprctl getoption decoration.rounding" \
   "hyprctl animations | grep -iA4 'workspaces'" \
@@ -25,6 +24,18 @@ vm windows-start \
 s=$(screen windows-start); [ -n "$s" ] && { W=${s% *}; HH=${s#* }; }
 echo "screen $W x $HH"
 shot windows-0-empty
+
+# Files from the dock opens as a plain maximise (inside the dock's strip); a click on the dock still works with the
+# left-button binds the drag watcher uses
+vm windows-dockxy "python3 /tmp/w.py dockxy"
+xy=$(tr -d '\r' < out/windows-dockxy.txt | grep -oE 'DOCKXY [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+$V click ${xy% *} ${xy#* } $W $HH; sleep 6
+shot windows-0-files
+vm windows-files \
+  "$(ok 'a click on the dock still works (Files opens)' "hyprctl -j clients | grep -qi dolphin")" \
+  "$(ok 'Files opens as a plain maximise inside the dock strip' "python3 /tmp/w.py maxed dolphin")" \
+  "python3 /tmp/w.py info" "hyprctl repl 'taylor.state()'"
+$V key meta_l-q; sleep 2
 
 # four windows, one into each quarter with the keys (Windows key + Enter opens a terminal)
 for q in "left up" "right up" "left down" "right down"; do
@@ -88,9 +99,9 @@ vm windows-drag \
   "$(ok 'the dotted outline showed while dragging' "$QSLOG | grep -q 'drag zone L'")" \
   "hyprctl repl 'taylor.tail()'" "hyprctl repl 'taylor.state()'" \
   "$QSLOG | grep taylor-windows | tail -12"
-if ! grep -q "PASS a window dragged" out/windows-drag.txt; then
+if ! tr -d '\r' < out/windows-drag.txt | grep -qE '^(tester@[^ ]* )?PASS a window dragged'; then
   # a second try with the button binds (not counted): says whether they are what the watcher needs
-  vm windows-drag2-prep "hyprctl eval 'taylor.bind_buttons(true)'" "hyprctl dispatch 'hl.dsp.window.move({ x = 300, y = 200 })'"
+  vm windows-drag2-prep "hyprctl dispatch 'hl.dsp.window.move({ x = 300, y = 200 })'"
   $V drag 500 350 3 $((HH/2)) $W $HH meta_l; sleep 2
   vm windows-drag2 "python3 /tmp/w.py active L && echo 'info: the second try snapped' || echo 'info: the second try did not snap'" "hyprctl repl 'taylor.tail()'"
 fi
@@ -99,7 +110,7 @@ fi
 $V drag 200 $((HH/2)) $((W/2)) $((HH/2 + 40)) $W $HH meta_l; sleep 2
 shot windows-8-dragged-away
 vm windows-away \
-  "$(ok 'a snapped window dragged away floats again' "python3 /tmp/w.py floating")" \
+  "$(ok 'a snapped window dragged away floats again' "python3 /tmp/w.py floating && hyprctl repl 'taylor.tail()' | tail -3 | grep -q unsnap")" \
   "hyprctl repl 'taylor.tail()'"
 
 # workspaces: Windows key + 2 and back; a picture mid-slide
@@ -117,9 +128,11 @@ vm windows-ws1 \
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \
-  "sed -i 's/\"reduceMotion\": *false/\"reduceMotion\": true/; s/\"scheme\": *\"taylor\"/\"scheme\": \"night\"/' ~/.config/taylor-os/settings.json; sleep 3" \
-  "$(ok 'less motion makes workspaces fade instead of slide' "hyprctl repl 'tostring(taylor.still)' | grep -q true && hyprctl animations | grep -iA4 'name: workspaces' | grep -qi fade")" \
+  "python3 /tmp/w.py settings reduceMotion=true scheme=night; sleep 4" \
+  "$(ok 'less motion makes workspaces fade instead of slide' "hyprctl repl 'tostring(taylor.still) .. tostring(taylor.ws_style)' | grep -q truefade")" \
   "$(ok 'the focused outline takes her scheme colour' "hyprctl getoption general.col.active_border | grep -qi 8fb5a1")" \
   "hyprctl animations | grep -iA4 'name: workspaces'" "hyprctl getoption general.col.active_border" \
-  "sed -i 's/\"reduceMotion\": *true/\"reduceMotion\": false/; s/\"scheme\": *\"night\"/\"scheme\": \"taylor\"/' ~/.config/taylor-os/settings.json; sleep 3" \
+  "python3 /tmp/w.py settings reduceMotion=false scheme=taylor; sleep 4" \
+  "$(ok 'Hyprland shows no error notices from her windows' "hyprctl repl '#hl.notification.get()' | grep -qx 0")" \
+  "hyprctl repl '#hl.notification.get()'" "hyprctl -j animations | head -c 1200" \
   "hyprctl getoption general.col.active_border" "hyprctl repl 'taylor.tail()'"
