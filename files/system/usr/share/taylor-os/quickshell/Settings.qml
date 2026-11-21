@@ -232,7 +232,7 @@ FloatingWindow {
             x: 14; anchors.verticalCenter: parent.verticalCenter
             width: 16; height: 16
             sourceSize: Qt.size(32, 32)
-            source: Qt.resolvedUrl("icons/settings.svg")
+            source: Quickshell.iconPath("preferences-system", true)   // her icon set (the dock's Settings icon)
             visible: status === Image.Ready
         }
         Text {
