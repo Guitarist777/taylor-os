@@ -20,7 +20,7 @@ tap() {
 
 # 1. It opens as one normal window: floating, centred, not full screen
 vm settings \
-  "\$Q settings open; sleep 4" \
+  "\$Q call settings open; sleep 4" \
   "$AT" \
   "$(ok 'Settings opens as a window' "hyprctl clients | grep -q 'title: Settings'")" \
   "$(ok 'Settings floats at its own size, centred' "hyprctl -j clients | python3 -c 'import json,sys,subprocess; c=[w for w in json.load(sys.stdin) if w[\"title\"]==\"Settings\"][0]; mon=json.loads(subprocess.check_output([\"hyprctl\",\"-j\",\"monitors\"]))[0]; cx=c[\"at\"][0]+c[\"size\"][0]/2; sys.exit(0 if c[\"floating\"] and c[\"size\"]==[760,560] and abs(cx-mon[\"width\"]/2)<40 and not c[\"fullscreen\"] else 1)'")" \
@@ -38,7 +38,7 @@ vm settings-sections \
   "$(ok 'a click on the left changes the section' "$L | grep -q 'taylor-settings: open at About'")" \
   "$(ok 'About reads the processor' "$L | grep -E 'taylor-settings: about ' | tail -1 | grep -qE 'cpu=[A-Za-z0-9]'")" \
   "$(ok 'Network reads the wired connection' "$L | grep -E 'taylor-settings: network ' | tail -1 | grep -q 'wired=connected'")" \
-  "$(ok 'brightness hides itself when no monitor answers' "[ \"\$(\$Q brightness get)\" = -1 ] && $L | grep -q 'no monitor answers DDC/CI'")" \
+  "$(ok 'brightness hides itself when no monitor answers' "[ \"\$(\$Q call brightness get)\" = -1 ] && $L | grep -q 'no monitor answers DDC/CI'")" \
   "$L | grep -E 'taylor-settings: (about|network)|taylor-brightness' | tail -5" \
   "rpm-ostree status --json | python3 -c 'import json,sys; d=json.load(sys.stdin)[\"deployments\"][0]; print(\"DEPKEYS\", sorted(d.keys())); print(\"REF\", d.get(\"container-image-reference\"), d.get(\"version\"))'" \
   "/usr/libexec/taylor-update-check --local" \
@@ -51,7 +51,7 @@ shot settings-checked
 vm settings-check \
   "$(ok 'Check now gives an answer' "$L | grep -qE 'taylor-settings: update check TAYLOR-UPDATE state=(uptodate|staged|newer)'")" \
   "$L | grep -E 'taylor-settings: (update|checking)' | tail -3" \
-  "\$Q settings section Appearance; sleep 3" "$AT" "$PLACES"
+  "\$Q call settings section Appearance; sleep 3" "$AT" "$PLACES"
 
 # 4. All four schemes, with real clicks: Settings, the desktop and Hyprland's window outline each time
 prev=settings-check
@@ -63,9 +63,9 @@ for s in quiet night slate taylor; do
     "$(ok "the $s scheme is picked and written" "grep -q '\"scheme\": *\"$s\"' ~/.config/taylor-os/settings.json && $L | grep -q 'taylor-theme: $s'")" \
     "$(ok "the window outline takes the $s colour" "$BORDER | grep -qi $hex")" \
     "$BORDER; hyprctl -j configerrors" \
-    "\$Q settings close; sleep 3"
+    "\$Q call settings close; sleep 3"
   shot "scheme-$s-desktop"
-  vm "scheme-$s-open" "\$Q settings section Appearance; sleep 3" "$AT" "$PLACES"
+  vm "scheme-$s-open" "\$Q call settings section Appearance; sleep 3" "$AT" "$PLACES"
   prev="scheme-$s-open"
   if [ $s = slate ]; then
     # Slate's background slider: a click near its right end
@@ -78,7 +78,7 @@ for s in quiet night slate taylor; do
 done
 
 # 5. Lock and timeout: both sliders (real clicks), and the total line
-vm lock-open "\$Q settings section Lock-and-timeout; sleep 3" "$AT" "$PLACES"
+vm lock-open "\$Q call settings section Lock-and-timeout; sleep 3" "$AT" "$PLACES"
 tap lock-open idle -25; sleep 2     # left of the middle: about 10 minutes
 tap lock-open wait -30; sleep 2     # about 3 minutes
 shot lock-changed
@@ -88,7 +88,7 @@ vm lock \
 
 # 6. The volume and brightness ring, from the real volume keys, while Settings is the window in use
 vm osd-before \
-  "\$Q settings section Appearance; sleep 3" \
+  "\$Q call settings section Appearance; sleep 3" \
   "$(ok 'the ring is on the overlay layer' "hyprctl layers | grep -q taylor-osd")" \
   "hyprctl layers | grep -B3 -A3 taylor-osd; wpctl status | sed -n '/Sinks/,/Sources/p' | head -12; wpctl get-volume @DEFAULT_AUDIO_SINK@"
 $V key volumeup; sleep 0.25; $V key volumeup; sleep 0.4
@@ -110,7 +110,7 @@ vm osd \
   "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0"
 
 # 7. Warmer colours at night and the TAYLOR switches (real clicks), then everything back
-vm display-open "\$Q settings section Display; sleep 3" "$AT" "$PLACES"
+vm display-open "\$Q call settings section Display; sleep 3" "$AT" "$PLACES"
 shot display
 tap display-open warm; sleep 4
 vm warm \
@@ -120,7 +120,7 @@ shot display-warm
 tap display-open warm; sleep 3
 vm warm-off \
   "$(ok 'switching it off stops hyprsunset' "grep -q '\"warmNight\": *false' ~/.config/taylor-os/settings.json && ! pgrep -u tester -x hyprsunset >/dev/null")" \
-  "\$Q settings section TAYLOR; sleep 3" "$AT" "$PLACES"
+  "\$Q call settings section TAYLOR; sleep 3" "$AT" "$PLACES"
 tap warm-off statusline; sleep 3
 shot taylor-status-off
 vm status-off \
@@ -131,5 +131,5 @@ vm settings-end \
   "$(ok 'the shell is still running after all of it' "pgrep -u tester -x quickshell >/dev/null")" \
   "$(ok 'Settings left no QML errors' "! $L | grep -iE 'Settings.qml|Osd.qml|Brightness.qml|Warm.qml' | grep -qiE 'error|TypeError|ReferenceError|is not defined|Unable to assign'")" \
   "$L | grep -iE 'warn|error' | grep -iE 'Settings|Osd|Brightness|Warm' | tail -20" \
-  "\$Q settings close"
+  "\$Q call settings close"
 shot settings-closed
