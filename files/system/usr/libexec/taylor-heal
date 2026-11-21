@@ -51,6 +51,22 @@ getent passwd | while IFS=: read -r name _ uid gid _ home _; do
         && cat "$tmp" > "$target" && rm -f "$tmp" && log "$name: Windows key + Space now opens her launcher (old file kept)"
 done
 
+# 2c. Her windows and workspaces (2026-11-21, her brief): snaps, the dotted drag outline, the dock stepping away, the
+#     outline in her colours. They live in /usr/share/taylor-os/hypr/windows.lua so updates reach them; a TAYLOR settings
+#     file from before that gets the two lines that run it, added at its end (a copy of the file is kept first).
+win_lua=/usr/share/taylor-os/hypr/windows.lua
+[ -f "$win_lua" ] && getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+    target="$home/.config/hypr/hyprland.lua"
+    [ -f "$target" ] && grep -q "TAYLOR-OS-DESKTOP" "$target" || continue
+    grep -q "TAYLOR-WINDOWS" "$target" && continue
+    cp -p "$target" "$target.before-windows-$stamp"
+    [ -n "$(tail -c1 "$target")" ] && echo >> "$target"
+    printf '%s
+' ''         '-- Her windows and workspaces (her brief). It lives in the system so every update reaches it. TAYLOR-WINDOWS'         'local taylorOk, taylorErr = pcall(dofile, "/usr/share/taylor-os/hypr/windows.lua")'         'if not taylorOk then taylor_windows_error = tostring(taylorErr) end' >> "$target"
+    log "$name: her windows and workspaces switched on (old file kept)"
+done
+
 # 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system
 #     (/usr/share/taylor-os/quickshell) so every update brings the new version. Each account's ~/.config/quickshell
 #     points there. A copy TAYLOR OS made earlier (its shell.qml says "TAYLOR OS desktop") is kept beside the pointer;

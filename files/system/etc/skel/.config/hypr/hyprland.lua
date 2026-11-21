@@ -23,9 +23,9 @@ hl.env("QT_QPA_PLATFORMTHEME", "kde")
 
 hl.config({
     general = {
-        gaps_in          = 6,
-        gaps_out         = 14,
-        border_size      = 2,
+        gaps_in          = 0,
+        gaps_out         = 0,
+        border_size      = 1,
         col = {
             active_border   = "rgba(4fb386ee)",
             inactive_border = "rgba(ffffff14)",
@@ -35,7 +35,7 @@ hl.config({
     },
 
     decoration = {
-        rounding         = 14,
+        rounding         = 10,
         active_opacity   = 1.0,
         inactive_opacity = 0.97,
         shadow = {
@@ -87,7 +87,7 @@ hl.curve("calm", { type = "bezier", points = { {0.22, 1}, {0.36, 1} } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 5, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 4, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "fade",       enabled = true, speed = 5, bezier = "calm" })
-hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slidefade 15%" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slide" })   -- windows slide fully across (her tour)
 hl.animation({ leaf = "layers",     enabled = true, speed = 4, bezier = "calm", style = "fade" })
 
 -- Keys. SUPER is the Windows key.
@@ -99,14 +99,10 @@ hl.bind(mod .. " + E",      hl.dsp.exec_cmd("dolphin"))
 hl.bind(mod .. " + B",      hl.dsp.exec_cmd("xdg-open https://"))
 hl.bind(mod .. " + Q",      hl.dsp.window.close())
 hl.bind(mod .. " + F",      hl.dsp.window.fullscreen())
-hl.bind(mod .. " + V",      hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + L",      hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mod .. " + SHIFT + M", hl.dsp.exit())
 
-hl.bind(mod .. " + left",  hl.dsp.focus({ direction = "left" }))
-hl.bind(mod .. " + right", hl.dsp.focus({ direction = "right" }))
-hl.bind(mod .. " + up",    hl.dsp.focus({ direction = "up" }))
-hl.bind(mod .. " + down",  hl.dsp.focus({ direction = "down" }))
+-- Windows key + arrows snap the window (halves, quarters, the whole screen): see the windows file at the end.
 
 for i = 1, 5 do
     hl.bind(mod .. " + " .. i,           hl.dsp.focus({ workspace = i }))
@@ -123,3 +119,9 @@ hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+
+-- Her windows and workspaces (her brief): edge-to-edge snaps, the dotted outline while dragging, the dock and clock
+-- stepping away from a full-screen window, workspaces sliding, the outline in her colour scheme, less motion.
+-- It lives in the system so every update reaches it. TAYLOR-WINDOWS (taylor-heal looks for this word)
+local taylorOk, taylorErr = pcall(dofile, "/usr/share/taylor-os/hypr/windows.lua")
+if not taylorOk then taylor_windows_error = tostring(taylorErr) end

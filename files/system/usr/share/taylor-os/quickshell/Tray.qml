@@ -19,6 +19,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: "taylor-tray"
+    visible: Covers.trayMapped     // her windows (Covers.qml): away from a covering window, back at the bottom edge
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
@@ -28,7 +29,7 @@ PanelWindow {
     Rectangle {
         id: count
         visible: win.waiting > 0
-        opacity: win.arrive
+        opacity: win.arrive * Covers.trayShown
         anchors { right: pill.left; rightMargin: 10; verticalCenter: pill.verticalCenter }
         width: Math.max(32, num.implicitWidth + 16); height: 32; radius: 16
         color: win.theme.accent
@@ -52,7 +53,7 @@ PanelWindow {
         id: pill
         anchors.right: parent.right
         height: 52
-        opacity: win.arrive
+        opacity: win.arrive * Covers.trayShown
         width: content.width + 32
         radius: 14
         color: win.theme.bar

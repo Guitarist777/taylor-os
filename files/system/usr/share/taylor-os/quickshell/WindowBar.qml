@@ -14,7 +14,9 @@ PanelWindow {
     readonly property var entry: top ? DesktopEntries.heuristicLookup(top.appId) : null
     readonly property string iconSource: entry && entry.icon ? Quickshell.iconPath(entry.icon, true) : ""
 
-    visible: top !== null
+    // her windows (Covers.qml): it steps away with the dock when a snapped or full-screen window reaches the top, so it never
+    // sits over the window's own corner, and comes back with the dock at the top edge
+    visible: top !== null && Covers.dockMapped
     anchors { top: true; right: true }
     margins { top: 18; right: 14 }
     implicitWidth: pill.width
@@ -29,6 +31,8 @@ PanelWindow {
         height: 40
         width: row.width + 14
         radius: 12
+        opacity: Covers.dockShown
+        transform: Translate { y: -(1 - Covers.dockShown) * 66 }
         color: win.theme.dock
         border.color: win.theme.line
         border.width: 1

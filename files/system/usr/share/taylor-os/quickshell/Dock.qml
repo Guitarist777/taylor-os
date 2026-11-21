@@ -16,7 +16,10 @@ PanelWindow {
     implicitWidth: pill.width
     implicitHeight: pill.height
     color: "transparent"
-    exclusiveZone: 66
+    // her windows (Covers.qml): the dock steps away from a snapped or full-screen window and comes back at the top edge;
+    // its strip is kept for maximised windows by DockReserve.qml, so it can leave the screen without the strip moving
+    exclusionMode: ExclusionMode.Ignore
+    visible: Covers.dockMapped
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: "taylor-dock"
 
@@ -38,8 +41,8 @@ PanelWindow {
     Rectangle {
         id: pill
         height: 56
-        opacity: win.arrive
-        transform: Translate { y: -(1 - win.arrive) * 66 }   // drops in from the top
+        opacity: win.arrive * Covers.dockShown
+        transform: Translate { y: -(1 - win.arrive) * 66 - (1 - Covers.dockShown) * 66 }   // drops in from the top
         width: icons.width + 16
         radius: 16
         color: win.theme.dock
