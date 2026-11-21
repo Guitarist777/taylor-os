@@ -33,7 +33,7 @@ vm boot-2 \
   "cp /tmp/settings.keep ~/.config/taylor-os/settings.json; sleep 4; cat /var/lib/taylor-os/greeter.json"
 
 # ---- a cold-ish start: restart the PC and watch firmware -> her dark -> her opening -> the hand-off -> login
-vm boot-restart "(sleep 3; echo taylortest | sudo -S systemctl reboot) >/dev/null 2>&1 &"
+vm boot-restart "echo taylortest | sudo -S systemd-run --on-active=4 --timer-property=AccuracySec=100ms systemctl reboot"
 start=$(date +%s)
 i=0
 while [ $(( $(date +%s) - start )) -lt 150 ]; do
