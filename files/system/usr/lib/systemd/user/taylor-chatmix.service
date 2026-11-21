@@ -1,5 +1,5 @@
 [Unit]
-Description=TAYLOR ChatMix for the Arctis Nova Pro Wireless (the dial balances GAME and VOICE)
+Description=TAYLOR ChatMix for the Arctis Nova Pro Wireless (the dial balances Game and Chat)
 After=pipewire-pulse.service wireplumber.service
 Wants=pipewire-pulse.service
 

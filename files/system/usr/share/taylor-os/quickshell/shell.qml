@@ -177,8 +177,10 @@ ShellRoot {
         onClicked: root.dialClicked()
     }
     ClockCard { screen: root.mainScreen; theme: root.c; arrive: root.arriveU }
-    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU }
-    Dock { screen: root.mainScreen; theme: root.c; mixerShown: root.mixerShown; onToggleMixer: root.mixerShown = !root.mixerShown; arrive: root.arriveU }
+    // her mixer: the quick view on the desktop and the Mixer window (ipc target "mixer": open / toggle)
+    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU; onOpenMixer: mixerWindow.open = true }
+    MixerWindow { id: mixerWindow }
+    Dock { screen: root.mainScreen; theme: root.c; mixerShown: mixerWindow.open; onToggleMixer: mixerWindow.toggle(); arrive: root.arriveU }
     Tray {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU2
         waiting: root.notesWaiting
@@ -213,6 +215,6 @@ ShellRoot {
         preset: root.launcherPreview === "-" ? "" : root.launcherPreview
         onCloseMe: root.launcherOpen = false
         onPicked: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
-        onToggleMixer: root.mixerShown = !root.mixerShown
+        onToggleMixer: mixerWindow.open = true
     }
 }
