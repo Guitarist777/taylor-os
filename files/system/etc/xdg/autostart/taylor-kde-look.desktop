@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TAYLOR look for KDE
+Comment=Puts the TAYLOR colours, icons and sky on KDE the first time she opens it (once per account)
+Exec=/usr/libexec/taylor-kde-look
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

@@ -77,6 +77,13 @@ modules:
       enabled:
         - taylor-apps-setup.service
 
+  # A check that the TAYLOR look for her KDE backup session is in place (global theme, colours, Plasma theme, title
+  # bars, sky). Her icons come from slot-icons.sh above (files/scripts/slot-dark-icons.sh, the KDE helper's copy of the
+  # same pinned download, skips itself when they are already there and is not run).
+  - type: script
+    snippets:
+      - "test -d /usr/share/icons/Slot-Dark-Icons && test -f /usr/share/plasma/look-and-feel/org.taylor-os.kde/metadata.json && test -f /usr/share/color-schemes/TAYLOR.colors && test -f /usr/share/plasma/desktoptheme/TAYLOR/metadata.json && test -f /usr/share/aurorae/themes/TAYLOR/TAYLORrc && test -f /usr/share/wallpapers/TAYLOR-Sky/contents/images/1920x1080.png && test -x /usr/libexec/taylor-kde-look"
+
   # Start-up repair (2026-11-18): picture mode at boot, and her desktop settings in an account made before the .lua
   # existed (/usr/libexec/taylor-heal changes only what is wrong).
   - type: systemd

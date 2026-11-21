@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "TaylorOS"
+            }
+        ],
+        "Id": "TAYLOR-Sky",
+        "License": "GPL-3.0-or-later",
+        "Name": "TAYLOR Sky (day, deeper)"
+    }
+}
