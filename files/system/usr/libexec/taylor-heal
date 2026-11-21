@@ -51,18 +51,20 @@ getent passwd | while IFS=: read -r name _ uid gid _ home _; do
         && cat "$tmp" > "$target" && rm -f "$tmp" && log "$name: Windows key + Space now opens her launcher (old file kept)"
 done
 
-# 2c. Her Settings window (2026-11-21): TAYLOR's file gets the TAYLOR-OS-SETTINGS block from /etc/skel's copy once (the
-#     window outline in her colour scheme, Settings as a floating window, the brightness keys). Only a file TAYLOR OS
-#     wrote, only when the block is missing; it is added at the end and a copy of the file is kept first.
-blk=$(sed -n '/^-- ==== TAYLOR-OS-SETTINGS/,/^-- ==== end TAYLOR-OS-SETTINGS ====/p' "$skel" 2>/dev/null | tr -d '\r')
-[ -n "$blk" ] && getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+# 2c. TAYLOR's own settings file follows the image (2026-11-21, the overnight build). Her desktop's settings live in
+#     ~/.config/taylor-os/settings.json (the Settings window writes them); hyprland.lua is TAYLOR's wiring, which she never
+#     edits. So a file TAYLOR OS wrote (it has the TAYLOR-OS-DESKTOP line) that differs from this image's copy is replaced
+#     by it, and the old one is kept beside it (hyprland.lua.before-update-<time>); the three newest copies are kept.
+#     A file without that line is hers and is never touched. This replaces the line-by-line edits of 2a's kind.
+[ -f "$skel" ] && getent passwd | while IFS=: read -r name _ uid gid _ home _; do
     [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
     target="$home/.config/hypr/hyprland.lua"
     [ -f "$target" ] && grep -q "TAYLOR-OS-DESKTOP" "$target" || continue
-    grep -q "TAYLOR-OS-SETTINGS" "$target" && continue
-    cp -p "$target" "$target.before-settings-$stamp"
-    { [ -n "$(tail -c1 "$target")" ] && echo; echo; printf '%s\n' "$blk"; } >> "$target" \
-        && log "$name: Settings' block added to her desktop settings (old file kept)"
+    cmp -s <(tr -d '\r' < "$target") <(tr -d '\r' < "$skel") && continue
+    cp -p "$target" "$target.before-update-$stamp"
+    install -m 0644 -o "$uid" -g "$gid" "$skel" "$target"
+    ls -1t "$target".before-update-* 2>/dev/null | tail -n +4 | xargs -r rm -f
+    log "$name: her desktop settings file brought up to this version of TAYLOR OS (old file kept)"
 done
 
 # 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system

@@ -171,7 +171,7 @@ ShellRoot {
     Dial {
         screen: root.mainScreen; theme: root.c; arrive2: root.arriveU2
         visible: Prefs.showTaylor
-        status: root.dialStatus; busy: root.dialBusy
+        status: away.active ? "STILL THERE?" : root.dialStatus; busy: root.dialBusy
         stepAside: root.launcherO > 0.001
         notes: root.notes; waiting: root.notesWaiting; kickAt: root.kickAt; whisper: root.whisper
         onClicked: root.dialClicked()
@@ -202,9 +202,14 @@ ShellRoot {
     Variants {
         model: Quickshell.screens
         delegate: Component {
-            Arrival { required property var modelData; screen: modelData; at: root.arriveT; visible: root.arriving && (arriveRun.running || root.holdAt >= 0) }
+            Arrival { required property var modelData; screen: modelData; at: root.arriveT; visible: root.arriving && (arriveRun.running || root.holdAt >= 0) && !away.again }
         }
     }
+
+    // her timeout to the lock screen (Away.qml); after every unlock her arrival plays again (Away.qml shows a fresh
+    // Arrival: showing this one a second time froze the desktop, local test 2026-11-21). Her goodnight (Goodnight.qml).
+    Away { id: away; mainScreen: root.mainScreen; theme: root.c; arriveAt: root.arriveT; onArrived: { root.arriveT = 0; arriveRun.start(); } }
+    Goodnight { mainScreen: root.mainScreen; theme: root.c }
 
     // her notification list, on the main screen, just over the tray
     NoteList {
