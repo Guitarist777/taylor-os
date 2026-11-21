@@ -35,7 +35,7 @@ vm boot-2 \
 # does not read the image's kargs.d (bootc adds them on her PC at install and update). Give it hers, as her PC has them,
 # and tell its boot screen to ignore the serial console (her PC has none; with one, Plymouth shows plain text instead).
 KARGS=$(python3 -c 'import tomllib; print(" ".join("--append-if-missing=" + k for k in tomllib.load(open("files/system/usr/lib/bootc/kargs.d/10-taylor-boot.toml", "rb"))["kargs"]))')
-vm boot-kargs "grep -q vt.default_red=11, /proc/cmdline && echo the test PC already has her kernel options || { echo the test PC did not get her kernel options at install, adding them for this test; echo taylortest | sudo -S rpm-ostree kargs $KARGS --append-if-missing=plymouth.ignore-serial-consoles; }"
+vm boot-kargs "grep -q vt.default_red=11, /proc/cmdline && echo the test PC has her kernel options from the image || echo the test PC did not get her kernel options at install, adding them for this test" "echo taylortest | sudo -S rpm-ostree kargs $KARGS --append-if-missing=plymouth.ignore-serial-consoles; true"
 
 # ---- a cold-ish start: restart the PC and watch firmware -> her dark -> her opening -> the hand-off -> login
 vm boot-restart "echo taylortest | sudo -S systemd-run --on-active=4 --timer-property=AccuracySec=100ms systemctl reboot"
@@ -57,7 +57,7 @@ vm boot-3 \
   "$(ok 'the opening hands over to the login' "$(gsudo 'grep -qE "the hand-off begins at 14[.][67] s" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'no QML errors on her login screen' "$(gsudo '! grep -qiE "ReferenceError|TypeError|is not defined|Cannot assign" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the boot screen is switched on (rhgb)' "grep -qw rhgb /proc/cmdline")" \
-  "$(ok 'the text screen black is her dark after a restart'"[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ]")" \
+  "$(ok 'the text screen black is her dark after a restart' "[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ]")" \
   "$(gsudo 'cat /tmp/taylor-greeter-scene.log; head -c 2000 /tmp/taylor-greeter-hyprland.log; journalctl -b -u greetd -u taylor-console -u taylor-greeter-prefs --no-pager | tail -30; systemd-analyze blame | head -15; cat /proc/cmdline')" \
   "journalctl -b -o short-monotonic --no-pager | grep -E 'plymouth|greetd|taylor-console|Started|Reached target' | grep -iE 'plymouth|greetd|taylor|graphical' | head -40"
 
