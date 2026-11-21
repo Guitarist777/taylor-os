@@ -1,0 +1,73 @@
+#!/usr/bin/python3 -I
+# Her screen's brightness, as she drags (2026-11-21). Brightness.qml keeps this running and writes one number a line
+# (0..max, the monitor's own scale) on its stdin; this sends each to the monitor over DDC/CI (VCP 0x10) on the I2C bus
+# it is given. Only the newest number is sent: one that arrives while the monitor still needs its pause is replaced.
+#
+# Why not ddcutil for each change: on her PC one `ddcutil setvcp` took 0.3 to 0.57 s (it starts and finds the monitor
+# every time), so a drag reached the screen in steps. One write here took 25 to 28 ms on her monitor, and the
+# monitor read back the value written (tried 2026-11-21).
+# DDC/CI asks for a pause of at least 50 ms between commands to a monitor; this keeps 60 ms.
+# Prints "ready" once the bus is open, "set N" after each write, and "error: ..." and exits 1 if the bus can't be
+# used (Brightness.qml then goes back to ddcutil). Prints nothing private.
+import fcntl
+import os
+import select
+import sys
+import time
+
+I2C_SLAVE = 0x0703
+DDC_ADDR = 0x37
+GAP = 0.06
+
+
+def setvcp(fd, code, value):
+    data = [0x51, 0x84, 0x03, code, (value >> 8) & 0xFF, value & 0xFF]
+    chk = 0x6E                      # the host's address (0x37 << 1), as DDC/CI's checksum starts from
+    for b in data:
+        chk ^= b
+    os.write(fd, bytes(data + [chk]))
+
+
+def main():
+    if len(sys.argv) != 2 or not sys.argv[1].isdigit():
+        print("error: usage: taylor-ddc BUS", flush=True)
+        return 1
+    try:
+        fd = os.open("/dev/i2c-" + sys.argv[1], os.O_RDWR)
+        fcntl.ioctl(fd, I2C_SLAVE, DDC_ADDR)
+    except OSError as e:
+        print("error: bus " + sys.argv[1] + ": " + e.strerror, flush=True)
+        return 1
+    print("ready", flush=True)
+    stdin = sys.stdin.buffer
+    buf = b""
+    pending = None
+    last = 0.0
+    while True:
+        wait = None
+        if pending is not None:
+            wait = max(0.0, last + GAP - time.monotonic())
+        r, _, _ = select.select([stdin], [], [], wait)
+        if r:
+            chunk = os.read(stdin.fileno(), 4096)
+            if not chunk:
+                return 0            # Brightness.qml closed us
+            buf += chunk
+            *lines, buf = buf.split(b"\n")
+            for line in lines:
+                line = line.strip()
+                if line.isdigit():
+                    pending = int(line)
+        if pending is not None and time.monotonic() >= last + GAP:
+            try:
+                setvcp(fd, 0x10, pending)
+            except OSError as e:
+                print("error: write: " + e.strerror, flush=True)
+                return 1
+            print("set " + str(pending), flush=True)
+            pending = None
+            last = time.monotonic()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

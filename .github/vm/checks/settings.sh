@@ -1,7 +1,7 @@
 # Her Settings window and the volume and brightness ring (2026-11-21). Real clicks on the real window: where each control
 # is comes from Settings' own log ("taylor-settings: place NAME x y", window pixels) plus where Hyprland put the window.
 . .github/vm/checks/lib.sh
-expect settings 29
+expect settings 31
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 AT="hyprctl -j clients | python3 -c 'import json,sys; c=[w for w in json.load(sys.stdin) if w[\"title\"]==\"Settings\"]; print(\"SETAT\", *(c[0][\"at\"] + c[0][\"size\"] + [int(c[0][\"floating\"])]) if c else (\"none\",))'"
 PLACES="$L | grep -oE 'place [^ ]+ [0-9]+ [0-9]+' | tail -60"
@@ -133,3 +133,10 @@ vm settings-end \
   "$L | grep -iE 'warn|error' | grep -iE 'Settings|Osd|Brightness|Warm' | tail -20" \
   "\$Q call settings close"
 shot settings-closed
+
+# brightness as she drags (2026-11-21): the live helper is in the image and says plainly when it can't reach a screen
+# (the virtual PC's screen doesn't speak DDC/CI, so here Brightness stays hidden and no helper runs; her real monitor
+# was tried on her PC: 25-28 ms a change)
+vm settings-ddc \
+  "$(ok 'the live brightness helper is in the image and refuses a screen it cannot reach' "test -x /usr/libexec/taylor-ddc && echo 50 | /usr/libexec/taylor-ddc 99 | grep -q '^error: bus 99'")" \
+  "$(ok 'with no monitor answering DDC/CI no live helper runs' "! pgrep -u tester -f /usr/libexec/taylor-ddc >/dev/null")"

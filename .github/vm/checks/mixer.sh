@@ -16,7 +16,7 @@ SW=${SW:-1280}; SH=${SH:-800}
 for p in "300 600" "320 620" "640 700"; do $V move $p $SW $SH; sleep 0.7; done
 vm mixer-pointer "hyprctl cursorpos"
 
-expect mixer 29
+expect mixer 31
 vm mixer-channels \
   "$(ok 'the mixer channels Game, Chat, Media and Aux exist in PipeWire' "test \$(pw-cli ls Node | grep -cE 'node.name = \"taylor_(game|chat|media|aux)(\\.out)?\"') -eq 8")" \
   "$(ok 'the desktop mixer is on her screen' "hyprctl layers | grep -q taylor-mixer")" \
@@ -129,3 +129,11 @@ vm mixer-noise "~/mx q tab Mic; sleep 1; ~/mx q noise true; sleep 7" \
   "timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -iE 'error|warn' | tail -15" \
   "systemctl --user list-units 'taylor-mixer-fx@*' --no-pager | head"
 shot mixer-noise
+
+# live equalizer (2026-11-21, her "react in real time"): opening a flat channel's page starts its filter, so the first
+# drag is a live change and not a filter start; closing the Mixer stops it again (flat channels: no filter)
+vm mixer-warm "~/mx q open; sleep 1; ~/mx q tab Aux; sleep 6" \
+  "$(ok 'opening a flat channel page starts its filter so the first drag is live' "systemctl --user is-active --quiet taylor-mixer-fx@aux && timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -q 'aux page open'")" \
+  "~/mx q close; sleep 5" \
+  "$(ok 'closing the Mixer stops the filter of a flat channel' "! systemctl --user is-active --quiet taylor-mixer-fx@aux")" \
+  "timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -E 'page open|window shut|aux' | tail -6"

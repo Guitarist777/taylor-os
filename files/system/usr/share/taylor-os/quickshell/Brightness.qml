@@ -6,7 +6,9 @@ pragma Singleton
 // ddcutil can reach the screen without root: Bazzite loads i2c-dev and its udev rule gives the signed-in seat the
 // i2c devices of the graphics card (uaccess).
 // Keys: Hyprland's XF86MonBrightnessUp / Down call "quickshell ipc call brightness up|down".
-// Untested on her monitor (the virtual PC has no monitor that speaks DDC/CI).
+// As she drags (2026-11-21, her "react in real time"): the start-up look also finds the monitor's I2C bus, and
+// /usr/libexec/taylor-ddc stays running on it and sends each new level straight to the monitor (25-28 ms a write on
+// her monitor, against 0.3-0.57 s for a ddcutil each time). If it can't be used, ddcutil as before.
 import Quickshell
 import Quickshell.Io
 import QtQuick
@@ -24,7 +26,9 @@ Singleton {
         if (!available) return;
         v = Math.max(0, Math.min(100, Math.round(v)));
         level = v;
-        pending = Math.round(v * maxRaw / 100);
+        const raw = Math.round(v * maxRaw / 100);
+        if (fast.ready) { fast.write(raw + "\n"); return; }
+        pending = raw;
         if (!setter.running) flush();
     }
     function step(d) {
@@ -42,16 +46,19 @@ Singleton {
     Process {
         id: probe
         running: true
-        command: ["sh", "-c", "command -v ddcutil >/dev/null || exit 3; timeout 20 ddcutil --brief getvcp 10 2>/dev/null"]
+        // the first monitor ddcutil finds (as a plain ddcutil would use), its bus, then its brightness on that bus
+        command: ["sh", "-c", "command -v ddcutil >/dev/null || exit 3; bus=$(timeout 20 ddcutil detect --brief 2>/dev/null | sed -n 's|.*I2C bus:.*/dev/i2c-\\([0-9][0-9]*\\).*|\\1|p' | head -1); echo \"BUS ${bus:-none}\"; if [ -n \"$bus\" ]; then timeout 20 ddcutil --bus \"$bus\" --brief getvcp 10 2>/dev/null; else timeout 20 ddcutil --brief getvcp 10 2>/dev/null; fi"]
         stdout: StdioCollector {
             onStreamFinished: {
-                // "VCP 10 C 80 100"
+                // "BUS 3" then "VCP 10 C 80 100"
                 const m = this.text.match(/VCP\s+10\s+C\s+(\d+)\s+(\d+)/);
                 if (m && parseInt(m[2]) > 0) {
                     b.maxRaw = parseInt(m[2]);
                     b.level = Math.round(parseInt(m[1]) * 100 / b.maxRaw);
                     b.available = true;
                 }
+                const bm = this.text.match(/BUS (\d+)/);
+                if (b.available && bm) { fast.command = ["/usr/libexec/taylor-ddc", bm[1]]; fast.running = true; }
             }
         }
         onExited: (code) => {
@@ -59,6 +66,21 @@ Singleton {
             console.info("taylor-brightness: " + (b.available ? "the monitor answers (" + b.level + ")" : "no monitor answers DDC/CI (exit " + code + "); brightness hidden"));
         }
     }
+    // the live line to the monitor (taylor-ddc); until it says "ready", and if it ever stops, ddcutil does it
+    Process {
+        id: fast
+        property bool ready: false
+        stdinEnabled: true
+        stdout: SplitParser {
+            onRead: (l) => {
+                if (l === "ready") { fast.ready = true; console.info("taylor-brightness: live to the monitor (" + fast.command.join(" ") + ")"); }
+                else if (l.startsWith("error")) console.info("taylor-brightness: taylor-ddc " + l + "; ddcutil instead");
+                else if (l.startsWith("set ")) b.sent = parseInt(l.slice(4));
+            }
+        }
+        onExited: (code) => { if (ready) console.info("taylor-brightness: taylor-ddc stopped (exit " + code + "); ddcutil instead"); ready = false; }
+    }
+    property int sent: -1             // the last level taylor-ddc wrote (the monitor's scale), for the log and the tests
     Process {
         id: setter
         onExited: (code) => { if (code !== 0) console.info("taylor-brightness: the monitor did not take it (exit " + code + ")"); b.flush(); }

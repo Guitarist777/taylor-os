@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 15
+expect taskbar 16
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -67,6 +67,7 @@ sleep 8
 shot taskbar-7-terminal
 vm taskbar-term \
   "$(ok 'the Terminal slot opens kitty' "pgrep -u tester -x kitty >/dev/null")" \
+  "$(ok 'while an app opens its dock icon breathes (no loading dots)' "$QL | grep -q 'terminal opening: its icon breathes' && ! grep -q 'id: dots' /usr/share/taylor-os/quickshell/Dock.qml")" \
   "$(ok 'the dock sees kitty running and in front' "$QL | grep -E 'taylor-dock: windows' | tail -1 | grep -q 'terminal\*'")" \
   "$(ok 'the dock and its log stay clean' "! $QL | grep -iE 'Dock.qml' | grep -qiE 'error|TypeError|ReferenceError'")" \
   "$(ok 'the taskbar apps setup ran at sign in' "test -s ~/.local/state/taylor-os/apps-setup.log")" \

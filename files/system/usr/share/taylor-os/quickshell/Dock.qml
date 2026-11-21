@@ -15,7 +15,7 @@
 // app's own icon through the same theme lookup (its .desktop Icon=). Nothing here is drawn except TAYLOR's dial.
 // An app that is not on the PC yet (the first sign-in fetches Edge, Chrome and Spotify; EA and Battle.net install
 // through Lutris) shows its icon dimmed; a click says in her status line that it is being set up.
-// After a launch, three dots circle under the icon until the app's window appears (her "Loading" row; kept simple).
+// After a launch, the icon gently brightens and dims until the app's window appears (her call 2026-11-21: no dots).
 //
 // The log says what it does (app ids and counts, nothing private): "taylor-dock: ..." lines.
 import Quickshell
@@ -157,7 +157,7 @@ Scope {
         if (changed) loading = l;
     }
 
-    // ---- loading: after a launch, circling dots until the window appears (at most 45 s) ----
+    // ---- loading: after a launch, the icon breathes until the window appears (at most 45 s) ----
     property var loading: ({})
     property real clock: 0
     Timer {
@@ -330,7 +330,7 @@ Scope {
         anchors { top: true }
         margins { top: Math.round(dock.top) }
         implicitWidth: Math.ceil(dock.barW)
-        implicitHeight: Math.ceil(dock.barH + 3 * dock.s)    // a little room under the bar for the loading dots
+        implicitHeight: Math.ceil(dock.barH + 3 * dock.s)    // a little room under the bar for the running dot
         color: "transparent"
         // windows snap edge to edge below the bar; in true full screen nothing is kept for it
         exclusionMode: ExclusionMode.Ignore    // the strip under it is kept by DockReserve.qml (the windows piece), so it can leave
@@ -390,6 +390,8 @@ Scope {
                     readonly property int rs: dock.slotRun(modelData)
                     readonly property bool here: dock.present(appId)
                     readonly property bool busy: dock.slotLoading(modelData)
+                    property real busyFrom: 0          // the breath starts bright, at the click
+                    onBusyChanged: if (busy) { busyFrom = Date.now() / 1000; console.info("taylor-dock: " + appId + " opening: its icon breathes until its window appears"); }
                     x: dock.slotX(i) - dock.barX - dock.ic / 2; y: 1 + dock.padY
                     width: dock.ic; height: dock.ic
 
@@ -397,8 +399,14 @@ Scope {
                         anchors.centerIn: parent
                         implicitSize: dock.ic
                         source: { dock.have; return dock.iconFor(slot.appId); }
-                        opacity: slot.here ? 1 : 0.4
-                        Behavior on opacity { NumberAnimation { duration: dock.theme.ms(200) } }
+                        // loading (her call 2026-11-21, instead of the tour's circling dots, which she read as "a
+                        // thinking thing"): the icon itself gently brightens and dims, 1.6 s a breath, until the app's
+                        // window appears. Reduced motion: it only stays a little dimmed.
+                        opacity: !slot.here ? 0.4
+                               : !slot.busy ? 1
+                               : dock.theme.still ? 0.6
+                               : 0.725 + 0.275 * Math.cos((dock.clock - slot.busyFrom) * 6.2832 / 1.6)
+                        Behavior on opacity { enabled: !slot.busy; NumberAnimation { duration: dock.theme.ms(200) } }
                     }
                     // the green dot (running) or wider dash (the app she is in): the tour's ::after under the icon
                     Rectangle {
@@ -408,30 +416,6 @@ Scope {
                         width: slot.rs === 2 ? 12 * dock.s : slot.rs === 1 ? 3 * dock.s : 0
                         color: dock.theme.accent
                         Behavior on width { NumberAnimation { duration: dock.theme.ms(200) } }
-                    }
-                    // loading: three dots circling where the running dot goes (the tour's orbit(): r 4, dots 1.1)
-                    Canvas {
-                        id: dots
-                        visible: slot.busy
-                        width: 14 * dock.s; height: 14 * dock.s
-                        anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.bottom; verticalCenterOffset: 4.5 * dock.s }
-                        onPaint: {
-                            const x = getContext("2d");
-                            x.reset();
-                            if (!slot.busy) return;
-                            const T = dock.clock, c = width / 2, r = 4 * dock.s, n = 3, sp = 5, st = dock.theme.still;
-                            const cols = [dock.theme.accent, Qt.tint(dock.theme.accent, Qt.rgba(dock.theme.soft.r, dock.theme.soft.g, dock.theme.soft.b, 0.5)), dock.theme.soft];
-                            for (let q = 0; q < n; q++) {
-                                const a = st ? q / n * 6.2832 : T * sp + q * (6.2832 / n) + 0.55 * Math.sin(T * sp * 0.9 + q * 1.3);
-                                x.globalAlpha = st ? 0.6 + 0.4 * Math.sin(T * 3) : 0.6 + 0.4 * Math.sin(T * 3 + q);
-                                x.fillStyle = cols[q % 3];
-                                x.beginPath();
-                                x.arc(c + Math.cos(a) * r, c + Math.sin(a) * r, 1.1 * dock.s * (st ? 1 : 0.8 + 0.3 * Math.sin(T * 2 + q * 2)), 0, 6.2832);
-                                x.fill();
-                            }
-                            x.globalAlpha = 1;
-                        }
-                        Connections { target: dock; function onClockChanged() { if (slot.busy) dots.requestPaint(); } }
                     }
                 }
             }

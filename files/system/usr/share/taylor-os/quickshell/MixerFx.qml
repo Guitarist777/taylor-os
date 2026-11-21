@@ -147,15 +147,35 @@ Singleton {
         if (!s.eqOn) return false;
         return s.bands.some(b => b.t >= 3 || Math.abs(b.g) > 0.05) || s.tone.some(x => Math.abs(x) > 0.05);
     }
+    // As she drags (her "react in real time", 2026-11-21): a flat equalizer has no filter, so the first move away from
+    // flat had to start one (about a second before she heard it), and dragging back to flat stopped it again. While the
+    // Mixer window is open, a channel whose sound shaping she opened keeps its equalizer filter running even when flat,
+    // so every move is a live change. When the window closes, flat channels go back to no filter (her brief: light).
+    // The filter starts as she opens the channel's page (a short gap in its sound then, never mid-drag).
+    property var warm: ({})
+    function warmFor(k) {
+        if (k && channels.indexOf(k) >= 0) {
+            if (warm[k]) return;
+            const w = Object.assign({}, warm); w[k] = true; warm = w;
+            console.info("taylor-mixer:", k, "page open: its equalizer stays live until the Mixer closes");
+            changed(k);
+        } else if (!k && Object.keys(warm).length) {
+            const was = Object.keys(warm);
+            warm = ({});
+            console.info("taylor-mixer: window shut: flat equalizers go back to no filter");
+            for (const c of was) changed(c);
+        }
+    }
+    function eqRuns(k) { const s = get(k); return eqActive(s) || (!!warm[k] && s.eqOn); }
     function hasGate(k) { return k === "chat" || k === "mic"; }
     function hasSpatial(k) { return k === "game" || k === "media" || k === "aux"; }
     function active(k) {
         const s = get(k);
-        return eqActive(s) || s.comp.on || (hasGate(k) && s.gate.on) || (hasSpatial(k) && s.sp.on) || (k === "mic" && !!s.ns);
+        return eqRuns(k) || s.comp.on || (hasGate(k) && s.gate.on) || (hasSpatial(k) && s.sp.on) || (k === "mic" && !!s.ns);
     }
     function shape(k) {                 // what needs a restart when it changes
         const s = get(k);
-        return JSON.stringify({ eq: eqActive(s) ? s.bands.map(b => b.t) : null, comp: s.comp.on, gate: hasGate(k) && s.gate.on,
+        return JSON.stringify({ eq: eqRuns(k) ? s.bands.map(b => b.t) : null, comp: s.comp.on, gate: hasGate(k) && s.gate.on,
                                 sp: hasSpatial(k) && s.sp.on ? s.sp.mode : null, ns: k === "mic" && !!s.ns, mic: k === "mic" ? micName() : "" });
     }
     // her real microphone, which the shaped one is made from (written into the settings: a new microphone restarts it)
@@ -188,7 +208,7 @@ Singleton {
             ends[i] = node.name + ":" + outP;
         }
         sides.forEach((sd, i) => {
-            if (eqActive(s)) {
+            if (eqRuns(k)) {
                 s.bands.forEach((b, j) => add(i, { name: "b" + (j + 1) + "_" + sd, type: "builtin", label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.t >= 3 ? 0 : b.g } }, "In", "Out"));
                 toneBands(s).forEach((b, j) => add(i, { name: "t" + (j + 1) + "_" + sd, type: "builtin", label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.g } }, "In", "Out"));
             }

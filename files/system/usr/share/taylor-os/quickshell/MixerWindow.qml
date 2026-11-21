@@ -16,7 +16,10 @@ Scope {
     property bool open: false
     property string tab: "Mixer"
     function toggle() { open = !open; }
-    onOpenChanged: { MixerCore.windowOpen = open; console.info("taylor-mixer: window", open ? "open" : "shut"); }
+    onOpenChanged: { MixerCore.windowOpen = open; console.info("taylor-mixer: window", open ? "open" : "shut"); warmNow(); }
+    onTabChanged: warmNow()
+    // the channel whose sound shaping is open keeps its equalizer live until the window closes (MixerFx.warmFor)
+    function warmNow() { if (!open) MixerFx.warmFor(""); else if (tab !== "Mixer") MixerFx.warmFor(tab.toLowerCase()); }
 
     IpcHandler {
         target: "mixer"
