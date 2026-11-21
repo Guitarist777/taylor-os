@@ -15,7 +15,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("hyprpaper")
     hl.exec_cmd("quickshell")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
-    hl.exec_cmd("hypridle")
+    hl.exec_cmd("hypridle -c /usr/share/taylor-os/hypridle.conf")   -- only locks before sleep; her timeout is the desktop's own
 end)
 
 hl.env("XCURSOR_SIZE", "24")
@@ -64,6 +64,7 @@ hl.config({
         disable_hyprland_logo    = true,
         disable_splash_rendering = true,
         background_color         = "rgb(0f1010)",
+        allow_session_lock_restore = true,   -- if her lock screen ever dies, the backup lock screen can take over (taylor-lock)
     },
 
     input = {
@@ -100,7 +101,8 @@ hl.bind(mod .. " + B",      hl.dsp.exec_cmd("xdg-open https://"))
 hl.bind(mod .. " + Q",      hl.dsp.window.close())
 hl.bind(mod .. " + F",      hl.dsp.window.fullscreen())
 hl.bind(mod .. " + V",      hl.dsp.window.float({ action = "toggle" }))
-hl.bind(mod .. " + L",      hl.dsp.exec_cmd("hyprlock"))
+hl.bind(mod .. " + L",      hl.dsp.exec_cmd("/usr/libexec/taylor-lock now"))   -- her lock screen (the dial)
+hl.bind("XF86PowerOff",     hl.dsp.exec_cmd("quickshell ipc call power shutdown"), { locked = true })   -- her goodnight, then off
 hl.bind(mod .. " + SHIFT + M", hl.dsp.exit())
 
 hl.bind(mod .. " + left",  hl.dsp.focus({ direction = "left" }))

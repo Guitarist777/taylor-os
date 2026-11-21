@@ -51,6 +51,30 @@ getent passwd | while IFS=: read -r name _ uid gid _ home _; do
         && cat "$tmp" > "$target" && rm -f "$tmp" && log "$name: Windows key + Space now opens her launcher (old file kept)"
 done
 
+# 2c. Her lock screen (2026-11-21, her build brief phase 6): Windows key + L opens her lock screen (the dial) instead of
+#     hyprlock, the power key plays her goodnight, hypridle only locks before sleep (her timeout is the desktop's own),
+#     and Hyprland lets the backup lock screen take over if hers ever dies. Only TAYLOR's own lines, exactly as TAYLOR OS
+#     wrote them, are changed, once (a file that already says taylor-lock is left alone); a copy is kept first.
+old_l='hl.bind(mod .. " + L",      hl.dsp.exec_cmd("hyprlock"))'
+new_l='hl.bind(mod .. " + L",      hl.dsp.exec_cmd("/usr/libexec/taylor-lock now"))   -- her lock screen (the dial)'
+new_p='hl.bind("XF86PowerOff",     hl.dsp.exec_cmd("quickshell ipc call power shutdown"), { locked = true })   -- her goodnight, then off'
+old_i='    hl.exec_cmd("hypridle")'
+new_i='    hl.exec_cmd("hypridle -c /usr/share/taylor-os/hypridle.conf")   -- only locks before sleep; her timeout is the desktop'"'"'s own'
+old_m='        background_color         = "rgb(0f1010)",'
+new_m='        allow_session_lock_restore = true,   -- if her lock screen ever dies, the backup lock screen can take over (taylor-lock)'
+getent passwd | while IFS=: read -r name _ uid gid _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+    target="$home/.config/hypr/hyprland.lua"
+    [ -f "$target" ] && grep -q "TAYLOR-OS-DESKTOP" "$target" && ! grep -q "taylor-lock" "$target" && grep -qxF "$old_l" "$target" || continue
+    cp -p "$target" "$target.before-lock-$stamp"
+    tmp=$(mktemp) && awk -v ol="$old_l" -v nl="$new_l" -v np="$new_p" -v oi="$old_i" -v ni="$new_i" -v om="$old_m" -v nm="$new_m" '
+        $0 == ol { print nl; print np; next }
+        $0 == oi { print ni; next }
+        $0 == om { print; print nm; next }
+        { print }' "$target" > "$tmp" \
+        && cat "$tmp" > "$target" && rm -f "$tmp" && log "$name: Windows key + L now opens her lock screen (old file kept)"
+done
+
 # 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system
 #     (/usr/share/taylor-os/quickshell) so every update brings the new version. Each account's ~/.config/quickshell
 #     points there. A copy TAYLOR OS made earlier (its shell.qml says "TAYLOR OS desktop") is kept beside the pointer;

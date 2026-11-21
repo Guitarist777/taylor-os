@@ -1,0 +1,85 @@
+#!/usr/bin/bash
+# TAYLOR OS: lock her screen, and make sure she can always get back in (her build brief, phase 6).
+#
+#   taylor-lock now        Windows key + L, "loginctl lock-session", before sleep: her lock screen at once
+#   taylor-lock burst      the end of her timeout (the desktop's Away.qml): her lock screen out of TAYLOR's burst
+#   taylor-lock sleep      before the PC sleeps (hypridle): "now", unless she switched "lock before sleep" off
+#   taylor-lock hint true|false   the LockedHint on her login session (the lock screen sets it)
+#
+# Her lock screen is its own Quickshell (/usr/share/taylor-os/lock). Hyprland keeps the session locked if a lock screen
+# dies (Quickshell's WlSessionLock: the screen then stays a solid colour). So this script waits for it, and if it ends
+# without having unlocked (it crashed, was killed, or never started), hyprlock takes over in TAYLOR's colours, as often
+# as needed, so she can always type her password. Hyprland lets a new lock screen take over
+# (misc.allow_session_lock_restore in her hyprland.lua). Only one of these runs at a time, so two lock screens never
+# fight. Nothing here sees her password.
+set -u
+run="${XDG_RUNTIME_DIR:-/tmp}"
+state="$run/taylor-lock.state"
+log() { echo "taylor-lock: $*"; logger -t taylor-lock -- "$*" 2>/dev/null || true; }
+
+hint() {
+    local id="${XDG_SESSION_ID:-}" path
+    if [ -n "$id" ]; then
+        path=$(busctl --system call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager GetSession s "$id" 2>/dev/null | awk '{print $2}' | tr -d '"')
+    fi
+    if [ -z "${path:-}" ]; then
+        # her session on the screen (seat0; the desktop may run outside its scope, under uwsm)
+        id=$(loginctl list-sessions --no-legend 2>/dev/null | awk -v u="$(id -un)" '$3 == u {print $1}' | while read -r s; do
+            [ "$(loginctl show-session "$s" -p Seat --value 2>/dev/null)" = seat0 ] && { echo "$s"; break; }; done)
+        [ -n "$id" ] && path=$(busctl --system call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager GetSession s "$id" 2>/dev/null | awk '{print $2}' | tr -d '"')
+    fi
+    [ -n "${path:-}" ] || { log "no login session found for the locked hint"; return 0; }
+    busctl --system call org.freedesktop.login1 "$path" org.freedesktop.login1.Session SetLockedHint b "$1" >/dev/null 2>&1 \
+        && log "locked hint $1" || log "locked hint $1 not set"
+}
+
+mode="${1:-now}"
+case "$mode" in
+    hint) hint "${2:-false}"; exit 0 ;;
+    sleep)
+        f="${XDG_CONFIG_HOME:-$HOME/.config}/taylor-os/settings.json"
+        if grep -qE '"lockOnSleep": *false' "$f" 2>/dev/null; then log "sleep: she switched lock before sleep off"; exit 0; fi
+        mode=now ;;
+    now|burst) ;;
+    *) echo "usage: taylor-lock now|burst|sleep|hint true|false" >&2; exit 2 ;;
+esac
+
+# one at a time: a second call while she is locked does nothing
+exec 9>"$run/taylor-lock.lk"
+if ! flock -n 9; then log "$mode: already locked"; exit 0; fi
+
+echo locking > "$state"
+log "$mode: her lock screen"
+TAYLOR_LOCK_MODE="$mode" quickshell -p /usr/share/taylor-os/lock > "$run/taylor-lock.log" 2>&1 9>&- &
+qs=$!
+echo "$qs" > "$run/taylor-lock.pid"
+wait "$qs"
+code=$?
+rm -f "$run/taylor-lock.pid"
+
+if [ "$(cat "$state" 2>/dev/null)" = unlocked ]; then
+    log "unlocked"
+    exit 0
+fi
+
+# Her lock screen ended without unlocking: the session is still locked (or never was). hyprlock takes over.
+log "her lock screen ended without unlocking (exit $code): hyprlock takes over"
+echo fallback > "$state"
+hint true
+tries=0
+while :; do
+    hyprlock -c /usr/share/taylor-os/lock/hyprlock.conf --immediate-render >"$run/taylor-lock-hyprlock.log" 2>&1 9>&-
+    hc=$?
+    if [ "$hc" -eq 0 ]; then break; fi
+    tries=$((tries + 1))
+    log "hyprlock ended with $hc (try $tries); starting it again"
+    [ "$tries" -ge 50 ] && { log "hyprlock would not stay up"; break; }
+    sleep 1
+done
+echo unlocked > "$state"
+hint false
+log "unlocked through hyprlock"
+# her desktop plays its arrival (shell.qml); without a desktop this does nothing
+if [ -n "${TAYLOR_DESKTOP_DIR:-}" ]; then quickshell ipc -p "$TAYLOR_DESKTOP_DIR" call lock arrived >/dev/null 2>&1 9>&- || true
+else quickshell ipc call lock arrived >/dev/null 2>&1 9>&- || true; fi
+exit 0
