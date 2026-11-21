@@ -2,7 +2,7 @@
 # Made-up data only: a made-up TAYLOR (.github/vm/fake_taylor.py) with a made-up token, made-up notifications, a
 # made-up folder. Nothing of hers.
 . .github/vm/checks/lib.sh
-expect dial 30
+expect dial 31
 B='export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus'
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # which layer level each of her pieces is on (0 background, 1 bottom, 2 top, 3 overlay)
@@ -32,8 +32,9 @@ vm dial-2 \
   "$(ok 'Enter opens the app she typed' "hyprctl clients | grep -q 'class: kitty'")" \
   "$(ok 'her launcher closes after she picks' "! hyprctl layers | grep -q taylor-launcher")" \
   "$(ok 'her status says what she is doing (OPENING KITTY.)' "$L | grep -q 'taylor-desktop: status OPENING KITTY.'")" \
-  "$(ok 'circling dots by the pointer wait for the window' "$L | grep -q 'taylor-loading: waiting for the window'")" \
-  "$(ok 'the dots by the pointer go when the window opens' "$L | grep -q 'taylor-loading: the window opened'")" \
+  "$(ok 'a soft dot by the pointer waits for the window' "$L | grep -q 'taylor-loading: waiting for the window'")" \
+  "$(ok 'the dot by the pointer goes when the window opens' "$L | grep -q 'taylor-loading: the window opened'")" \
+  "$(ok 'an app opened from the launcher breathes its dock icon too' "$L | grep -q 'taylor-dock: terminal opening: its icon breathes'")" \
   "$L | grep -E 'taylor-(loading|launcher|desktop)' | tail -12" \
   "pkill -x kitty; sleep 2; echo closed"
 

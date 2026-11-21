@@ -249,6 +249,7 @@ ShellRoot {
     // the taskbar (Dock.qml): its dial opens the launcher, its Mixer slot the Mixer window, its lines go to her status
     property bool dockHidden: false          // true full screen (the windows piece sets it)
     Dock {
+        id: taskbar
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU
         hiddenForFullscreen: root.dockHidden
         onOpenLauncher: root.launcherOpen = true
@@ -319,6 +320,7 @@ ShellRoot {
             root.dialBusy = true; statusBack.restart();
             if (kind === "App" || kind === "File" || kind === "Folder") loading.start();
         }
+        onPickedApp: (id) => taskbar.opening(id)
         onAsk: (text) => taylor.ask(text)
         onToggleMixer: mixerWindow.open = true
     }

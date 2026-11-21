@@ -176,6 +176,10 @@ Scope {
         return loading[sl.id] !== undefined;
     }
     function mark(id) { const l = Object.assign({}, loading); l[id] = Date.now(); loading = l; }
+    // an app opened from her launcher: if it has a slot here, that icon breathes too (the launcher's dot by the pointer)
+    function opening(desktopId) {
+        for (const k in apps) if (apps[k].desktop && apps[k].desktop === desktopId.replace(/\.desktop$/, "") && !run[k]) { mark(k); return; }
+    }
 
     // ---- doing things ----
     function launch(id) {

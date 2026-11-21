@@ -25,6 +25,7 @@ PanelWindow {
     property string status: "ALL CLEAR."
     property string preset: ""        // the preview's pictures: text typed into the box when it opens
     signal closeMe()
+    signal pickedApp(string desktopId)        // an app she picked (its .desktop id), so its dock icon can breathe too
     signal picked(string line, string kind)   // the dial's line ("OPENING STEAM.") and what it was: App, File, Folder, TAYLOR
     signal ask(string text)           // Ask TAYLOR
     signal toggleMixer()
@@ -181,7 +182,7 @@ PanelWindow {
         if (it.k === "TAYLOR") { ask(it.q); line = "THINKING."; }
         else if (it.mixer) { toggleMixer(); line = "OPENING MIXER."; remember({ k: "Mixer", n: "Mixer" }); }
         else if (it.k === "App") {
-            if (it.entry) it.entry.execute();
+            if (it.entry) { it.entry.execute(); pickedApp(it.entry.id); }
             line = it.n.length <= 14 ? "OPENING " + it.n.toUpperCase() + "." : "OPENING APP.";
             remember(it);
         } else {

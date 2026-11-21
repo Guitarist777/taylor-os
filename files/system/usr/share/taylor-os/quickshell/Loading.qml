@@ -1,8 +1,10 @@
-// Circling dots by the pointer (her build brief, "Loading"; her design tour, part 8): while an app she picked in her
-// launcher has not opened its window yet, three small dots circle just below and right of the pointer. They go the
+// A soft dot by the pointer (her build brief, "Loading"; her design tour, part 8, made quieter at her call 2026-11-21:
+// the tour's three circling dots read as "a thinking thing"): while an app she picked in her launcher has not opened its
+// window yet, one small dot just below and right of the pointer gently brightens and dims, 1.6 s a breath, as the
+// app's dock icon does when it has one. They go the
 // moment Hyprland says a window opened (its "openwindow" event), or after 20 seconds. This draws over windows (it is
 // a pointer helper, not TAYLOR), takes no clicks and no keys. The dots on the dock icon are the dock's own.
-// Reduced motion: the three dots stand still and pulse once instead of circling.
+// Reduced motion: the dot stays, a little dimmed, without breathing.
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -66,15 +68,10 @@ PanelWindow {
             const c = getContext("2d");
             c.reset();
             const T = Date.now() / 1000, still = win.theme.still;
-            const cols = [win.theme.accent, win.theme.mix(win.theme.accent, win.theme.soft, 0.5), win.theme.soft];
             const fadeIn = Math.min(1, (T - win.t0) / 0.3);
-            for (let i = 0; i < 3; i++) {      // her orbit(ptr.x + 14, ptr.y + 14, 5, 3, T, 0.95, 1.3, 5.5)
-                const a = still ? i / 3 * 6.2832 : T * 5.5 + i * (6.2832 / 3) + 0.55 * Math.sin(T * 5.5 * 0.9 + i * 1.3);
-                c.globalAlpha = 0.95 * fadeIn * (still ? 0.8 : 0.6 + 0.4 * Math.sin(T * 3 + i));
-                c.fillStyle = cols[i % 3];
-                const dr = 1.3 * win.u * (still ? 1 : 0.8 + 0.3 * Math.sin(T * 2 + i * 2));
-                c.beginPath(); c.arc(20 + Math.cos(a) * 5 * win.u, 20 + Math.sin(a) * 5 * win.u, dr, 0, 6.2832); c.fill();
-            }
+            c.globalAlpha = fadeIn * (still ? 0.6 : 0.725 + 0.275 * Math.cos((T - win.t0) * 6.2832 / 1.6));
+            c.fillStyle = win.theme.accent;
+            c.beginPath(); c.arc(20, 20, 2 * win.u, 0, 6.2832); c.fill();
         }
     }
     FrameAnimation { running: win.visible; onTriggered: art.requestPaint() }
