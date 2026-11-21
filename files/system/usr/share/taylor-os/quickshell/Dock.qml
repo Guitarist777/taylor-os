@@ -94,6 +94,7 @@ Scope {
                 const was = JSON.stringify(dock.have);
                 dock.have = h; dock.scanned = true;
                 if (JSON.stringify(h) !== was) console.info("taylor-dock: on this PC: " + Object.keys(h).sort().join(" "));
+                dock.followDefaultBrowser(h);
             }
         }
     }
@@ -253,10 +254,33 @@ Scope {
         foldDone.restart();
     }
     Timer { id: foldDone; interval: 380; onTriggered: { dock.fanShown = false; dock.openGroup = ""; } }
+    // The Browser slot and the PC's default browser follow each other (her call, 2026-11-21: the slot said Edge while
+    // links, Messages and TAYLOR's page opened in the default, Firefox). A pick in the slot sets the default; a default
+    // changed anywhere else (KDE's settings, a browser's own "make default") moves the slot at the next look.
+    property real defaultSetAt: 0          // a pick just set the default: a look already under way still has the old one
+    function followDefaultBrowser(h) {
+        if (Date.now() - defaultSetAt < 15000) return;
+        for (const k of groups.browser) {
+            if (h["default-browser:" + k] && Prefs.lastBrowser !== k) {
+                console.info("taylor-dock: the PC's default browser is " + k + " (the browser slot shows it now)");
+                Prefs.lastBrowser = k;
+            }
+        }
+    }
+    function makeDefaultBrowser(id) {
+        if (have["default-browser:" + id]) return;
+        defaultSetAt = Date.now();
+        const h = Object.assign({}, have);
+        for (const k of groups.browser) delete h["default-browser:" + k];
+        h["default-browser:" + id] = true;
+        have = h;
+        console.info("taylor-dock: make " + id + " the PC's default browser: xdg-settings set default-web-browser " + apps[id].desktop + ".desktop");
+        Quickshell.execDetached(["xdg-settings", "set", "default-web-browser", apps[id].desktop + ".desktop"]);
+    }
     function pick(id) {
         const g = openGroup;
         if (present(id) || apps[id].lutris) {
-            if (g === "browser") Prefs.lastBrowser = id; else Prefs.lastGames = id;
+            if (g === "browser") { Prefs.lastBrowser = id; makeDefaultBrowser(id); } else Prefs.lastGames = id;
             console.info("taylor-dock: picked " + id + " (the " + g + " slot shows it now)");
         }
         fold();

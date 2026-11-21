@@ -4,6 +4,8 @@
 #   steam                        Steam
 #   ea battlenet                 installed in Lutris (its game list says so)
 #   messages-icon                Google Messages' own icon was fetched at her first sign-in (taylor-apps-setup)
+#   default-browser:ID           the PC's default browser, when it is one of the Browser slot's (edge firefox chrome);
+#                                the slot follows it, and a pick in the slot sets it (Dock.qml)
 # Reads only; quick (well under a second). Prints nothing private.
 set -u
 apps=$(flatpak list --app --columns=application 2>/dev/null)
@@ -27,4 +29,9 @@ if "battlenet" in slugs: print("battlenet")
 PY
 fi
 [ -s "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/192x192/apps/taylor-messages.png" ] && echo messages-icon
+case "$(xdg-settings get default-web-browser 2>/dev/null)" in
+    com.microsoft.Edge.desktop|microsoft-edge*.desktop) echo default-browser:edge ;;
+    org.mozilla.firefox.desktop|firefox*.desktop)       echo default-browser:firefox ;;
+    com.google.Chrome.desktop|google-chrome*.desktop)   echo default-browser:chrome ;;
+esac
 exit 0

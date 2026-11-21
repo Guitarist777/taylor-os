@@ -1,9 +1,10 @@
 # The taskbar (2026-11-21): her icon set is in the image and used; the bar is up; a name shows under it on hover;
 # Browser splays its three browsers out below the bar (screenshots mid-way and settled); picking one opens it, the bar
-# remembers it (Prefs.lastBrowser) and shows it; the Terminal slot opens kitty and its running dot follows.
+# remembers it (Prefs.lastBrowser) and shows it, and it becomes the PC's default browser (and a default changed elsewhere
+# moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 13
+expect taskbar 15
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -54,6 +55,7 @@ shot taskbar-6-firefox-open
 vm taskbar-pick \
   "$(ok 'picking Firefox opens it' "$QL | grep -q 'taylor-dock: launch firefox' && pgrep -u tester -f 'firefox' >/dev/null")" \
   "$(ok 'the Browser slot remembers Firefox' "grep -q '\"lastBrowser\": *\"firefox\"' ~/.config/taylor-os/settings.json")" \
+  "$(ok 'picking Firefox makes it the PC default browser' "test \"\$(xdg-settings get default-web-browser)\" = org.mozilla.firefox.desktop")" \
   "$(ok 'the splay folded away after the pick' "$QL | grep -q 'taylor-dock: fold browser' && ! hyprctl layers | grep -q taylor-dock-splay")" \
   "$(ok 'the dock logs the running apps' "$QL | grep -q 'taylor-dock: windows \['")" \
   "$QL | grep -E 'taylor-dock: (picked|launch|fold|windows)' | tail -6" \
@@ -75,3 +77,12 @@ $V click "$BX" "$DY" "$SW" "$SH"; sleep 1
 shot taskbar-8-splay-ring
 $V click 40 $((SH - 40)) "$SW" "$SH"; sleep 1
 shot taskbar-9-folded
+
+# the other way: a default browser changed outside the dock (as KDE's settings or a browser's own button would) moves
+# the slot at the dock's next look (every 20 s while an app is missing, else every 2 minutes)
+vm taskbar-follow \
+  "for i in \$(seq 1 60); do flatpak info com.google.Chrome >/dev/null 2>&1 && break; sleep 10; done; flatpak list --app --columns=application | tr '\\n' ' '; echo" \
+  "xdg-mime default com.google.Chrome.desktop x-scheme-handler/http x-scheme-handler/https text/html; xdg-settings get default-web-browser" \
+  "for i in \$(seq 1 30); do grep -q '\"lastBrowser\": *\"chrome\"' ~/.config/taylor-os/settings.json && break; sleep 5; done" \
+  "$(ok 'a default browser changed elsewhere moves the Browser slot' "grep -q '\"lastBrowser\": *\"chrome\"' ~/.config/taylor-os/settings.json && $QL | grep -q 'default browser is chrome'")" \
+  "$QL | grep -E 'default browser' | tail -3"
