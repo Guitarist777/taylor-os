@@ -61,6 +61,12 @@ Singleton {
         command: ["sh", "-c", "gsettings get org.gnome.desktop.interface enable-animations 2>/dev/null || echo true"]
         stdout: StdioCollector { onStreamFinished: t.systemStill = this.text.trim() === "false" }
     }
+    // ipc: quickshell ipc call theme scheme night (Settings does the same from inside; the tests use this)
+    IpcHandler {
+        target: "theme"
+        function scheme(name: string): void { if (["taylor", "quiet", "night", "slate"].indexOf(name) >= 0) { Prefs.scheme = name; } }
+        function current(): string { return t.scheme; }
+    }
     // a motion length, or none at all when she asked for less motion
     function ms(v) { return still ? 0 : v; }
 }
