@@ -3,7 +3,8 @@
 // title, then the rest in grey), right-aligned, sorted by length with the shortest nearest the clock; the lines slide in
 // one after another. A click on a line dismisses it: it fades in 0.6 seconds and its dot falls back into the dial. A
 // click anywhere else closes the list; so does the last line going. Her mockup's lengths are multiplied by u = 1.6, as
-// in the launcher (the size at which her mockup's dock and mixer match the real ones).
+// in the launcher (the size at which her mockup's dock and mixer match the real ones). Reduced motion: the lines fade
+// in and out where they stand instead of sliding. Colours are her scheme's (Theme.qml).
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
@@ -78,13 +79,13 @@ PanelWindow {
                 const n = l[q];
                 const wantY = base - (q + 1) * rh - q * win.gap;
                 if (n.ry === undefined) n.ry = wantY;
-                n.ry += (wantY - n.ry) * Math.min(1, dt * 8);
+                n.ry += (wantY - n.ry) * (win.theme.still ? 1 : Math.min(1, dt * 8));
                 const pe = win.sm(win.cl(win.o * 1.6 - q * 0.15));
                 const fa = n.st === "fade" ? 1 - win.sm((T - n.t0) / 0.6) : 1;
-                const al = pe * fa, rx = right - n.nat + (1 - pe) * 12 * win.u;
+                const al = pe * fa, rx = right - n.nat + (win.theme.still ? 0 : (1 - pe) * 12 * win.u);
                 if (al <= 0.003) continue;
                 const r = rh / 2;
-                x.globalAlpha = 0.62 * al; x.fillStyle = "#0B0D0C";
+                x.globalAlpha = 0.62 * al; x.fillStyle = win.theme.bg;
                 x.beginPath(); x.moveTo(rx + r, n.ry); x.arcTo(rx + n.nat, n.ry, rx + n.nat, n.ry + rh, r);
                 x.arcTo(rx + n.nat, n.ry + rh, rx, n.ry + rh, r); x.arcTo(rx, n.ry + rh, rx, n.ry, r);
                 x.arcTo(rx, n.ry, rx + n.nat, n.ry, r); x.closePath(); x.fill();
@@ -93,7 +94,7 @@ PanelWindow {
                 x.textAlign = "left";
                 x.globalAlpha = 0.97 * al; x.fillStyle = win.theme.text; x.font = fb;
                 x.fillText(n.tt, rx + 20 * win.u, n.ry + r + 0.5);
-                x.globalAlpha = 0.9 * al; x.fillStyle = "#B9C0BC"; x.font = fr;
+                x.globalAlpha = 0.9 * al; x.fillStyle = win.theme.text2; x.font = fr;
                 x.fillText(n.bt, rx + 20 * win.u + n.w1 + 8 * win.u, n.ry + r + 0.5);
                 if (n.st === "in") hits.push({ x: rx, y: n.ry, w: n.nat, h: rh, n: n });
             }
