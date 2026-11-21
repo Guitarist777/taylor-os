@@ -76,4 +76,4 @@ vm kde-5 \
   "cat ~/.local/state/taylor-os/kde-look.log"
 
 # what her login screen said (for a sign-in that did not open her desktop)
-vm kde-6-why "echo taylortest | sudo -S sh -c 'tail -40 /tmp/taylor-greeter-scene.log; cat /tmp/taylor-desktop-fails /tmp/taylor-greeter-fails-* 2>/dev/null; journalctl -b --since -4min --no-pager | grep -iE \"greet|uwsm|hypr|session\" | tail -60'"
+vm kde-6-why "echo taylortest | sudo -S sh -c 'tail -40 /tmp/taylor-greeter-scene.log; cat /tmp/taylor-session-wait-*.log; cat /tmp/taylor-desktop-fails /tmp/taylor-greeter-fails-* 2>/dev/null; journalctl -b --since -4min --no-pager | grep -iE \"greet|uwsm|hypr|session\" | tail -60'"

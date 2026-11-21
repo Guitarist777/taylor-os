@@ -1,14 +1,29 @@
 #!/bin/sh
-# Start her desktop only once the one before it has finished closing (2026-11-21). Signing in a few seconds after
-# leaving KDE (or her TAYLOR desktop), the old session's "graphical session" was still shutting down; uwsm saw it,
-# said "A compositor or graphical-session* target is already active!" and gave up, so her login screen came back
-# (virtual PC run 44903035629). Wait for it to go (at most 20 s), then run the desktop exactly as given: exec keeps
-# the same process, screen and environment, so nothing else about how the desktop starts changes.
+# Start her desktop only once the one before it has finished closing (2026-11-21). Signing in after leaving KDE (or her
+# TAYLOR desktop), the old session's "graphical session" could still be up: uwsm saw it, said "A compositor or
+# graphical-session* target is already active!" and gave up, so her login screen came back (virtual PC runs
+# 44903035629, 44907843601; in the second it was still up more than 40 s after KDE had ended, with no desktop running).
+# So: wait for it to go (while it closes it is "deactivating", which still counts); if after 6 s it is still there and
+# no desktop of hers is running at all, it is a leftover: stop it. Then run the desktop exactly as given (exec keeps
+# the same process, screen and environment, so nothing else about how the desktop starts changes).
+# What it did is written to /tmp/taylor-session-wait-<uid>.log as well as to the journal.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+log="/tmp/taylor-session-wait-$(id -u).log"
+say() { echo "taylor-session-wait: $*" >&2; echo "$(date +%T) $*" >> "$log" 2>/dev/null; }
+state() { systemctl --user show -p ActiveState --value graphical-session.target graphical-session-pre.target 2>/dev/null | tr '\n' ' '; }
+up() { for s in $(state); do case "$s" in inactive|failed) ;; *) return 0 ;; esac; done; return 1; }
+desktop_running() { pgrep -u "$(id -u)" -x 'Hyprland|kwin_wayland|plasmashell|gnome-shell' >/dev/null 2>&1; }
+say "starting $1 (graphical session: $(state))"
 i=0
-while [ "$i" -lt 40 ] && systemctl --user -q is-active graphical-session.target 2>/dev/null; do
-    [ "$i" = 0 ] && echo "taylor-session-wait: the last desktop is still closing; waiting" >&2
+while [ "$i" -lt 40 ] && up; do
+    [ "$i" = 0 ] && say "the last desktop is still closing; waiting"
+    if [ "$i" = 12 ] && ! desktop_running; then
+        say "no desktop is running but its session is still up: closing what it left"
+        systemctl --user stop graphical-session.target graphical-session-pre.target 2>/dev/null
+    fi
     sleep 0.5
     i=$((i + 1))
 done
-[ "$i" -gt 0 ] && echo "taylor-session-wait: waited $((i / 2)) s" >&2
+[ "$i" -gt 0 ] && say "waited $((i / 2)) s; graphical session now: $(state)"
 exec "$@"
