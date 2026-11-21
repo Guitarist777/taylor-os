@@ -13,7 +13,7 @@ vm mixer-setup "rm -f ~/mx.b64" "${parts[@]}" "base64 -d ~/mx.b64 > ~/mx && chmo
 SW=$(screen mixer-setup | cut -d' ' -f1); SH=$(screen mixer-setup | cut -d' ' -f2)
 SW=${SW:-1280}; SH=${SH:-800}
 
-expect mixer 15
+expect mixer 21
 vm mixer-channels \
   "$(ok 'the mixer channels Game, Chat, Media and Aux exist in PipeWire' "test \$(pw-cli ls Node | grep -cE 'node.name = \"taylor_(game|chat|media|aux)(\\.out)?\"') -eq 8")" \
   "$(ok 'the desktop mixer is on her screen' "hyprctl layers | grep -q taylor-mixer")" \
@@ -59,3 +59,34 @@ vm mixer-output \
   "$(ok 'the desktop shell loaded the mixer with no QML errors' "! timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -iE 'error|ReferenceError|TypeError|is not defined' | grep -qiE 'mixer|Mx'")" \
   "~/mx q state" "timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -iE 'taylor-mixer|mixer|Mx' | tail -30"
 shot mixer-window-output
+
+# ---- step 2: the equalizer (Game) ----
+vm mixer-eqtab "~/mx at tab:Game"
+tg=$(tr -d '\r' < out/mixer-eqtab.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+if [ -n "$tg" ]; then $V click $tg $SW $SH; sleep 2; fi
+vm mixer-eqband "~/mx at eq:band:7" "~/mx q state | python3 -c \"import json,sys; print('BAND7', json.load(sys.stdin)['fx']['game']['b'][6])\""
+shot mixer-eq-flat
+b7=$(tr -d '\r' < out/mixer-eqband.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+if [ -n "$b7" ]; then
+  set -- $b7
+  $V drag $1 $2 $(( $1 + 50 )) $(( $2 - 40 )) $SW $SH; sleep 4
+fi
+vm mixer-eqdrag \
+  "$(ok 'dragging an equalizer dot moves the band sideways and up' "~/mx t \"d['fx']['game']['b'][6][0] > 2300 and d['fx']['game']['b'][6][1] > 3\"")" \
+  "$(ok 'the Game channel now plays through its own sound-shaping filter' "~/mx t \"d['fx']['game']['node']\" && pw-link -l | grep -A1 '^taylor_game.out:output_FL' | grep -q taylor_game_fx")" \
+  "$(ok 'the running filter has the band values that were dragged' "~/mx fxcheck game 7")" \
+  "~/mx at eq:band:7"
+shot mixer-eq-dragged
+b7=$(tr -d '\r' < out/mixer-eqdrag.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+if [ -n "$b7" ]; then set -- $b7; $V scroll $1 $2 $SW $SH 3; sleep 2; $V scroll $1 $(( $2 + 60 )) $SW $SH 3; sleep 2; fi
+vm mixer-eqscroll \
+  "$(ok 'scrolling over a band dot narrows it and scrolling elsewhere does nothing' "~/mx t \"abs(d['fx']['game']['b'][6][2] - 1.4*1.12**3) < 0.05\"")" \
+  "~/mx q state | python3 -c \"import json,sys; print('BAND7', json.load(sys.stdin)['fx']['game']['b'][6])\""
+vm mixer-eqpreset "~/mx q preset game Footsteps; sleep 2" \
+  "$(ok 'a game preset changes the curve and the running filter' "~/mx t \"d['fx']['game']['pre'] == 'Footsteps' and d['fx']['game']['b'][7][1] == 7\" && ~/mx fxcheck game 8")"
+shot mixer-eq-preset
+# Follow the game: a full-screen window of a game with a preset (Deadlock's Steam id) picks Game's preset
+vm mixer-follow "setsid -f kitty --class steam_app_1422450 >/dev/null 2>&1; sleep 4" \
+  "hyprctl dispatch focuswindow class:steam_app_1422450; hyprctl dispatch fullscreen 0; sleep 3" \
+  "$(ok 'Follow the game switches Game to the game preset of the full-screen game' "~/mx t \"d['fx']['game']['pre'] == 'Deadlock'\"")" \
+  "hyprctl dispatch fullscreen 0; pkill -f 'class steam_app_1422450'; sleep 1"

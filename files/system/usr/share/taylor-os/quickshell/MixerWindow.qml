@@ -32,6 +32,12 @@ Scope {
         function where(what: string): string { return MixerCore.where(what); }
         function output(channel: string): void { if (channel === "main") MixerCore.toggleMain(); else MixerCore.toggleOut(channel); }
         function balance(b: real): void { MixerCore.setBalance(b); }
+        // the equalizer (for the checks): one band's frequency, gain and width; its type; a preset
+        function eq(channel: string, band: int, freq: real, gain: real, q: real): void { MixerFx.setBand(channel, band - 1, freq, gain, q); }
+        function eqType(channel: string, band: int): void { MixerFx.cycleType(channel, band - 1); }
+        function preset(channel: string, name: string): void { MixerFx.usePreset(channel, name); }
+        function follow(on: bool): void { MixerFx.setFollow("game", on); }
+        function curveAt(channel: string, freq: real): real { return MixerFx.responseDb(channel, freq); }
     }
 
     FloatingWindow {
@@ -63,7 +69,7 @@ Scope {
                 spacing: 18
                 Repeater {
                     model: ["Mixer", "Game", "Chat", "Media", "Aux", "Mic"]
-                    delegate: Word {
+                    delegate: MxWord {
                         id: tw
                         required property string modelData
                         Component.onCompleted: MixerCore.spot("tab:" + modelData, tw)
@@ -143,25 +149,6 @@ Scope {
         }
     }
 
-    // a plain word that can be chosen: a thin green underline under the chosen one
-    component Word: Item {
-        id: w
-        property string text
-        property int size: 13
-        property bool chosen: false
-        property bool clickable: true
-        property color tint: chosen ? Theme.text : Theme.muted
-        signal clicked()
-        implicitWidth: t.implicitWidth
-        implicitHeight: t.implicitHeight + 4
-        activeFocusOnTab: clickable
-        Text { id: t; text: w.text; font.family: Theme.sans; font.pixelSize: w.size; color: w.tint }
-        Rectangle { y: t.implicitHeight + 1; width: t.implicitWidth; height: 1.5; color: Theme.accent; visible: w.chosen }
-        Rectangle { visible: w.activeFocus; anchors.fill: parent; anchors.margins: -3; color: "transparent"; radius: 4; border.color: Theme.accent; border.width: 1 }
-        MouseArea { anchors.fill: parent; anchors.margins: -3; enabled: w.clickable; cursorShape: Qt.PointingHandCursor; onClicked: w.clicked() }
-        Keys.onPressed: (e) => { if (w.clickable && (e.key === Qt.Key_Space || e.key === Qt.Key_Return)) { e.accepted = true; w.clicked(); } }
-    }
-
     // one channel on the Mixer tab
     component Strip: Item {
         id: s
@@ -175,7 +162,7 @@ Scope {
             x: 8; y: 6
             width: parent.width - 16
             spacing: 6
-            Word {
+            MxWord {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: MixerCore.names[s.k]
                 size: 13
@@ -186,7 +173,7 @@ Scope {
             Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: ow.implicitWidth; height: 16
-                Word {
+                MxWord {
                     id: ow
                     Component.onCompleted: MixerCore.spot("out:" + s.k, ow)
                     text: MixerCore.outWord(s.k)

@@ -38,5 +38,21 @@ import json,sys
 c=[c for c in json.load(sys.stdin) if c.get('title')=='Mixer']
 print('AT', c[0]['at'][0]+$2, c[0]['at'][1]+$3) if c else print('AT none')" ;;
     esac ;;
+  fxcheck)   # mx fxcheck CHANNEL BAND: the running filter's values for that band match what the window shows
+    q state > /tmp/mx-state.json
+    pw-dump > /tmp/mx-dump.json
+    python3 - "$2" "$3" <<'PY'
+import json, sys
+k, i = sys.argv[1], int(sys.argv[2])
+b = json.load(open("/tmp/mx-state.json"))["fx"][k]["b"][i - 1]
+d = json.load(open("/tmp/mx-dump.json"))
+n = [o for o in d if o.get("info", {}).get("props", {}).get("node.name") == "taylor_%s_fx" % k][0]
+p = [x["params"] for x in n["info"]["params"]["Props"] if "params" in x and str(x["params"][0]).startswith("b1:")][0]
+m = dict(zip(p[0::2], p[1::2]))
+f, g, q = m["b%d:Freq" % i], m["b%d:Gain" % i], m["b%d:Q" % i]
+print("FILTER", f, g, q, "SHOWN", b)
+sys.exit(0 if abs(f - b[0]) < 2 and abs(g - b[1]) < 0.2 and abs(q - b[2]) < 0.02 else 1)
+PY
+    ;;
   node) pw-dump | python3 -c "import json,sys; print(next((o['id'] for o in json.load(sys.stdin) if o['type'].endswith(':Node') and o.get('info',{}).get('props',{}).get('node.name')=='$2'), ''))" ;;
 esac

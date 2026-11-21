@@ -13,7 +13,7 @@ pragma Singleton
 // An app that asked for a particular output itself is left alone until she moves it.
 // The Game / Chat balance is the volume of taylor_game.out and taylor_chat.out (ChatMix on her headset turns the same).
 // Live levels: Quickshell's peak monitor, on a channel's out side (what she hears from it, after its fader and the
-// balance), sampled ten times a second, and only while that channel is playing (the microphone only while an app records
+// balance, before its sound shaping), sampled ten times a second, and only while that channel is playing (the microphone only while an app records
 // or the Mixer window is open), so nothing listens when nothing plays.
 import Quickshell
 import Quickshell.Io
@@ -50,21 +50,40 @@ Singleton {
     readonly property string mainWord: mainOut && isHeadset(mainOut) ? "Headset" : "Speakers"
     function word(n) { return n && isHeadset(n) ? "Headset" : "Speakers"; }
 
+    // her real microphone (never the mixer's own shaped one)
+    readonly property var sources: all.filter(n => n && !n.isSink && !n.isStream && !isOurs(n) && String((n.properties || {})["media.class"] || "Audio/Source").startsWith("Audio/Source"))
+    readonly property var micHw: {
+        const d = Pipewire.defaultAudioSource;
+        if (d && !isOurs(d)) return d;
+        return sources[0] || null;
+    }
+    readonly property var micFx: byName("taylor_mic_fx", false)
+    // while her microphone has sound shaping, apps record from the shaped one; without it, from hers again
+    onMicFxChanged: {
+        if (micFx) { Pipewire.preferredDefaultAudioSource = micFx; console.info("taylor-mixer: apps record the shaped microphone"); }
+        else if (micHw && Pipewire.defaultAudioSource !== micHw) { Pipewire.preferredDefaultAudioSource = micHw; console.info("taylor-mixer: apps record her microphone directly"); }
+    }
     readonly property var sinks: ({ game: byName("taylor_game", false), chat: byName("taylor_chat", false), media: byName("taylor_media", false), aux: byName("taylor_aux", false) })
     readonly property var outs: ({ game: byName("taylor_game.out", true), chat: byName("taylor_chat.out", true), media: byName("taylor_media.out", true), aux: byName("taylor_aux.out", true) })
     // the node whose volume and mute a channel's line moves
     function node(k) {
         if (k === "master") return mainOut;
-        if (k === "mic") return Pipewire.defaultAudioSource;
+        if (k === "mic") return micHw;
         return sinks[k] || null;
     }
 
     // the app streams: every playback stream that is not the mixer's own
-    // (a node's properties are only known once it is tracked, so every stream is tracked, then sorted)
-    readonly property var anyStreams: all.filter(n => n && n.isStream && !isOurs(n))
+    // (a node's properties are only known once it is tracked). Quickshell 0.2.1 can crash when a node it is bound to
+    // vanishes at the wrong moment (seen here, 2026-11-21, with nodes that live a split second and with the sound-shaping
+    // nodes that come and go with a restart), so only nodes that stay are tracked or metered: never a recording stream,
+    // never a sound-shaping node.
+    // Only streams that PLAY into an output or a channel are tracked (a recording stream, which may last a split second,
+    // is never bound: binding a node that is already gone can crash Quickshell 0.2.1).
+    // (Quickshell calls a playing stream "isSink": it takes sound in from the app; a recording stream is not one)
+    readonly property var anyStreams: all.filter(n => n && n.isStream && n.isSink && !isOurs(n))
     readonly property var streams: anyStreams.filter(n => (n.properties || {})["media.class"] === "Stream/Output/Audio")
     PwObjectTracker {
-        objects: m.keys.map(k => m.node(k)).concat(m.appChannels.map(k => m.outs[k])).concat(m.outputs).concat(m.anyStreams).filter(n => n)
+        objects: m.keys.map(k => m.node(k)).concat(m.appChannels.map(k => m.outs[k])).concat(m.outputs).concat(m.sources).concat(m.anyStreams).filter(n => n)
     }
 
     function appKey(n) {
@@ -96,7 +115,7 @@ Singleton {
     function linked(k) {
         if (k === "master") return appChannels.some(c => linked(c)) || groups.some(g => g && g.target === mainOut && g.source && g.source.isStream && !isOurs(g.source));
         if (k === "mic") {
-            const src = Pipewire.defaultAudioSource;
+            const src = micFx || micHw;
             return !!src && groups.some(g => g && g.source === src && g.target && g.target.isStream && !isQs(g.target));
         }
         const sink = sinks[k];
@@ -113,10 +132,8 @@ Singleton {
 
     // where a channel's out side is linked now (the output it plays into)
     function outTarget(k) {
-        const o = outs[k];
-        if (!o) return null;
-        for (const g of groups) if (g && g.source === o && g.target && !g.target.isStream) return g.target;
-        return null;
+        const fo = fxOut(k);
+        return linkedTo(fo && fxIn(k) ? fo : outs[k]);
     }
 
     // ---- volume, mute ----
@@ -184,19 +201,35 @@ Singleton {
 
     // Keep each channel's out side linked to its output (also after the main output changes, an output comes or goes,
     // or PipeWire restarts). Done by PipeWire's own target metadata; checked against the real links.
-    property var pinned: ({})          // out node id -> [output name last asked for, when]
-    function pin(k) {
-        const o = outs[k], want = chosenOut(k);
-        if (!o || !want) return;
-        const now = outTarget(k);
-        if (now && now.name === want.name) return;
-        const last = pinned[o.id];
-        if (last && last[0] === want.name && Date.now() - last[1] < 4000) return;   // asked already; give it a moment
-        pinned[o.id] = [want.name, Date.now()];
-        Quickshell.execDetached(["pw-metadata", String(o.id), "target.object", want.name]);
-        console.info("taylor-mixer:", names[k], "out ->", want.name);
+    property var pinned: ({})          // node id -> [target last asked for, when]
+    function fxIn(k) { return byName("taylor_" + k + "_fx", false); }
+    function fxOut(k) { return byName("taylor_" + k + "_fx.out", true); }
+    function linkedTo(src) {
+        if (!src) return null;
+        for (const g of groups) if (g && g.source === src && g.target && !g.target.isStream) return g.target;
+        return null;
     }
-    function pinAll() { for (const k of appChannels) pin(k); }
+    function pinNode(src, want, label) {
+        if (!src || !want) return;
+        const now = linkedTo(src);
+        if (now && now.name === want.name) return;
+        const last = pinned[src.id];
+        if (last && last[0] === want.name && Date.now() - last[1] < 4000) return;   // asked already; give it a moment
+        pinned[src.id] = [want.name, Date.now()];
+        Quickshell.execDetached(["pw-metadata", String(src.id), "target.object", want.name]);
+        console.info("taylor-mixer:", label, "->", want.name);
+    }
+    // a channel's out side plays into its sound shaping when that runs, and the shaping (or the out side) into her output
+    function pin(k) {
+        const o = outs[k], want = chosenOut(k), fi = fxIn(k), fo = fxOut(k);
+        if (fi && fo) { pinNode(o, fi, names[k] + " out"); pinNode(fo, want, names[k] + " shaping out"); }
+        else pinNode(o, want, names[k] + " out");
+    }
+    function pinAll() {
+        for (const k of appChannels) pin(k);
+        const mi = byName("taylor_mic_fx.in", true);
+        if (mi && micHw) pinNode(mi, micHw, "Mic shaping in");
+    }
     Timer { interval: 1500; repeat: true; running: Pipewire.ready; onTriggered: m.pinAll() }
 
     // ---- routing ----
@@ -251,6 +284,7 @@ Singleton {
     readonly property int viewers: (widgetShown ? 1 : 0) + (windowOpen ? 1 : 0)
     function meterOn(k) {
         if (viewers <= 0) return false;
+        if (MixerFx.hush[k]) return false;          // its filter is restarting
         if (k === "mic") return windowOpen || linked("mic");
         return linked(k);
     }
@@ -259,7 +293,7 @@ Singleton {
     PwNodePeakMonitor { id: pkChat; node: m.outs.chat; enabled: m.meterOn("chat") }
     PwNodePeakMonitor { id: pkMedia; node: m.outs.media; enabled: m.meterOn("media") }
     PwNodePeakMonitor { id: pkAux; node: m.outs.aux; enabled: m.meterOn("aux") }
-    PwNodePeakMonitor { id: pkMic; node: Pipewire.defaultAudioSource; enabled: m.meterOn("mic") }
+    PwNodePeakMonitor { id: pkMic; node: m.micHw; enabled: m.meterOn("mic") }
     readonly property var peakMon: ({ master: pkMaster, game: pkGame, chat: pkChat, media: pkMedia, aux: pkAux, mic: pkMic })
     // 0..1 for the dots: -60 dB .. 0 dB
     property var heard: ({})           // channel -> when it was last above -70 dB
@@ -300,15 +334,23 @@ Singleton {
             id: store
             property var routes: ({})      // app name -> game | chat | media | aux
             property var outs: ({})        // channel -> "" (the main output) | speakers | headset
+            property var fx: ({})          // channel -> its sound shaping (MixerFx.qml)
         }
     }
     function save() { fv.writeAdapter(); }
+    property alias saved: store
 
     // for the checks: where things are drawn ("x y" inside their own window; the widget's window sits 40 px from the
     // left and 138 px from the top of her main screen)
     property var spots: ({})
     function spot(name, item) { spots[name] = item; }
     function where(name) {
+        if (name.startsWith("eq:band:")) {           // a band's dot on the equalizer graph shown now
+            const g = spots["eq:graph"];
+            if (!g || !g.visible) return "";
+            const b = g.bandPos(parseInt(name.slice(8)) - 1), p = g.mapToItem(null, b.x, b.y);
+            return Math.round(p.x) + " " + Math.round(p.y);
+        }
         const it = spots[name];
         if (!it || !it.visible) return "";
         const p = it.mapToItem(null, it.width / 2, it.height / 2);
@@ -323,6 +365,7 @@ Singleton {
             if (appChannels.indexOf(k) >= 0) { r.ch[k].apps = apps(k).map(a => a.key); const t = outTarget(k); r.ch[k].to = t ? t.name : ""; }
         }
         r.streams = streams.map(s => ({ id: s.id, app: appKey(s), ready: s.ready, target: targetName(s), routed: !!handled[s.id] }));
+        r.fx = MixerFx.report();
         return JSON.stringify(r);
     }
 }
