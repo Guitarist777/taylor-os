@@ -48,9 +48,13 @@ k, i = sys.argv[1], int(sys.argv[2])
 b = json.load(open("/tmp/mx-state.json"))["fx"][k]["b"][i - 1]
 d = json.load(open("/tmp/mx-dump.json"))
 n = [o for o in d if o.get("info", {}).get("props", {}).get("node.name") == "taylor_%s_fx" % k][0]
-p = [x["params"] for x in n["info"]["params"]["Props"] if "params" in x and str(x["params"][0]).startswith("b1:")][0]
-m = dict(zip(p[0::2], p[1::2]))
-f, g, q = m["b%d:Freq" % i], m["b%d:Gain" % i], m["b%d:Q" % i]
+m = {}
+for x in n["info"]["params"]["Props"]:
+    v = x.get("params", [])
+    if v and ":" in str(v[0]):
+        m.update(dict(zip(v[0::2], v[1::2])))
+side = "_m" if k == "mic" else "_l"    # a stereo channel has a left and a right copy of each band
+f, g, q = m["b%d%s:Freq" % (i, side)], m["b%d%s:Gain" % (i, side)], m["b%d%s:Q" % (i, side)]
 print("FILTER", f, g, q, "SHOWN", b)
 sys.exit(0 if abs(f - b[0]) < 2 and abs(g - b[1]) < 0.2 and abs(q - b[2]) < 0.02 else 1)
 PY

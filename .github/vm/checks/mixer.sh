@@ -27,7 +27,7 @@ vm mixer-channels \
 shot mixer-widget
 
 # mute Game from the desktop mixer (its green dot), and back
-at=$(tr -d '\r' < out/mixer-channels.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+at=$(tr -d '\r' < out/mixer-channels.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$at" ]; then $V click $at $SW $SH; sleep 1; fi
 vm mixer-mute \
   "$(ok 'a click on the green dot mutes Game' "wpctl get-volume \$(~/mx node taylor_game) | grep -q MUTED")" "hyprctl cursorpos"
@@ -41,8 +41,8 @@ vm mixer-open "~/mx q open; sleep 3" \
   "$(ok 'the Mixer window floats' "hyprctl -j clients | python3 -c \"import json,sys; c=[c for c in json.load(sys.stdin) if c['title']=='Mixer']; sys.exit(0 if c and c[0]['floating'] else 1)\"")" \
   "~/mx at app:Music1" "~/mx at fader:chat"
 shot mixer-window
-from=$(tr -d '\r' < out/mixer-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | sed -n 1p | cut -d' ' -f2-)
-to=$(tr -d '\r' < out/mixer-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | sed -n 2p | cut -d' ' -f2-)
+from=$(tr -d '\r' < out/mixer-open.txt | grep -oE 'AT [0-9]+ [0-9]+' | sed -n 1p | cut -d' ' -f2-)
+to=$(tr -d '\r' < out/mixer-open.txt | grep -oE 'AT [0-9]+ [0-9]+' | sed -n 2p | cut -d' ' -f2-)
 if [ -n "$from" ] && [ -n "$to" ]; then $V drag $from $to $SW $SH; sleep 2; fi
 shot mixer-window-moved
 vm mixer-moved \
@@ -58,7 +58,7 @@ vm mixer-moved-rest "~/mx ensure moved" \
 
 # each channel's own output: the word under Game's name
 vm mixer-outword "~/mx at out:game"
-ow=$(tr -d '\r' < out/mixer-outword.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+ow=$(tr -d '\r' < out/mixer-outword.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$ow" ]; then $V click $ow $SW $SH; sleep 3; fi
 vm mixer-output \
   "$(ok 'clicking the word under Game sends Game to the headset' "~/mx t \"d['ch']['game']['out'] == 'Headset' and d['ch']['game']['to'] == 'pretend_arctis' and d['ch']['media']['to'] == 'pretend_speakers'\"")" \
@@ -68,11 +68,11 @@ shot mixer-window-output
 
 # ---- step 2: the equalizer (Game) ----
 vm mixer-eqtab "~/mx at tab:Game"
-tg=$(tr -d '\r' < out/mixer-eqtab.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+tg=$(tr -d '\r' < out/mixer-eqtab.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$tg" ]; then $V click $tg $SW $SH; sleep 2; fi
 vm mixer-eqband "~/mx ensure tab Game; sleep 1" "~/mx at eq:band:7" "~/mx q state | python3 -c \"import json,sys; print('BAND7', json.load(sys.stdin)['fx']['game']['b'][6])\""
 shot mixer-eq-flat
-b7=$(tr -d '\r' < out/mixer-eqband.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+b7=$(tr -d '\r' < out/mixer-eqband.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$b7" ]; then
   set -- $b7
   $V drag $1 $2 $(( $1 + 50 )) $(( $2 - 40 )) $SW $SH; sleep 4
@@ -85,7 +85,7 @@ vm mixer-eqrest "~/mx ensure eq" \
   "$(ok 'the running filter has the band values that were dragged' "~/mx fxcheck game 7")" \
   "~/mx at eq:band:7"
 shot mixer-eq-dragged
-b7=$(tr -d '\r' < out/mixer-eqrest.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+b7=$(tr -d '\r' < out/mixer-eqrest.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$b7" ]; then set -- $b7; $V scroll $1 $2 $SW $SH 3; sleep 2; $V scroll $1 $(( $2 + 60 )) $SW $SH 3; sleep 2; fi
 vm mixer-eqscroll \
   "$(ok 'scrolling over a band dot narrows it and scrolling elsewhere does nothing' "~/mx t \"abs(d['fx']['game']['b'][6][2] - 1.4*1.12**3) < 0.05\"")" \
@@ -94,14 +94,14 @@ vm mixer-eqpreset "~/mx q preset game Footsteps; sleep 2" \
   "$(ok 'a game preset changes the curve and the running filter' "~/mx t \"d['fx']['game']['pre'] == 'Footsteps' and d['fx']['game']['b'][7][1] == 7\" && ~/mx fxcheck game 8")"
 shot mixer-eq-preset
 # Follow the game: a full-screen window of a game with a preset (Deadlock's Steam id) picks Game's preset
-vm mixer-follow "setsid -f kitty --class steam_app_1422450 --start-as=fullscreen >/dev/null 2>&1; sleep 7" \
+vm mixer-follow "WAYLAND_DISPLAY=\$(basename \$(ls /run/user/1000/wayland-* | grep -v lock | head -1)) setsid -f kitty --class steam_app_1422450 --start-as=fullscreen >/dev/null 2>&1; sleep 7" \
   "hyprctl -j activewindow | grep -E 'class|fullscreen'" \
   "$(ok 'Follow the game switches Game to the game preset of the full-screen game' "~/mx t \"d['fx']['game']['pre'] == 'Deadlock'\"")" \
   "pkill -f 'class steam_app_1422450'; sleep 2"
 
 # ---- step 3: compressor, noise gate, background noise reduction, spatial audio ----
 vm mixer-comp-open "~/mx q sub Compressor; sleep 1" "~/mx at comp:onoff"
-cs=$(tr -d '\r' < out/mixer-comp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+cs=$(tr -d '\r' < out/mixer-comp-open.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$cs" ]; then $V click $cs $SW $SH; sleep 5; fi
 vm mixer-comp \
   "$(ok 'the Compressor switch puts a compressor in the Game filter' "~/mx t \"d['fx']['game']['comp']['on'] and d['fx']['game']['node']\" && ~/mx param taylor_game_fx 'comp:Ratio (1:n)' 3")" \
@@ -110,7 +110,7 @@ vm mixer-comp \
   "$(ok 'moving the compressor threshold changes the running filter' "~/mx param taylor_game_fx 'comp:Threshold level (dB)' -24")"
 shot mixer-compressor
 vm mixer-sp-open "~/mx q sub 'Spatial audio'; sleep 1" "~/mx at sp:onoff"
-ss=$(tr -d '\r' < out/mixer-sp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+ss=$(tr -d '\r' < out/mixer-sp-open.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$ss" ]; then $V click $ss $SW $SH; sleep 6; fi
 vm mixer-spatial \
   "$(ok 'the Spatial audio switch turns it on' "~/mx t \"d['fx']['game']['sp']['on']\"")" \
