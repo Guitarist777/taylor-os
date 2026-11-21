@@ -77,6 +77,8 @@ Singleton {
 
     IpcHandler {
         target: "windows"
+        // for the preview pictures and the checks: show the dotted outline for a zone ("none" hides it)
+        function preview(z: string, x: int, y: int, w: int, h: int): void { c.onLine("taylorwin zone " + z + " " + x + " " + y + " " + w + " " + h); }
         function state(): string { return JSON.stringify({ cover: c.cover, dock: c.dockShown, tray: c.trayShown, dockMapped: c.dockMapped, trayMapped: c.trayMapped, zone: c.zone, heard: c.heard }); }
     }
 }

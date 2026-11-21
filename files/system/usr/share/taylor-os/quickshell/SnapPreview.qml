@@ -10,6 +10,7 @@ import QtQuick
 PanelWindow {
     id: win
     property QtObject theme
+    property var scr: null            // this screen (shell.qml hands it over; reading win.screen here made a binding loop)
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -19,17 +20,17 @@ PanelWindow {
     mask: Region {}
 
     // the zone, in this screen's own coordinates (Hyprland gives it in layout coordinates)
-    readonly property bool here: Covers.zone !== "" && win.screen
-        && Covers.zoneRect.x >= win.screen.x - 1 && Covers.zoneRect.x < win.screen.x + win.screen.width
-        && Covers.zoneRect.y >= win.screen.y - 1 && Covers.zoneRect.y < win.screen.y + win.screen.height
+    readonly property bool here: Covers.zone !== "" && scr !== null
+        && Covers.zoneRect.x >= scr.x - 1 && Covers.zoneRect.x < scr.x + scr.width
+        && Covers.zoneRect.y >= scr.y - 1 && Covers.zoneRect.y < scr.y + scr.height
     property real shown: here ? 1 : 0
     Behavior on shown { NumberAnimation { duration: win.theme.ms(140); easing.type: Easing.OutCubic } }
     visible: here || shown > 0.001
     property rect r: Qt.rect(0, 0, 0, 0)
-    onHereChanged: if (here) win.r = Qt.rect(Covers.zoneRect.x - win.screen.x, Covers.zoneRect.y - win.screen.y, Covers.zoneRect.width, Covers.zoneRect.height)
+    onHereChanged: if (here) win.r = Qt.rect(Covers.zoneRect.x - scr.x, Covers.zoneRect.y - scr.y, Covers.zoneRect.width, Covers.zoneRect.height)
     Connections {
         target: Covers
-        function onZoneRectChanged() { if (win.here) win.r = Qt.rect(Covers.zoneRect.x - win.screen.x, Covers.zoneRect.y - win.screen.y, Covers.zoneRect.width, Covers.zoneRect.height); }
+        function onZoneRectChanged() { if (win.here) win.r = Qt.rect(Covers.zoneRect.x - scr.x, Covers.zoneRect.y - scr.y, Covers.zoneRect.width, Covers.zoneRect.height); }
     }
 
     Canvas {
@@ -56,8 +57,8 @@ PanelWindow {
             // the wash (her tour: accent at 7 %)
             g.globalAlpha = 0.07; g.fillStyle = acc;
             rr(r.x, r.y, r.width, r.height, rad); g.fill();
-            // the dotted line (her tour: dashes of 2 with gaps of 6, round ends, 1.5 px, accent at 75 %, 5 px in):
-            // drawn as round dots every 8 px along the rounded outline, which is what those dashes look like
+            // the dotted line (her tour: dashes of 2 with gaps of 6, round ends, 1.5 px, accent at 75 %, 5 px in): drawn as
+            // round 3 px dots every 8 px along the rounded outline, a little bolder than the tour so it reads on a full-size screen
             const ins = 5, x = r.x + ins, y = r.y + ins, w = r.width - 2 * ins, h = r.height - 2 * ins;
             const q = Math.max(0, Math.min(rad, w / 2, h / 2));
             const segs = [];
@@ -67,7 +68,7 @@ PanelWindow {
             straight(x + w, y + q, x + w, y + h - q); corner(x + w - q, y + h - q, 0);
             straight(x + w - q, y + h, x + q, y + h); corner(x + q, y + h - q, Math.PI / 2);
             straight(x, y + h - q, x, y + q);         corner(x + q, y + q, Math.PI);
-            g.globalAlpha = 0.75; g.fillStyle = acc;
+            g.globalAlpha = 0.85; g.fillStyle = acc;
             const step = 8;
             let carry = 0;
             for (const s of segs) {
@@ -75,7 +76,7 @@ PanelWindow {
                     let px, py;
                     if (s.k === 0) { const t = s.len > 0 ? d / s.len : 0; px = s.x1 + (s.x2 - s.x1) * t; py = s.y1 + (s.y2 - s.y1) * t; }
                     else { const a = s.a0 + (q > 0 ? d / q : 0); px = s.cx + Math.cos(a) * q; py = s.cy + Math.sin(a) * q; }
-                    g.beginPath(); g.arc(px, py, 1.1, 0, 2 * Math.PI); g.fill();
+                    g.beginPath(); g.arc(px, py, 1.5, 0, 2 * Math.PI); g.fill();
                 }
                 carry = ((carry - s.len) % step + step) % step;
             }

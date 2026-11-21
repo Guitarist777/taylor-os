@@ -192,7 +192,7 @@ ShellRoot {
     Variants {
         model: Quickshell.screens
         delegate: Component {
-            SnapPreview { required property var modelData; screen: modelData; theme: root.c }
+            SnapPreview { required property var modelData; screen: modelData; scr: modelData; theme: root.c }
         }
     }
     Variants {
