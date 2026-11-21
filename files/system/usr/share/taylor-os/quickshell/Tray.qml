@@ -65,14 +65,14 @@ PanelWindow {
             spacing: 14
             Image {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 15; height: 15; sourceSize: Qt.size(30, 30)
-                source: Qt.resolvedUrl("icons/wifi.svg")
+                width: 18; height: 18; sourceSize: Qt.size(36, 36)
+                source: Quickshell.iconPath("network-wireless-signal-excellent", "network-wireless")   // her icon set
                 MouseArea { anchors.fill: parent; onClicked: Quickshell.execDetached(["systemsettings", "kcm_networkmanagement"]) }
             }
             Image {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 15; height: 15; sourceSize: Qt.size(30, 30)
-                source: Qt.resolvedUrl(win.soundOff ? "icons/sound-off.svg" : "icons/sound.svg")
+                width: 18; height: 18; sourceSize: Qt.size(36, 36)
+                source: Quickshell.iconPath(win.soundOff ? "audio-volume-muted" : "audio-volume-high", "audio-card")   // her icon set
                 MouseArea {
                     anchors.fill: parent
                     onClicked: { const s = Pipewire.defaultAudioSink; if (s && s.audio) s.audio.muted = !s.audio.muted }

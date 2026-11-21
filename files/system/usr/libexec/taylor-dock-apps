@@ -1,0 +1,30 @@
+#!/usr/bin/bash
+# What the taskbar's slots have on this PC (2026-11-21): one id a line, for Dock.qml (an app not listed shows dimmed).
+#   edge firefox chrome spotify  the flatpak (hers or the system's; Firefox also as a normal program)
+#   steam                        Steam
+#   ea battlenet                 installed in Lutris (its game list says so)
+#   messages-icon                Google Messages' own icon was fetched at her first sign-in (taylor-apps-setup)
+# Reads only; quick (well under a second). Prints nothing private.
+set -u
+apps=$(flatpak list --app --columns=application 2>/dev/null)
+has() { printf '%s\n' "$apps" | grep -qx "$1"; }
+has com.microsoft.Edge && echo edge
+{ has org.mozilla.firefox || command -v firefox >/dev/null; } && echo firefox
+has com.google.Chrome && echo chrome
+has com.spotify.Client && echo spotify
+command -v steam >/dev/null && echo steam
+db="${XDG_DATA_HOME:-$HOME/.local/share}/lutris/pga.db"
+if [ -f "$db" ]; then
+    python3 -I - "$db" <<'PY' 2>/dev/null
+import sqlite3, sys
+try:
+    c = sqlite3.connect("file:" + sys.argv[1] + "?mode=ro", uri=True)
+    slugs = {r[0] for r in c.execute("select slug from games where installed = 1")}
+except Exception:
+    slugs = set()
+if "ea-app" in slugs: print("ea")
+if "battlenet" in slugs: print("battlenet")
+PY
+fi
+[ -s "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/192x192/apps/taylor-messages.png" ] && echo messages-icon
+exit 0

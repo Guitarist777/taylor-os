@@ -1,0 +1,15 @@
+[Unit]
+Description=TAYLOR OS: set up the taskbar's apps (Edge, Chrome, Spotify, Firefox from Flathub; the icon set)
+# never for the login screen's own account
+ConditionUser=!@system
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/taylor-apps-setup
+Restart=on-failure
+RestartSec=10min
+Nice=10
+TimeoutStartSec=2h
+
+[Install]
+WantedBy=default.target

@@ -55,6 +55,18 @@ modules:
       - source: system
         destination: /
 
+  # Her icon set, Slot-Dark-Icons by L4ki (GPL-3.0), fetched from one pinned commit and checked (files/scripts/slot-icons.sh).
+  - type: script
+    scripts:
+      - slot-icons.sh
+
+  # The taskbar's apps at her sign-in (2026-11-21): Edge, Chrome, Spotify (and Firefox if missing) from Flathub as her own
+  # flatpaks, quietly, with a log; EA and Battle.net go through Lutris when she first picks them.
+  - type: systemd
+    user:
+      enabled:
+        - taylor-apps-setup.service
+
   # Start-up repair (2026-11-18): picture mode at boot, and her desktop settings in an account made before the .lua
   # existed (/usr/libexec/taylor-heal changes only what is wrong).
   - type: systemd
