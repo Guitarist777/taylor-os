@@ -1,0 +1,51 @@
+# TAYLOR OS boot screen: her dark (#0B0D0C) and nothing else, the colour her login screen's opening starts from.
+# A disk password, a question or a message (rare) is shown as plain words in the middle, in her light text colour.
+
+Window.SetBackgroundTopColor(0.043, 0.051, 0.047);
+Window.SetBackgroundBottomColor(0.043, 0.051, 0.047);
+
+global.prompt = Sprite();
+global.answer = Sprite();
+global.note = Sprite();
+
+fun place(sprite, image, y) {
+    sprite.SetImage(image);
+    sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - image.GetWidth() / 2);
+    sprite.SetY(Window.GetY() + Window.GetHeight() * y);
+    sprite.SetZ(10);
+    sprite.SetOpacity(1);
+}
+
+fun hide_ask() {
+    global.prompt.SetOpacity(0);
+    global.answer.SetOpacity(0);
+}
+
+fun normal_callback() {
+    hide_ask();
+}
+
+fun password_callback(text, bullets) {
+    if (text == "") text = "Password";
+    place(global.prompt, Image.Text(text, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.46);
+    dots = "";
+    for (i = 0; i < bullets; i++) dots = dots + "*";
+    if (dots == "") dots = " ";
+    place(global.answer, Image.Text(dots, 0.31, 0.70, 0.53, 1, "Sans 18"), 0.52);
+}
+
+fun question_callback(text, answer) {
+    place(global.prompt, Image.Text(text, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.46);
+    if (answer == "") answer = " ";
+    place(global.answer, Image.Text(answer, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.52);
+}
+
+fun message_callback(text) {
+    if (text == "") { global.note.SetOpacity(0); return; }
+    place(global.note, Image.Text(text, 0.60, 0.63, 0.62, 1, "Sans 12"), 0.85);
+}
+
+Plymouth.SetDisplayNormalFunction(normal_callback);
+Plymouth.SetDisplayPasswordFunction(password_callback);
+Plymouth.SetDisplayQuestionFunction(question_callback);
+Plymouth.SetMessageFunction(message_callback);

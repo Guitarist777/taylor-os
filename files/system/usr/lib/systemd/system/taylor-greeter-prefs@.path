@@ -1,0 +1,9 @@
+# Watches her settings file (and her system's no-animations setting) for her login screen's two choices.
+# The instance is her home folder, escaped (started by /usr/libexec/taylor-greeter-prefs).
+[Unit]
+Description=TAYLOR OS: watch her login screen's motion settings in %f
+
+[Path]
+PathChanged=%f/.config/taylor-os/settings.json
+PathChanged=%f/.config/dconf/user
+Unit=taylor-greeter-prefs.service

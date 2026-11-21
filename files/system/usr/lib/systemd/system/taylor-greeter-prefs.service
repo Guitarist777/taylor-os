@@ -1,0 +1,16 @@
+# Her login screen's two Settings choices ("Boot animation", "Reduce motion"), copied from her settings to
+# /var/lib/taylor-os/greeter.json before the login screen starts, and again whenever she changes them
+# (taylor-greeter-prefs@.path). It can never stop the login screen: it is not required by it, and any problem means
+# the login screen's defaults.
+[Unit]
+Description=TAYLOR OS: her login screen's motion settings
+Before=greetd.service
+After=local-fs.target systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/taylor-greeter-prefs
+TimeoutStartSec=20
+
+[Install]
+WantedBy=graphical.target

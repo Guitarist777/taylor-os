@@ -38,11 +38,15 @@ fi
 
 echo $((n + 1)) > "$fails"
 rm -f /tmp/taylor-greeter-ok
+# The text screen stays dark until her opening draws (2026-11-21): no cursor, nothing written on it. Hyprland's own
+# start-up lines go to a file instead of the screen (they are in its log under /run/user too).
+[ -t 1 ] && printf '\033[?25l\033[2J\033[H'
+hlog=/tmp/taylor-greeter-hyprland.log
 # start-hyprland is Hyprland's own launcher; started bare, Hyprland paints a red warning bar over her opening.
 if command -v start-hyprland >/dev/null 2>&1; then
-    start-hyprland -- -c /usr/share/taylor-os/greeter/hyprland.lua
+    start-hyprland -- -c /usr/share/taylor-os/greeter/hyprland.lua > "$hlog" 2>&1
 else
-    Hyprland -c /usr/share/taylor-os/greeter/hyprland.lua
+    Hyprland -c /usr/share/taylor-os/greeter/hyprland.lua > "$hlog" 2>&1
 fi
 # The scene writes this file only when greetd accepted her password and her desktop is about to start.
 if [ -e /tmp/taylor-greeter-ok ]; then

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Between the boot screen and her login screen the PC shows its text screen (tty1) for a moment, whose black is pure
+# #000000 and whose cursor blinks. This makes that moment her dark instead (2026-11-21): the text screen's black
+# becomes #0B0D0C (the colour of the boot screen and of her opening), and tty1's cursor is hidden and the screen
+# cleared. Only the palette's black changes; every other colour stays the kernel's own, so the text sign-in (her
+# safety net) and any message still read exactly as before.
+setvtrgb /usr/share/taylor-os/console/vtrgb 2>/dev/null || echo "taylor-console: the text screen's colours could not be set" >&2
+[ -w /dev/tty1 ] && printf '\033[?25l\033[2J\033[H' > /dev/tty1 2>/dev/null
+exit 0

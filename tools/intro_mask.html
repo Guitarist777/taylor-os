@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!-- Makes greeter/intro_points.js: the word "TaylorOS" in Manrope 500 (the image's font), drawn the way her boot animation
+     draws it (textAlign center, textBaseline middle) at a large size, kept as runs of filled pixels per row (alpha > 120,
+     her threshold). The login screen samples it on her grid at run time. Run headless:
+     msedge --headless --allow-file-access-from-files --virtual-time-budget=8000 --dump-dom file:///.../tools/intro_mask.html -->
+<html><head><meta charset="utf-8">
+<style>@font-face{font-family:M;src:url("../files/system/usr/share/fonts/taylor/Manrope-Variable.ttf");font-weight:200 800}</style>
+</head><body><pre id="out">waiting</pre>
+<script>
+var F0 = 600;
+document.fonts.load('500 ' + F0 + 'px M').then(function () {
+  var o = document.createElement('canvas'), W0 = Math.ceil(F0 * 5), H0 = Math.ceil(F0 * 1.6);
+  o.width = W0; o.height = H0;
+  var g = o.getContext('2d');
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '500 ' + F0 + 'px M';
+  g.fillText('TaylorOS', W0 / 2, H0 / 2);
+  var d = g.getImageData(0, 0, W0, H0).data, rows = [], y0 = -1;
+  for (var y = 0; y < H0; y++) {
+    var runs = [], inr = false, s = 0;
+    for (var x = 0; x <= W0; x++) {
+      var on = x < W0 && d[(y * W0 + x) * 4 + 3] > 120;
+      if (on && !inr) { s = x; inr = true; } else if (!on && inr) { runs.push((s - W0 / 2) + ',' + (x - W0 / 2)); inr = false; }
+    }
+    if (runs.length && y0 < 0) y0 = y;
+    if (y0 >= 0) rows.push(runs.join(' '));
+  }
+  while (rows.length && rows[rows.length - 1] === '') rows.pop();
+  document.getElementById('out').textContent = JSON.stringify({ F0: F0, top: y0 - H0 / 2, rows: rows, font: document.fonts.check('500 10px M') });
+});
+</script></body></html>

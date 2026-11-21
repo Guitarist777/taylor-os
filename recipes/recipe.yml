@@ -46,6 +46,7 @@ modules:
         - greetd # runs her login screen (2026-11-19: her own design, drawn by Quickshell; replaces the Plasma login screen)
         - tuigreet # the plain text sign-in, only if her login screen fails twice (never locked out)
         - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)
+        - plymouth-plugin-script # draws her boot screen (2026-11-21): her dark with nothing on it (themes/taylor)
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
@@ -62,6 +63,8 @@ modules:
       enabled:
         - taylor-heal.service
         - taylor-windows-mount.service # the Windows drive at /var/mnt/windows for TAYLOR (refuses a hibernated drive)
+        - taylor-console.service # the text screen's black is her dark, before the login screen (2026-11-21)
+        - taylor-greeter-prefs.service # her "Boot animation" and "Reduce motion" choices reach the login screen (2026-11-21)
 
   # Her login screen (2026-11-19) takes over from the Plasma login screen: greetd becomes the display manager.
   # Plasma's login screen stays installed but no longer starts; KDE is still there to pick from the text sign-in.
@@ -72,5 +75,16 @@ modules:
       - "systemctl enable greetd.service"
       - "test \"$(readlink /etc/systemd/system/display-manager.service)\" = /usr/lib/systemd/system/greetd.service"
       - "getent passwd greetd || systemd-sysusers greetd.conf"
+
+  # Her boot screen (2026-11-21, phase 8): from the firmware's picture straight to her dark (#0B0D0C) with nothing on it,
+  # then her opening on the login screen. The boot screen lives inside the initramfs, so the theme is set and the
+  # initramfs made again here, the way Bazzite/Universal Blue make theirs (dracut, no host-only, for the image's one
+  # kernel). The checks after it fail the build if the initramfs does not carry the theme.
+  - type: script
+    snippets:
+      - "plymouth-set-default-theme taylor"
+      - "test \"$(plymouth-set-default-theme)\" = taylor"
+      - "kver=$(ls /usr/lib/modules | head -1) && test -d /usr/lib/modules/$kver/kernel && mkdir -p /var/tmp && made=0 && { [ -e /var/roothome ] || { mkdir -p /var/roothome && made=1; }; } && DRACUT_NO_XATTR=1 dracut --tmpdir /tmp --no-hostonly --kver $kver --reproducible --add ostree -f /usr/lib/modules/$kver/initramfs.img && chmod 0600 /usr/lib/modules/$kver/initramfs.img && { [ $made = 0 ] || rmdir /var/roothome; }"
+      - "kver=$(ls /usr/lib/modules | head -1) && lsinitrd /usr/lib/modules/$kver/initramfs.img > /tmp/initrd.txt && grep -q 'plymouth/themes/taylor/taylor.script' /tmp/initrd.txt && grep -q 'plymouth/script.so' /tmp/initrd.txt && grep -q 'ostree' /tmp/initrd.txt && grep -q nvidia /tmp/initrd.txt && rm -f /tmp/initrd.txt"
 
   - type: signing # sets up the policy so the PC only accepts images signed with this repo's key

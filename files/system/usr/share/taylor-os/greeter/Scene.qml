@@ -10,6 +10,10 @@ PanelWindow {
     property bool primary: false
     property string who: ""
     property real fade: 0          // 0..1, the dark before her desktop starts
+    // her two Settings choices, as the login screen got them (shell.qml reads /var/lib/taylor-os/greeter.json)
+    property bool still: false     // "Reduce motion": the still word, then the login as one simple fade
+    property bool full: true       // "Boot animation": play the full opening (off: start at the hand-off)
+    property real cover: 0         // reduced motion: the still word over the login, 1 .. 0
     // TAYLOR_GREETER_FROM=20 starts the scene 20 seconds in (the preview's frames).
     readonly property real startFrom: {
         const v = parseFloat(Quickshell.env("TAYLOR_GREETER_FROM") || "");
@@ -20,8 +24,10 @@ PanelWindow {
         const v = parseFloat(Quickshell.env("TAYLOR_GREETER_UNLOCK_AT") || "");
         return isNaN(v) ? -1 : v;
     }
-    property bool held: false
+    // TAYLOR_GREETER_HOLD=1 stops the clock where TAYLOR_GREETER_FROM put it (the preview's still frames).
+    property bool held: Quickshell.env("TAYLOR_GREETER_HOLD") === "1"
     property bool started: false
+    property int marks: 0
     property double startedMs: 0
     signal skipped()
     signal keyTyped(string text)
@@ -44,16 +50,23 @@ PanelWindow {
         if (started && Date.now() - startedMs > 1500) { Eng.setSize(width, height); return; }
         started = true;
         startedMs = Date.now();
+        marks = 0;
         Eng.setSize(width, height);
         if (manrope.status === FontLoader.Ready) Eng.setFont(manrope.name);
         Eng.setName(who);
+        Eng.setMotion(still, full);
         Eng.spawn();
+        console.info("taylor-greeter: opening " + (still ? "still (reduced motion)" : full ? "full" : "skipped, from the hand-off") + ", " + width + " x " + height);
         if (startFrom > 0) Eng.settleTo(startFrom);
         art.requestPaint();
     }
     onWidthChanged: begin()
     onHeightChanged: begin()
     onWhoChanged: Eng.setName(who)
+    // a choice that arrives in the first moment starts the scene again with it
+    function again() { if (started && Date.now() - startedMs < 1500) { started = false; begin(); } }
+    onStillChanged: again()
+    onFullChanged: again()
     Component.onCompleted: begin()
 
     function letter() { Eng.skipToLogin(); Eng.addChar(); }
@@ -91,6 +104,18 @@ PanelWindow {
         }
     }
 
+    // Reduced motion: the still word, drawn once, fading off the login over her one second.
+    Canvas {
+        id: stillWord
+        anchors.fill: parent
+        visible: win.cover > 0
+        opacity: win.cover
+        renderStrategy: Canvas.Cooperative
+        property bool drawn: false
+        onVisibleChanged: if (visible && !drawn) requestPaint()
+        onPaint: { Eng.drawStillWord(getContext("2d")); drawn = true; }
+    }
+
     FrameAnimation {
         running: win.started
         onTriggered: {
@@ -101,6 +126,12 @@ PanelWindow {
                     win.held = true;
                 }
             }
+            win.cover = Eng.stillCover();
+            // the opening's milestones, for the log (the virtual PC's boot check reads them)
+            const st = Eng.sceneT();
+            if (win.marks === 0 && st >= 9.3 && !Eng.inLogin() && !win.still) { win.marks = 1; console.info("taylor-greeter: the friend goes to fetch the lost dot (" + st.toFixed(1) + " s)"); }
+            if (win.marks <= 1 && st >= 10.7 && !Eng.inLogin() && !win.still) { win.marks = 2; console.info("taylor-greeter: the lost dot hops, the friend hops lower (" + st.toFixed(1) + " s)"); }
+            if (win.marks <= 2 && Eng.inLogin()) { win.marks = 3; console.info("taylor-greeter: the hand-off begins at " + st.toFixed(1) + " s of the opening, " + ((Date.now() - win.startedMs) / 1000).toFixed(1) + " s after the screen first drew"); }
             art.requestPaint();
         }
     }
