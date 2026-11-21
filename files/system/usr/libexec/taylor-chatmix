@@ -1,18 +1,24 @@
 #!/usr/bin/python3
 # ChatMix for her Arctis Nova Pro Wireless base station (USB 1038:12E0), the way Sonar does it on Windows:
-# pressing the volume dial switches it to ChatMix, and turning it then balances GAME against VOICE.
-# The dial drives the volumes of TAYLOR's own mixer channels, taylor_game and taylor_voice
-# (/etc/pipewire/pipewire.conf.d/taylor-mixer.conf), so the GAME and VOICE sliders on her desktop move with it.
+# pressing the volume dial switches it to ChatMix, and turning it then balances GAME against CHAT.
+# The dial turns the Game / Chat balance of the TaylorOS mixer: the volume of the two channels' "out" sides,
+# taylor_game.out and taylor_chat.out (/etc/pipewire/pipewire.conf.d/taylor-mixer.conf). Her Game and Chat faders stay
+# where she put them, and the balance line at the bottom of her Mixer window moves with the dial (it reads the same two
+# volumes). (Before 2026-11-21 the dial moved the GAME and VOICE faders themselves.)
 #
 # The base station protocol is from Dymstro/nova-chatmix-linux (0BSD licence, reverse engineered from
 # Sonar's USB traffic; tested by its author on MCU firmware 01.29.27, DSP 00.03.82). Only these messages are used:
 #   send    06 49 01/00   ChatMix control on/off (the dial can then be pressed into ChatMix)
 #   send    06 8D 01/00   the Sonar icon on the base station's screen on/off
 #   receive 07 45 G C     the dial moved: game volume G and chat volume C, each 0..100
+# Nothing else is ever written to the base station: no firmware, no settings, no equalizer, nothing that changes how it
+# works with her PS5 (the PS5 is on its own USB input, and both messages are undone when this stops).
 # No SteelSeries code or software is used.
 #
 # Started by udev when the base station is plugged in (60-taylor-chatmix.rules -> taylor-chatmix.service, a
 # user service), stops when it is unplugged, and hands the dial back to plain volume when it stops.
+#   taylor-chatmix --self-test   checks the dial-to-balance sums without a base station (prints PASS / FAIL)
+import json
 import signal
 import subprocess
 import sys
@@ -24,7 +30,7 @@ TX = 0x06
 OPT_CHATMIX_ENABLE = 0x49
 OPT_SONAR_ICON = 0x8D
 OPT_CHATMIX = 0x45
-GAME_SINK, VOICE_SINK = "taylor_game", "taylor_voice"
+GAME_OUT, CHAT_OUT = "taylor_game.out", "taylor_chat.out"
 
 
 def log(*a):
@@ -42,23 +48,45 @@ def find_path(hid):
     return None
 
 
-def sinks():
+def node_ids():
+    """node.name -> PipeWire id, for every node."""
     try:
-        out = subprocess.run(["pactl", "list", "sinks", "short"], capture_output=True, text=True, timeout=5).stdout
+        out = subprocess.run(["pw-dump"], capture_output=True, text=True, timeout=10).stdout
+        objs = json.loads(out or "[]")
     except Exception:
-        return set()
-    return {line.split("\t")[1] for line in out.splitlines() if "\t" in line}
+        return {}
+    ids = {}
+    for o in objs:
+        if o.get("type", "").endswith(":Node"):
+            name = ((o.get("info") or {}).get("props") or {}).get("node.name")
+            if name:
+                ids[name] = o["id"]
+    return ids
 
 
-def set_volume(sink, percent):
-    percent = max(0, min(100, int(percent)))
-    subprocess.run(["pactl", "set-sink-volume", sink, f"{percent}%"], timeout=5)
+class Outs:
+    """Sets the volume of a channel's out side by its node name (ids are looked up again when PipeWire restarts)."""
+    def __init__(self):
+        self.ids = {}
+
+    def __call__(self, name, percent):
+        percent = max(0, min(100, int(percent)))
+        for attempt in (0, 1):
+            if name not in self.ids or attempt:
+                self.ids = node_ids()
+            nid = self.ids.get(name)
+            if nid is None:
+                continue
+            r = subprocess.run(["wpctl", "set-volume", str(nid), "%.2f" % (percent / 100)], capture_output=True, timeout=5)
+            if r.returncode == 0:
+                return True
+        return False
 
 
 class ChatMix:
-    def __init__(self, dev, set_volume=set_volume):
+    def __init__(self, dev, set_volume=None):
         self.dev = dev
-        self.set_volume = set_volume
+        self.set_volume = set_volume or Outs()
         self.stop = False
         self.last = None
         self.enabled = False
@@ -69,16 +97,16 @@ class ChatMix:
         self.enabled = True
 
     def handle(self, data):
-        """One message from the base station. Returns (game, voice) when it was a dial move that changed something."""
+        """One message from the base station. Returns (game, chat) when it was a dial move that changed something."""
         if not data or len(data) < 4 or data[1] != OPT_CHATMIX:
             return None
-        game, voice = max(0, min(100, data[2])), max(0, min(100, data[3]))
-        if (game, voice) == self.last:
+        game, chat = max(0, min(100, data[2])), max(0, min(100, data[3]))
+        if (game, chat) == self.last:
             return None
-        self.last = (game, voice)
-        self.set_volume(GAME_SINK, game)
-        self.set_volume(VOICE_SINK, voice)
-        return game, voice
+        self.last = (game, chat)
+        self.set_volume(GAME_OUT, game)
+        self.set_volume(CHAT_OUT, chat)
+        return game, chat
 
     def run(self):
         while not self.stop:
@@ -95,19 +123,38 @@ class ChatMix:
             self.enabled = False
 
 
+def self_test():
+    got = []
+    cm = ChatMix(None, set_volume=lambda n, p: got.append((n, p)))
+    ok = True
+    def check(what, cond):
+        nonlocal ok
+        print(("PASS " if cond else "FAIL ") + what)
+        ok = ok and cond
+    check("a dial move sets the Game and Chat balance", cm.handle([0x07, 0x45, 100, 40]) == (100, 40)
+          and got == [(GAME_OUT, 100), (CHAT_OUT, 40)])
+    got.clear()
+    check("the same position twice does nothing", cm.handle([0x07, 0x45, 100, 40]) is None and got == [])
+    check("other messages are ignored", cm.handle([0x07, 0x12, 1, 2]) is None and got == [])
+    check("out-of-range numbers are held to 0..100", cm.handle([0x07, 0x45, 250, 0]) == (100, 0))
+    return 0 if ok else 1
+
+
 def main():
+    if "--self-test" in sys.argv:
+        return self_test()
     import hid   # python3-hidapi
     path = find_path(hid)
     if not path:
         log("base station not found (Arctis Nova Pro Wireless, 1038:12E0); nothing to do")
         return 0
-    # TAYLOR's channels come up with PipeWire at login; wait for them (up to a minute).
+    # The mixer's channels come up with PipeWire at login; wait for them (up to a minute).
     for _ in range(60):
-        if {GAME_SINK, VOICE_SINK} <= sinks():
+        if {GAME_OUT, CHAT_OUT} <= set(node_ids()):
             break
         time.sleep(1)
     else:
-        log("the TAYLOR mixer channels are missing; is PipeWire running?")
+        log("the TaylorOS mixer channels are missing; is PipeWire running?")
         return 1
     dev = hid.device()
     dev.open_path(path)

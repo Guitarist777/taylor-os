@@ -1,0 +1,11 @@
+[Unit]
+Description=TaylorOS mixer: sound shaping for the %i channel (a PipeWire filter-chain)
+Documentation=file:///usr/share/taylor-os/quickshell/MixerFx.qml
+After=pipewire.service wireplumber.service
+ConditionPathExists=%h/.config/taylor-os/mixer-fx/%i.conf
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pipewire -c %h/.config/taylor-os/mixer-fx/%i.conf
+Restart=on-failure
+RestartSec=2

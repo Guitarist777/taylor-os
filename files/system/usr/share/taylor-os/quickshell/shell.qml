@@ -243,15 +243,16 @@ ShellRoot {
         onClicked: root.dialClicked()
     }
     ClockCard { screen: root.mainScreen; theme: root.c; arrive: root.arriveU }
-    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU }
+    // her mixer: the quick view on the desktop and the Mixer window (ipc target "mixer": open / toggle)
+    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU; onOpenMixer: mixerWindow.open = true }
+    MixerWindow { id: mixerWindow }
     // the taskbar (Dock.qml): its dial opens the launcher, its Mixer slot the Mixer window, its lines go to her status
-    property bool mixerWindowOpen: false     // the Mixer window (the mixer piece shows its window from this)
     property bool dockHidden: false          // true full screen (the windows piece sets it)
     Dock {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU
         hiddenForFullscreen: root.dockHidden
         onOpenLauncher: root.launcherOpen = true
-        onOpenMixer: root.mixerWindowOpen = true
+        onOpenMixer: mixerWindow.toggle()
         onSay: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
     }
     Tray {
@@ -309,6 +310,6 @@ ShellRoot {
             if (kind === "App" || kind === "File" || kind === "Folder") loading.start();
         }
         onAsk: (text) => taylor.ask(text)
-        onToggleMixer: root.mixerShown = !root.mixerShown
+        onToggleMixer: mixerWindow.open = true
     }
 }

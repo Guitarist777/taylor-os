@@ -84,6 +84,14 @@ for _, name in ipairs({ "taylor-dock", "taylor-tray", "taylor-clock" }) do
     })
 end
 
+-- Her Mixer window (the desktop shell draws it): a normal window that floats in the middle, not a tile
+hl.window_rule({
+    name  = "taylor-mixer-window",
+    match = { class = "(?i).*quickshell.*", title = "^Mixer$" },
+    float  = true,
+    center = true,
+})
+
 hl.curve("calm", { type = "bezier", points = { {0.22, 1}, {0.36, 1} } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 5, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 4, bezier = "calm", style = "popin 90%" })
