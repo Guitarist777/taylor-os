@@ -1,0 +1,7 @@
+The TAYLOR global theme for KDE Plasma (TaylorOS) is under the GNU General Public License version 3 or later.
+It is built after "Slot-Dark-Global-6" from Slot Plasma Themes by l4k1
+(https://github.com/L4ki/Slot-Plasma-Themes, GPL-3.0; the full licence text is with the TAYLOR Plasma theme at
+/usr/share/plasma/desktoptheme/TAYLOR/LICENSE). What changed from Slot-Dark-Global-6: its own name and id; the
+TAYLOR colour scheme, Plasma theme and window decoration (recoloured Slot ones, see their CHANGES.txt) in place of
+Slot's; the TAYLOR sky wallpaper in place of Slot's; Breeze's splash in place of Magna-Splash-6 (not shipped);
+and a bottom-panel layout written out in full (Slot's layout folder is spelt "layots", so Plasma never read it).

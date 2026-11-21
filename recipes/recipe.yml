@@ -55,6 +55,14 @@ modules:
       - source: system
         destination: /
 
+  # Her icon set, Slot-Dark-Icons by l4k1 (GPL-3.0, pinned commit, licence and credit kept), and a check that the
+  # TAYLOR look for her KDE backup session is in place (global theme, colours, Plasma theme, title bars, sky).
+  - type: script
+    scripts:
+      - slot-dark-icons.sh
+    snippets:
+      - "test -f /usr/share/plasma/look-and-feel/org.taylor-os.kde/metadata.json && test -f /usr/share/color-schemes/TAYLOR.colors && test -f /usr/share/plasma/desktoptheme/TAYLOR/metadata.json && test -f /usr/share/aurorae/themes/TAYLOR/TAYLORrc && test -f /usr/share/wallpapers/TAYLOR-Sky/contents/images/1920x1080.png && test -x /usr/libexec/taylor-kde-look"
+
   # Start-up repair (2026-11-18): picture mode at boot, and her desktop settings in an account made before the .lua
   # existed (/usr/libexec/taylor-heal changes only what is wrong).
   - type: systemd

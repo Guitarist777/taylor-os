@@ -1,0 +1,77 @@
+#!/bin/sh
+# The TAYLOR look for her KDE backup session (her build brief, "Alternate look: TAYLOR on KDE"), put on her account
+# ONCE, the first time she opens KDE: the TAYLOR global theme (org.taylor-os.kde: TAYLOR colours, Plasma theme and
+# window title bars, Slot-Dark-Icons, a bottom panel), the TAYLOR colour scheme and the sky wallpaper.
+# Started by /etc/xdg/autostart/taylor-kde-look.desktop in KDE sessions only. Never stops KDE from working: every step
+# may fail on its own and is only written to the log (~/.local/state/taylor-os/kde-look.log). Her KDE files from
+# before are copied to ~/.local/state/taylor-os/kde-before-taylor/ first. After it has worked once it never runs
+# again, so anything she changes in System Settings stays hers (Bazzite's own look is still there to pick:
+# System Settings > Colours & Themes > Global Theme).
+case ":${XDG_CURRENT_DESKTOP:-}:" in *:KDE:*) ;; *) exit 0 ;; esac
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/taylor-os"
+mkdir -p "$state" || exit 0
+done_mark="$state/kde-look-applied"
+tries_file="$state/kde-look-tries"
+log="$state/kde-look.log"
+[ -e "$done_mark" ] && exit 0
+say() { echo "taylor-kde-look: $*" | tee -a "$log" >&2; }
+
+tries=$(cat "$tries_file" 2>/dev/null || echo 0)
+case "$tries" in ''|*[!0-9]*) tries=0 ;; esac
+if [ "$tries" -ge 3 ]; then
+    say "gave up after 3 tries; KDE is left as it is"
+    touch "$done_mark"; exit 0
+fi
+echo $((tries + 1)) > "$tries_file"
+say "start (try $((tries + 1))) $(date -Is)"
+
+# Wait for the Plasma desktop to be up (the panel is laid out by it), at most two minutes.
+up=no
+for i in $(seq 1 120); do
+    if dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus.NameHasOwner string:org.kde.plasmashell 2>/dev/null | grep -q 'boolean true'; then
+        up=yes; break
+    fi
+    sleep 1
+done
+say "plasmashell on the session bus: $up"
+[ "$up" = yes ] || exit 0
+sleep 3
+
+# Her KDE files as they were, once, so the old look can be put back by hand if ever wanted.
+before="$state/kde-before-taylor"
+if [ ! -d "$before" ]; then
+    mkdir -p "$before"
+    for f in kdeglobals kwinrc plasmarc plasmashellrc ksplashrc kcminputrc plasma-org.kde.plasma.desktop-appletsrc; do
+        [ -f "$HOME/.config/$f" ] && cp -p "$HOME/.config/$f" "$before/" 2>/dev/null
+    done
+    say "kept her KDE files from before in $before"
+fi
+
+ok=no
+if plasma-apply-lookandfeel --apply org.taylor-os.kde --resetLayout >>"$log" 2>&1; then
+    ok=yes; say "global theme TAYLOR applied (bottom panel laid out)"
+else
+    say "global theme TAYLOR did not apply (exit $?)"
+fi
+# Each part again on its own, so one failure does not leave the rest undone (each says so if it was already set).
+plasma-apply-colorscheme TAYLOR >>"$log" 2>&1; say "colour scheme TAYLOR: exit $?"
+plasma-apply-desktoptheme TAYLOR >>"$log" 2>&1; say "Plasma theme TAYLOR: exit $?"
+if [ -d /usr/share/icons/Slot-Dark-Icons ]; then
+    /usr/libexec/plasma-changeicons Slot-Dark-Icons >>"$log" 2>&1; say "icons Slot-Dark-Icons: exit $?"
+else
+    say "icons Slot-Dark-Icons are not on this PC; KDE keeps its own"
+fi
+plasma-apply-wallpaperimage /usr/share/wallpapers/TAYLOR-Sky >>"$log" 2>&1; say "sky wallpaper: exit $?"
+if [ -d /usr/share/aurorae/themes/TAYLOR ]; then
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.kwin.aurorae
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme __aurorae__svg__TAYLOR
+    dbus-send --session --type=signal /KWin org.kde.KWin.reloadConfig 2>/dev/null
+    say "window title bars TAYLOR"
+fi
+
+if [ "$ok" = yes ]; then
+    touch "$done_mark"; rm -f "$tries_file"; say "done"
+fi
+exit 0

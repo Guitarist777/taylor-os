@@ -1,0 +1,53 @@
+TAYLOR window decoration for TaylorOS (https://github.com/Guitarist777/taylor-os)
+
+This is a modified version of "Slot-Dark-Aurorae-6" from Slot Plasma Themes by l4k1
+(https://github.com/L4ki/Slot-Plasma-Themes, commit e0f0d69ef253cbc971dd0b1f4315b08a4b7a5ed1), licensed under the
+GNU General Public License version 3 (see LICENSE, kept as the author shipped it). The modified
+version is under the same licence.
+
+Changed on 2026-11-21 by tools/kde-look/recolour.py in the taylor-os repository:
+- renamed to TAYLOR (folder, Id and Name in the metadata), the author's credit kept
+- the colours swapped for the TAYLOR colour table: Slot's blue-greys for TAYLOR's near-black
+  green-greys (#0B0D0C, #121413, #171918), Slot's text colours for #EDEFEE and #9AA19D, Slot's
+  blue and purple accents for TAYLOR green (#4FB386, #A8E3C6); the exact swaps are listed below
+- Slot-Dark-Aurorae-6rc renamed TAYLORrc; title text #EDEFEE (active) and #9AA19D (inactive),
+  and a repeated InactiveTextColor line removed
+
+Nothing else was changed: every shape, size and layout is l4k1's.
+
+Colour swaps made (old -> new: how many times):
+  #006666 -> #194d36: 2
+  #0066ff -> #40bf86: 2
+  #008080 -> #4fb386: 1
+  #008eb2 -> #2d855d: 1
+  #009999 -> #267350: 2
+  #0099e5 -> #4fb386: 18
+  #00a2cc -> #33996b: 3
+  #00b2b2 -> #2d855d: 2
+  #00b6e5 -> #39ac78: 1
+  #00b7e5 -> #39ac78: 1
+  #00cccc -> #33996b: 2
+  #0495e2 -> #4fb386: 8
+  #0a0b10 -> #0b0d0c: 16
+  #151122 -> #181b1a: 2
+  #182030 -> #171918: 14
+  #1e2129 -> #1a1c1b: 20
+  #20283c -> #2b312e: 2
+  #2b2f3b -> #262927: 8
+  #2b4254 -> #26302b: 24
+  #3385ff -> #66cc9e: 2
+  #33d5ff -> #66cc9e: 2
+  #3b4f77 -> #2e3431: 4
+  #4b93ff -> #78d2aa: 2
+  #4e5a7e -> #3e4743: 20
+  #66a3ff -> #8cd9b6: 2
+  #741aff -> #53c692: 2
+  #934cff -> #79d2aa: 2
+  #9931b3 -> #39ab78: 4
+  #9d32b4 -> #39ac79: 2
+  #b280ff -> #a0dfc3: 2
+  #bc5fd3 -> #66cc9e: 2
+  #be5fd3 -> #66cc9e: 2
+  #bf61d3 -> #67cc9f: 2
+  #c299ff -> #b3e6cf: 2
+  #ce88dd -> #8cd9b6: 2
