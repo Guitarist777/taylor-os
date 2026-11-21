@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
 done
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 case "$CONF" in quickshell|greeter) CONF="files/system/usr/share/taylor-os/$CONF" ;; esac
-mkdir -p "$OUT"
+mkdir -p "$OUT" && chmod 777 "$OUT"   # rootless podman: her test account inside writes here
 cat > "$OUT/.run.sh" <<EOS
 set -u
 command -v sway >/dev/null || dnf install -y -q --setopt=install_weak_deps=False sway grim dbus-daemon >/dev/null 2>&1
@@ -53,6 +53,7 @@ setpriv --reuid=tester --regid=tester --init-groups env HOME=/home/tester USER=t
   kill \$QS; wait \$QS 2>/dev/null
 '
 EOS
-podman run --rm --privileged -v "$REPO:/repo:ro" -v "$OUT:/out" ghcr.io/guitarist777/taylor-os:latest bash /out/.run.sh > "$OUT/run.log" 2>&1
+IMG=ghcr.io/guitarist777/taylor-os:latest; podman image exists localhost/tayloros-preview && IMG=localhost/tayloros-preview
+podman run --rm --privileged -v "$REPO:/repo:ro" -v "$OUT:/out" "$IMG" bash /out/.run.sh > "$OUT/run.log" 2>&1
 echo "--- quickshell log"; grep -vE '^\s*$' "$OUT/quickshell.log" | tail -40
 ls "$OUT"/*.png 2>/dev/null

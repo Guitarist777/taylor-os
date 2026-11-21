@@ -1,0 +1,5 @@
+# Shell scripts run inside Linux (WSL, the virtual PC): keep them LF in the working tree on Windows too.
+*.sh text eol=lf
+tools/* text eol=lf
+.github/vm/** text eol=lf
+files/system/usr/libexec/* text eol=lf
