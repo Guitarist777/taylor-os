@@ -147,8 +147,11 @@ ShellRoot {
         onTriggered: { if (root.pw === "taylortest") root.good(); else root.bad("demo"); }
     }
 
-    // Tells /usr/libexec/taylor-greeter that this start went well (so the text sign-in is not needed).
-    Process { id: okFile; command: ["touch", "/tmp/taylor-greeter-ok"] }
+    // Tells /usr/libexec/taylor-greeter that this start went well (so the text sign-in is not needed). The count is
+    // set back to none HERE, when her password is accepted: the start script's own reset after Hyprland ends never ran
+    // (greetd ends it when her desktop starts), so every sign-out added one and the second sign-out of a boot got the
+    // text sign-in (found by the virtual PC, run 44862946750).
+    Process { id: okFile; command: ["sh", "-c", "touch /tmp/taylor-greeter-ok; echo 0 > /tmp/taylor-greeter-fails-$(id -u)"] }
 
     // "Welcome back" plays (her ring fill, spin and pulse), the screen fades, then her desktop starts.
     Timer {
