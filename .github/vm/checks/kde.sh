@@ -74,3 +74,6 @@ vm kde-5 \
   "$(ok 'her TAYLOR desktop opens again after KDE' "pgrep -x -u tester Hyprland >/dev/null && pgrep -u tester -x quickshell >/dev/null")" \
   "$(ok 'the KDE look did not run again in her TAYLOR desktop' "[ \$(grep -c '^taylor-kde-look: start (try' ~/.local/state/taylor-os/kde-look.log) = 1 ]")" \
   "cat ~/.local/state/taylor-os/kde-look.log"
+
+# what her login screen said (for a sign-in that did not open her desktop)
+vm kde-6-why "echo taylortest | sudo -S sh -c 'tail -40 /tmp/taylor-greeter-scene.log; cat /tmp/taylor-desktop-fails /tmp/taylor-greeter-fails-* 2>/dev/null; journalctl -b --since -4min --no-pager | grep -iE \"greet|uwsm|hypr|session\" | tail -60'"

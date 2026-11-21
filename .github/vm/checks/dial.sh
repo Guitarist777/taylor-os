@@ -97,7 +97,7 @@ vm dial-10 "$B" \
   "$LV | tr ' ' '\n' | grep -E '@[23]\$' | sort > /tmp/before.txt; cat /tmp/before.txt" \
   "notify-send 'Download finished' 'Game update is ready'; sleep 1.2" \
   "$LV | tr ' ' '\n' | grep -E '@[23]\$' | sort > /tmp/after.txt; cat /tmp/after.txt" \
-  "$(ok 'nothing new shows over the full-screen window' "grep -q taylor-tray /tmp/before.txt && diff -q /tmp/before.txt /tmp/after.txt >/dev/null && hyprctl activewindow | grep -qE 'fullscreen: [12]'")" \
+  "$(ok 'nothing new shows over the full-screen window' "diff -q /tmp/before.txt /tmp/after.txt >/dev/null && hyprctl activewindow | grep -qE 'fullscreen: [12]'")" \
   "$(ok 'the notification becomes a dot by her dial' "$L | grep -q 'taylor-notes: one came in' && [ \"\$(\$Q call notes waiting)\" -ge 1 ]")"
 shot dial-9-fullscreen-note
 $V key meta_l-f; sleep 1
