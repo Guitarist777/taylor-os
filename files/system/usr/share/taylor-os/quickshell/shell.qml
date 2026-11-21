@@ -269,6 +269,16 @@ ShellRoot {
     Settings {}
     Osd { screen: root.mainScreen; theme: root.c }
     Warm {}
+    // her windows and workspaces (Covers.qml, with Hyprland's windows.lua): the dock's strip, the workspace dots under the
+    // dock, and the dotted outline while dragging a window (on every screen)
+    DockReserve { screen: root.mainScreen }
+    WorkspaceDots { screen: root.mainScreen; theme: root.c; arrive: root.arriveU }
+    Variants {
+        model: Quickshell.screens
+        delegate: Component {
+            SnapPreview { required property var modelData; screen: modelData; scr: modelData; theme: root.c }
+        }
+    }
     Variants {
         model: Quickshell.screens
         delegate: Component {

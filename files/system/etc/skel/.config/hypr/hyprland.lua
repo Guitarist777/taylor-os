@@ -23,9 +23,9 @@ hl.env("QT_QPA_PLATFORMTHEME", "kde")
 
 hl.config({
     general = {
-        gaps_in          = 6,
-        gaps_out         = 14,
-        border_size      = 2,
+        gaps_in          = 0,
+        gaps_out         = 0,
+        border_size      = 1,
         col = {
             active_border   = "rgba(4fb386ee)",
             inactive_border = "rgba(ffffff14)",
@@ -35,7 +35,7 @@ hl.config({
     },
 
     decoration = {
-        rounding         = 14,
+        rounding         = 10,
         active_opacity   = 1.0,
         inactive_opacity = 0.97,
         shadow = {
@@ -96,7 +96,7 @@ hl.curve("calm", { type = "bezier", points = { {0.22, 1}, {0.36, 1} } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 5, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 4, bezier = "calm", style = "popin 90%" })
 hl.animation({ leaf = "fade",       enabled = true, speed = 5, bezier = "calm" })
-hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slidefade 15%" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "calm", style = "slide" })   -- windows slide fully across (her tour)
 hl.animation({ leaf = "layers",     enabled = true, speed = 4, bezier = "calm", style = "fade" })
 
 -- Keys. SUPER is the Windows key.
@@ -108,15 +108,11 @@ hl.bind(mod .. " + E",      hl.dsp.exec_cmd("dolphin"))
 hl.bind(mod .. " + B",      hl.dsp.exec_cmd("xdg-open https://"))
 hl.bind(mod .. " + Q",      hl.dsp.window.close())
 hl.bind(mod .. " + F",      hl.dsp.window.fullscreen())
-hl.bind(mod .. " + V",      hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + L",      hl.dsp.exec_cmd("/usr/libexec/taylor-lock now"))   -- her lock screen (the dial)
 hl.bind("XF86PowerOff",     hl.dsp.exec_cmd("quickshell ipc call power shutdown"), { locked = true })   -- her goodnight, then off
 hl.bind(mod .. " + SHIFT + M", hl.dsp.exit())
 
-hl.bind(mod .. " + left",  hl.dsp.focus({ direction = "left" }))
-hl.bind(mod .. " + right", hl.dsp.focus({ direction = "right" }))
-hl.bind(mod .. " + up",    hl.dsp.focus({ direction = "up" }))
-hl.bind(mod .. " + down",  hl.dsp.focus({ direction = "down" }))
+-- Windows key + arrows snap the window (halves, quarters, the whole screen): see the windows file at the end.
 
 for i = 1, 5 do
     hl.bind(mod .. " + " .. i,           hl.dsp.focus({ workspace = i }))
@@ -135,22 +131,7 @@ hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locke
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
 
 -- ==== TAYLOR-OS-SETTINGS (her Settings window and the volume and brightness ring, 2026-11-21) ====
--- The window outline takes her colour scheme's accent. Hyprland reads it from her settings file
--- (~/.config/taylor-os/settings.json) each time it loads this file; Settings runs "hyprctl reload" after she picks a
--- scheme. A missing or broken settings file means TAYLOR green.
-do
-    local cfg = os.getenv("XDG_CONFIG_HOME") or ((os.getenv("HOME") or "") .. "/.config")
-    local scheme = "taylor"
-    local f = io.open(cfg .. "/taylor-os/settings.json", "r")
-    if f then
-        local txt = f:read("*a") or ""
-        f:close()
-        scheme = txt:match('"scheme"%s*:%s*"(%a+)"') or "taylor"
-    end
-    local accent = ({ taylor = "4fb386", quiet = "3f6152", night = "8fb5a1", slate = "8fb5a1" })[scheme] or "4fb386"
-    local inactive = (scheme == "quiet") and "1c1c1a1a" or "ffffff14"
-    hl.config({ general = { col = { active_border = "rgba(" .. accent .. "ee)", inactive_border = "rgba(" .. inactive .. ")" } } })
-end
+-- (The window outline in her colour scheme is set by /usr/share/taylor-os/hypr/windows.lua, at the end of this file.)
 
 -- Settings is one normal window: floating, a sensible size, centred (not full screen)
 hl.window_rule({
@@ -166,3 +147,10 @@ hl.window_rule({
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("quickshell ipc call brightness up"),   { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("quickshell ipc call brightness down"), { locked = true, repeating = true })
 -- ==== end TAYLOR-OS-SETTINGS ====
+
+-- Her windows and workspaces (her brief): edge-to-edge snaps, the dotted outline while dragging, the dock and clock
+-- stepping away from a full-screen window, workspaces sliding, the outline in her colour scheme, less motion.
+-- It lives in the system so every update reaches it. TAYLOR-WINDOWS (taylor-heal looks for this word)
+taylor_fresh_binds = true   -- this file binds no arrow keys itself
+local taylorOk, taylorErr = pcall(dofile, "/usr/share/taylor-os/hypr/windows.lua")
+if not taylorOk then taylor_windows_error = tostring(taylorErr) end

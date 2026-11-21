@@ -11,6 +11,7 @@
 // painted once and only moved, so the drifting and falling cost almost nothing.
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import QtQuick
 
 PanelWindow {
@@ -40,7 +41,7 @@ PanelWindow {
     readonly property real sy: height / 900
     readonly property real sr: Math.min(sx, sy)
 
-    function repaintAll() { sky.requestPaint(); clouds.requestPaint(); hillsLayer.requestPaint(); }
+    function repaintAll() { sky.requestPaint(); starsFar.requestPaint(); starsNear.requestPaint(); bodies.requestPaint(); clouds.requestPaint(); hillsLayer.requestPaint(); }
     Connections { target: Prefs; function onSkyDeeperChanged() { win.repaintAll(); } }
 
     SystemClock { id: clock; precision: SystemClock.Minutes; onDateChanged: win.repaintAll() }
@@ -197,6 +198,20 @@ PanelWindow {
         }
     }
 
+    // ---- her workspaces (her design tour, part 7): the sky shifts a little as the windows slide across, like
+    // turning your head: the sun or moon least, the stars a little more (far ones less than near ones), the hills
+    // most (the front hill more than the back one). TAYLOR, the dock and the clock stay put (they are not on this
+    // layer). The tour's distances per workspace, on its 680-wide picture, scaled to this screen. Less motion: it
+    // still shifts, without the glide. TAYLOR_SKY_WS=3 pins the workspace (the preview only).
+    readonly property int pinnedWs: parseInt(Quickshell.env("TAYLOR_SKY_WS") || "0") || 0
+    readonly property var hmon: win.screen ? Hyprland.monitorFor(win.screen) : null
+    readonly property int wsNow: pinnedWs > 0 ? pinnedWs : (hmon && hmon.activeWorkspace && hmon.activeWorkspace.id > 0 ? hmon.activeWorkspace.id : 1)
+    property real wsPos: wsNow - 1
+    Behavior on wsPos { NumberAnimation { duration: win.theme ? win.theme.ms(500) : 500; easing.type: Easing.OutQuint } }
+    readonly property real k680: width / 680
+    function wrap(v, p) { return p > 0 ? ((v % p) + p) % p : 0; }
+
+    // the sky's colours (they never move)
     Canvas {
         id: sky
         anchors.fill: parent
@@ -210,26 +225,59 @@ PanelWindow {
             // Fit the whole 1440 x 900 drawing to the screen, never cropping it: on a wider screen (16:9) the sky and
             // hills stretch sideways a little, and the sun, moon and stars stay round (cropping the top hid the
             // midday sun behind the dock in the first preview).
-            const sx = win.sx, sy = win.sy, sr = win.sr;
-            ctx.scale(sx, sy);
-
+            ctx.scale(win.sx, win.sy);
             const g = ctx.createLinearGradient(0, 0, 0, 900);
             g.addColorStop(0, sc.sky.top); g.addColorStop(0.55, sc.sky.mid); g.addColorStop(0.8, sc.sky.bottom); g.addColorStop(1, sc.sky.bottom);
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, 1440, 900);
+        }
+    }
 
+    // the stars, in two depths; each layer is two screens wide (the stars twice) so it can wrap with no seam
+    component Stars: Canvas {
+        id: st
+        property int part: 0           // 0 the far half of the stars, 1 the near half
+        property real depth: 0.55
+        width: win.width * 2; height: win.height
+        x: -win.wrap(win.wsPos * 70 * depth * win.k680, win.width)
+        renderStrategy: Canvas.Cooperative
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d");
+            const sc = win.scene(clock.date);
+            ctx.reset();
+            if (sc.starOp <= 0) return;
+            ctx.fillStyle = '#FFFFFF';
+            for (let i = st.part; i < win.stars.length; i += 2) {
+                const s = win.stars[i];
+                ctx.globalAlpha = s[3] * sc.starOp;
+                for (let rep = 0; rep < 2; rep++) {
+                    ctx.beginPath(); ctx.arc(s[0] * win.sx + rep * win.width, s[1] * win.sy, s[2] * win.sr, 0, 2 * Math.PI); ctx.fill();
+                }
+            }
+        }
+    }
+    Stars { id: starsFar; part: 0; depth: 0.55 }
+    Stars { id: starsNear; part: 1; depth: 1.1 }
+
+    // the sun and the moon
+    Canvas {
+        id: bodies
+        width: win.width; height: win.height
+        x: -win.wsPos * 46 * win.k680
+        renderStrategy: Canvas.Cooperative
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d");
+            const sc = win.scene(clock.date);
+            ctx.reset();
+            const sx = win.sx, sy = win.sy, sr = win.sr;
             function disc(x, y, r, fill, alpha) {
-                ctx.save();
-                ctx.resetTransform();
                 ctx.globalAlpha = alpha; ctx.fillStyle = fill;
                 ctx.beginPath(); ctx.arc(x * sx, y * sy, r * sr, 0, 2 * Math.PI); ctx.fill();
-                ctx.restore();
             }
-            if (sc.starOp > 0)
-                for (let i = 0; i < win.stars.length; i++) {
-                    const st = win.stars[i];
-                    disc(st[0], st[1], st[2], '#FFFFFF', st[3] * sc.starOp);
-                }
             if (sc.moonOp > 0) {
                 disc(sc.moonP.x, sc.moonP.y, 90, 'rgba(228,236,232,0.07)', sc.moonOp);
                 disc(sc.moonP.x, sc.moonP.y, 24, '#E4ECE8', sc.moonOp);
@@ -241,45 +289,57 @@ PanelWindow {
         }
     }
 
-    // Clouds, between the sun and the hills, drifting slowly side to side (the mockup's 90 s drift).
-    Canvas {
-        id: clouds
-        width: parent.width; height: parent.height
-        visible: win.wx !== "clear"
-        opacity: 0.85
-        renderStrategy: Canvas.Cooperative
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
-        onPaint: {
-            const ctx = getContext("2d");
-            ctx.reset();
-            if (win.wx === "clear") return;
-            const col = win.scene(clock.date).cloud;
-            for (let i = 0; i < win.cloudShapes.length; i++) {
-                const c = win.cloudShapes[i];
-                ctx.save();
-                ctx.translate(c[0] * win.sx, c[1] * win.sy);
-                ctx.scale(c[2] * win.sx, c[3] * win.sy);
-                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.15);
-                g.addColorStop(0, win.rgba(col, c[4]));
-                g.addColorStop(0.7, win.rgba(col, c[4] * 0.85));
-                g.addColorStop(1, win.rgba(col, 0));
-                ctx.fillStyle = g;
-                ctx.beginPath(); ctx.arc(0, 0, 1.15, 0, 2 * Math.PI); ctx.fill();
-                ctx.restore();
+    // Clouds, between the sun and the hills, drifting slowly side to side (the mockup's 90 s drift); they shift
+    // with the sun when the workspace changes.
+    Item {
+        anchors.fill: parent
+        transform: Translate { x: -win.wsPos * 46 * win.k680 }
+        Canvas {
+            id: clouds
+            width: parent.width; height: parent.height
+            visible: win.wx !== "clear"
+            opacity: 0.85
+            renderStrategy: Canvas.Cooperative
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                if (win.wx === "clear") return;
+                const col = win.scene(clock.date).cloud;
+                for (let i = 0; i < win.cloudShapes.length; i++) {
+                    const c = win.cloudShapes[i];
+                    ctx.save();
+                    ctx.translate(c[0] * win.sx, c[1] * win.sy);
+                    ctx.scale(c[2] * win.sx, c[3] * win.sy);
+                    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.15);
+                    g.addColorStop(0, win.rgba(col, c[4]));
+                    g.addColorStop(0.7, win.rgba(col, c[4] * 0.85));
+                    g.addColorStop(1, win.rgba(col, 0));
+                    ctx.fillStyle = g;
+                    ctx.beginPath(); ctx.arc(0, 0, 1.15, 0, 2 * Math.PI); ctx.fill();
+                    ctx.restore();
+                }
             }
-        }
-        SequentialAnimation on x {
-            running: clouds.visible
-            loops: Animation.Infinite
-            NumberAnimation { from: -60 * win.sx; to: 60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
-            NumberAnimation { from: 60 * win.sx; to: -60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
+            SequentialAnimation on x {
+                running: clouds.visible
+                loops: Animation.Infinite
+                NumberAnimation { from: -60 * win.sx; to: 60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
+                NumberAnimation { from: 60 * win.sx; to: -60 * win.sx; duration: 90000; easing.type: Easing.InOutQuad }
+            }
         }
     }
 
-    Canvas {
-        id: hillsLayer
-        anchors.fill: parent
+    // The three hills, each on its own strip three screens wide (the hill, its mirror image, the hill again) so it
+    // can shift any distance and wrap with no seam. Only the bottom of the screen, where the hills are.
+    component Hill: Canvas {
+        id: hl
+        property int idx: 0
+        property real per: 110          // the tour's shift per workspace (back hill 110, front 170)
+        readonly property real topY: Math.floor(575 * win.sy)
+        y: topY
+        width: win.width * 3; height: Math.max(1, win.height - topY)
+        x: -win.wrap(win.wsPos * per * win.k680, win.width * 2)
         renderStrategy: Canvas.Cooperative
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
@@ -287,12 +347,25 @@ PanelWindow {
             const ctx = getContext("2d");
             const sc = win.scene(clock.date);
             ctx.reset();
+            ctx.fillStyle = sc.sky.h[hl.idx];
+            ctx.translate(0, -hl.topY);
             ctx.scale(win.sx, win.sy);
-            for (let i = 0; i < 3; i++) {
-                ctx.fillStyle = sc.sky.h[i];
-                ctx.beginPath(); ctx.path = win.hills[i]; ctx.fill();
+            for (let rep = 0; rep < 3; rep++) {
+                ctx.save();
+                if (rep === 1) { ctx.translate(2880, 0); ctx.scale(-1, 1); }      // the mirror: 1440 .. 2880
+                else if (rep === 2) ctx.translate(2880, 0);
+                ctx.beginPath(); ctx.path = win.hills[hl.idx]; ctx.fill();
+                ctx.restore();
             }
         }
+    }
+    Item {
+        id: hillsLayer
+        anchors.fill: parent
+        function requestPaint() { h0.requestPaint(); h1.requestPaint(); h2.requestPaint(); }
+        Hill { id: h0; idx: 0; per: 110 }
+        Hill { id: h1; idx: 1; per: 140 }
+        Hill { id: h2; idx: 2; per: 170 }
     }
 
     // Rain: the mockup's thin slanted streaks (105 degrees, one every 23 px, 180 x 260 tiles), falling every 0.7 s.

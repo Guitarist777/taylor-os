@@ -293,22 +293,23 @@ Scope {
     onSwChanged: Qt.callLater(logSlots)
 
     // true full screen: the bar rises out of sight (and comes back when the windows piece says so)
-    property real hideT: hiddenForFullscreen ? 1 : 0
-    Behavior on hideT { NumberAnimation { duration: dock.theme && dock.theme.still ? 0 : 220; easing.type: Easing.OutCubic } }
+    // the windows piece (Covers.qml) moves the bar away from a snapped or full-screen window and back at the top edge
+    property real hideT: Math.max(hiddenForFullscreen ? 1 : 0, 1 - Covers.dockShown)
+    onHideTChanged: if (hideT > 0.5 && dock.openGroup !== "") fold();
     onHiddenForFullscreenChanged: { console.info("taylor-dock: " + (hiddenForFullscreen ? "hidden for full screen" : "back")); if (hiddenForFullscreen) fold(); }
 
     // ================= the bar =================
     PanelWindow {
         id: bar
         screen: dock.screen
-        visible: dock.hideT < 0.999
+        visible: Covers.dockMapped && dock.hideT < 0.999
         anchors { top: true }
         margins { top: Math.round(dock.top) }
         implicitWidth: Math.ceil(dock.barW)
         implicitHeight: Math.ceil(dock.barH + 3 * dock.s)    // a little room under the bar for the loading dots
         color: "transparent"
         // windows snap edge to edge below the bar; in true full screen nothing is kept for it
-        exclusiveZone: dock.hiddenForFullscreen ? 0 : Math.ceil(dock.barH + 2 * dock.s)
+        exclusionMode: ExclusionMode.Ignore    // the strip under it is kept by DockReserve.qml (the windows piece), so it can leave
         WlrLayershell.layer: WlrLayer.Top
         WlrLayershell.namespace: "taylor-dock"
 
