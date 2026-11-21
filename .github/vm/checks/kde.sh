@@ -72,4 +72,4 @@ sleep 80
 shot kde-5-taylor-again
 vm kde-5 \
   "$(ok 'her TAYLOR desktop opens again after KDE' "pgrep -x -u tester Hyprland >/dev/null && pgrep -u tester -x quickshell >/dev/null")" \
-  "$(ok 'the KDE look did not run again in her TAYLOR desktop' "[ \$(grep -c '^taylor-kde-look: start' ~/.local/state/taylor-os/kde-look.log) = 1 ]")"
+  "$(ok 'the KDE look did not run again in her TAYLOR desktop' "[ \$(grep -c '^taylor-kde-look: start (try' ~/.local/state/taylor-os/kde-look.log) = 1 ]")" \n  "cat ~/.local/state/taylor-os/kde-look.log"
