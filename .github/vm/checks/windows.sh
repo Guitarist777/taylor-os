@@ -90,7 +90,7 @@ r=$(tr -d '\r' < out/windows-before-drag.txt | grep -oE 'info: active \([0-9-]+,
 set -- $r; cx=$(( ${1:-400} + ${3:-400}/2 )); cy=$(( ${2:-200} + ${4:-300}/2 ))
 echo "dragging from $cx,$cy"
 $V drag $cx $cy 3 $((HH/2)) $W $HH meta_l &
-dp=$!; sleep 2.15
+dp=$!; sleep 2.3
 shot windows-6-drag-mid
 wait $dp; sleep 2
 shot windows-7-dropped

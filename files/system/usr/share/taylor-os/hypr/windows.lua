@@ -139,6 +139,9 @@ do
     T.look(s.accent, s.light, s.still)
 end
 
+-- the dotted drag outline appears at once (the layers' fade would hide most of a short drag)
+hl.layer_rule({ name = "taylor-snap-instant", match = { namespace = "^taylor-snap$" }, no_anim = true })
+
 -- ---------------------------------------------------------------- windows open floating
 hl.window_rule({ name = "taylor-float", match = { class = ".*" }, float = true, center = true })
 -- only Settings and Files maximise (her brief); every other app's own maximise request is ignored
