@@ -9,7 +9,7 @@ L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&
 LV='hyprctl -j layers | python3 -c "import json,sys; d=json.load(sys.stdin); print(\"LEVELS\", \" \".join(sorted(set(l[\"namespace\"]+\"@\"+k for m in d.values() for k,ls in m[\"levels\"].items() for l in ls))))"'
 
 # ---- setup: nothing in the way, a made-up folder, the made-up TAYLOR's files ----
-vm dial-0 "pkill -x kdialog; pkill -u tester -f -i steam; \$Q call notes clear; sleep 2; echo cleared" \
+vm dial-0 "$CLOSEALL" "pkill -x kdialog; pkill -u tester -f -i steam; \$Q call notes clear; sleep 2; echo cleared" \
   "mkdir -p ~/Documents/Zebrafolder && echo made" \
   "$WH" \
   "hyprctl layers | grep taylor-dial | sed -E 's/.*xywh: ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+).*/DIALXYWH \\1 \\2 \\3 \\4/'" \

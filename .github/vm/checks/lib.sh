@@ -12,3 +12,5 @@ shot() { $V shot "$PWD/out/$1.png"; }
 ok() { printf "%s && echo 'PASS %s' || echo 'FAIL %s'" "$2" "$1" "$1"; }
 screen() { tr -d '\r' < "out/$1.txt" | grep -oE 'SCREENWH [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-; }
 WH="hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'"
+# close every window left open by an earlier check (her dial sits behind windows, so a window over it takes the click)
+CLOSEALL='for a in $(hyprctl -j clients | python3 -c "import json,sys; print(\" \".join(c[\"address\"] for c in json.load(sys.stdin)))"); do hyprctl dispatch closewindow address:$a >/dev/null; done; sleep 3; hyprctl clients | grep -c "^Window" || true'

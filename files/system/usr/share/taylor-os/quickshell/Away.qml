@@ -81,6 +81,9 @@ Scope {
             if (isIdle) aw.idleBegan(); else aw.input();
         }
     }
+    // A new idle time (her Settings slider) must reach the compositor: the idle notice is made with the time it had when
+    // it was made, so make it again (virtual PC 2026-11-21: 3 minutes changed to 15 s, and nothing happened at 15 s).
+    onIdleSecondsChanged: { idle.enabled = false; Qt.callLater(() => { idle.enabled = true; console.info("taylor-away: idle time now " + aw.idleSeconds + " s"); }); }
     property double heldUntil: 0
     function playing() {
         const ps = Mpris.players.values;
