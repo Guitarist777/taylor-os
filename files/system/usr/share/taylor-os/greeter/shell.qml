@@ -135,7 +135,13 @@ ShellRoot {
         if (!Greetd.available) { demo.start(); return; }
         Greetd.createSession(user);
     }
+    // times, for /tmp/taylor-greeter-times.log (seconds since boot; nothing private): where the wait after her
+    // password goes. taylor-greeter adds the line for Hyprland ending.
+    function mark(what) {
+        Quickshell.execDetached(["sh", "-c", "echo \"$(cut -d' ' -f1 /proc/uptime) $1\" >> /tmp/taylor-greeter-times.log", "sh", what]);
+    }
     function good() {
+        mark("password accepted");
         pw = "";
         busy = false;
         launching = true;
@@ -160,6 +166,13 @@ ShellRoot {
         }
         function onAuthFailure(message) { root.bad("wrong password"); }
         function onReadyToLaunch() { root.good(); }
+        // greetd has her desktop's start in hand: close this login screen's Hyprland now. On her PC (NVIDIA) the
+        // scene's own teardown after "Quitting." took 5 s of black before Hyprland went (43.7 s -> 48.75 s,
+        // 2026-11-21); her desktop can only start once this screen is gone.
+        function onLaunched() {
+            root.mark("launched; closing the login screen");
+            Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
+        }
         function onError(error) {
             root.bad("greetd: " + error);
             if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
@@ -193,6 +206,7 @@ ShellRoot {
                 stop();
                 if (Greetd.available) {
                     console.info("taylor-greeter: starting " + (root.kde ? "the KDE backup" : "her desktop"));
+                    root.mark("welcome and fade done; asking greetd to start " + (root.kde ? "kde" : "taylor"));
                     Greetd.launch(root.kde ? root.kdeSession : root.session, root.kde ? root.kdeEnv : root.sessionEnv, true);
                 } else {
                     console.info("taylor-greeter: demo signed in");
