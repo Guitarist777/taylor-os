@@ -124,11 +124,13 @@ jobs:
           python3 .github/vm/vmctl.py shot "$PWD/out/0-login-screen.png"
           python3 .github/vm/vmctl.py type 'taylortest'
           sleep 1
-          python3 .github/vm/vmctl.py type '
-'
+          python3 .github/vm/vmctl.py type '\n'
           sleep 80
           python3 .github/vm/vmctl.py shot "$PWD/out/0-desktop.png"
-          python3 .github/vm/vmctl.py run tester taylortest out/0-signed-in.txt             "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS signing in opens Hyprland' || echo 'FAIL signing in opens Hyprland'"             "pgrep -u tester -x quickshell >/dev/null && echo 'PASS her desktop shell is running' || echo 'FAIL her desktop shell is running'"             "pkill -x kdialog; pkill -f steam; true"
+          python3 .github/vm/vmctl.py run tester taylortest out/0-signed-in.txt \
+            "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS signing in opens Hyprland' || echo 'FAIL signing in opens Hyprland'" \
+            "pgrep -u tester -x quickshell >/dev/null && echo 'PASS her desktop shell is running' || echo 'FAIL her desktop shell is running'" \
+            "pkill -x kdialog; pkill -f steam; true"
           echo "EXPECT 2" > out/0-expect.txt
           cat out/0-signed-in.txt
 
@@ -146,7 +148,7 @@ jobs:
 
       - name: The verdict (fails on any FAIL)
         run: |
-          cat out/*.txt 2>/dev/null | tr -d '' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          cat out/*.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
           want=$(cat out/*-expect.txt 2>/dev/null | grep -oE 'EXPECT [0-9]+' | awk '{s+=$2} END {print s+0}')
           got=$(grep -c '^PASS ' out/verdict.txt || true)
           echo "PASS lines: $got of $want expected"
