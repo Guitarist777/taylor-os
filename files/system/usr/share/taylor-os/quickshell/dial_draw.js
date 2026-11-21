@@ -3,6 +3,10 @@
 // her dial() drawing line for line. The same file is in greeter/ (the login screen draws the dial into place, the
 // desktop keeps it): keep the two copies the same.
 //
+// Her colour scheme (Theme.qml): the desktop sets these before drawing; the login screen keeps the TAYLOR ones.
+var ACC = '#4FB386', TICK = '#EDEFEE', WORDS = '#C8CCCA';
+function setColors(acc, tick, words) { ACC = String(acc); TICK = String(tick); WORDS = String(words || tick); }
+
 // Where it sits: the spot the Horizon sky already keeps free for it (Sky.qml steers the sun and moon round a circle at
 // 930, 390 of its 1440 x 900 drawing). Its size is hers: radius 58 on her 380 px tall mockup.
 
@@ -17,13 +21,12 @@ function arcAngle() { return (Date.now() / 1000 * 0.12) % 6.2832; }
 // prog: how much of the ring is drawn (0..1). arcB: the three outer arcs (0..1). hot: the glow (0..1). al: fade.
 function draw(x, px, py, R, al, prog, arcB, hot, rot, T) {
     if (al <= 0 || prog <= 0) return;
-    var ACC = '#4FB386';
     var k = R / 30, s0 = -1.5708, s1 = s0 + prog * 6.2832;
     x.lineCap = 'round'; x.strokeStyle = ACC;
     x.globalAlpha = (0.12 + 0.2 * hot) * al; x.lineWidth = (7 + 4 * hot) * k; x.beginPath(); x.arc(px, py, R, s0, s1, false); x.stroke();
     x.globalAlpha = 0.95 * al; x.lineWidth = (1.5 + 1.5 * hot) * k / 1.93; x.beginPath(); x.arc(px, py, R, s0, s1, false); x.stroke();
     if (R > 40 * k / 1.93) { x.globalAlpha = 0.35 * al * prog; x.lineWidth = k / 1.93; x.beginPath(); x.arc(px, py, R * 0.62, s0, s1, false); x.stroke(); }
-    x.strokeStyle = '#EDEFEE'; x.lineWidth = k / 1.93;
+    x.strokeStyle = TICK; x.lineWidth = k / 1.93;
     var nt = Math.floor(48 * prog);
     for (var q = 0; q < nt; q++) {
         var an = s0 + q / 48 * 6.2832, big = q % 4 === 0;
@@ -47,7 +50,7 @@ function words(x, px, py, k, al, font, str) {
     if (al <= 0) return;
     str = str || 'ALL CLEAR.';
     var gap = 3 * k, w = 0, i;
-    x.font = font; x.fillStyle = '#C8CCCA'; x.globalAlpha = 0.85 * al; x.textBaseline = 'middle';
+    x.font = font; x.fillStyle = WORDS; x.globalAlpha = 0.85 * al; x.textBaseline = 'middle';
     for (i = 0; i < str.length; i++) w += x.measureText(str[i]).width + gap;
     w -= gap;
     var sx = px - w / 2; x.textAlign = 'left';

@@ -61,6 +61,7 @@ PanelWindow {
             const kk = win.kickAt > 0 ? Math.exp(-(T - win.kickAt) * 2.2) : 0;
             win.spin += 2.2 * kk * dt;
             if (win.stepAside) return;
+            Dial.setColors(win.theme.accent, win.theme.text, win.theme.text2);
             const cx = win.ext + win.side, cy = win.ext, k = win.sp.k;
             Dial.draw(x, cx, cy, win.sp.r, 1, 1, 1, 0.7 * kk, Dial.arcAngle() + win.spin, T);
 
@@ -98,7 +99,7 @@ PanelWindow {
                     while (s.length > 3 && x.measureText(s + "…").width > maxw) s = s.slice(0, -1);
                     s += "…";
                 }
-                x.globalAlpha = 0.9 * wa * win.arrive2; x.fillStyle = "#A8E3C6";
+                x.globalAlpha = 0.9 * wa * win.arrive2; x.fillStyle = win.theme.soft;
                 x.fillText(s, cx, cy + 138 * k);
                 x.globalAlpha = 1;
             }

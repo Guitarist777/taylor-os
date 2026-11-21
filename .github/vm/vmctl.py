@@ -7,6 +7,10 @@
     vmctl.py type TEXT                         type on the keyboard (letters, digits); "\\n" presses Enter
     vmctl.py key COMBO                         press keys together, e.g. meta_l-ret
     vmctl.py click X Y SCREEN_W SCREEN_H       left-click at a screen pixel (needs -device usb-tablet)
+    vmctl.py move X Y SCREEN_W SCREEN_H        move the pointer there (no click)
+    vmctl.py drag X1 Y1 X2 Y2 SCREEN_W SCREEN_H [MOD]  press the left button at X1 Y1, glide to X2 Y2, let go
+                                               (MOD: a key held down meanwhile, e.g. meta_l)
+    vmctl.py scroll X Y SCREEN_W SCREEN_H N    scroll the wheel N notches there (negative = down)
 """
 import json
 import re
@@ -147,6 +151,43 @@ def click(x, y, width, height):
         time.sleep(0.15)
 
 
+def _abs(x, y, width, height):
+    return [{"type": "abs", "data": {"axis": "x", "value": round(x * 32767 / (width - 1))}},
+            {"type": "abs", "data": {"axis": "y", "value": round(y * 32767 / (height - 1))}}]
+
+
+def move(x, y, width, height):
+    qmp("input-send-event", {"events": _abs(x, y, width, height)})
+
+
+def drag(x1, y1, x2, y2, width, height, mod=None):
+    if mod:
+        qmp("input-send-event", {"events": [{"type": "key", "data": {"down": True, "key": {"type": "qcode", "data": mod}}}]})
+    move(x1, y1, width, height)
+    time.sleep(0.4)
+    qmp("input-send-event", {"events": [{"type": "btn", "data": {"down": True, "button": "left"}}]})
+    time.sleep(0.3)
+    steps = 30
+    for i in range(1, steps + 1):
+        move(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, width, height)
+        time.sleep(0.04)
+    time.sleep(0.6)
+    qmp("input-send-event", {"events": [{"type": "btn", "data": {"down": False, "button": "left"}}]})
+    if mod:
+        time.sleep(0.2)
+        qmp("input-send-event", {"events": [{"type": "key", "data": {"down": False, "key": {"type": "qcode", "data": mod}}}]})
+
+
+def scroll(x, y, width, height, n):
+    move(x, y, width, height)
+    time.sleep(0.3)
+    b = "wheel-up" if n > 0 else "wheel-down"
+    for _ in range(abs(n)):
+        for down in (True, False):
+            qmp("input-send-event", {"events": [{"type": "btn", "data": {"down": down, "button": b}}]})
+            time.sleep(0.05)
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[0] == "wait-login":
@@ -161,3 +202,9 @@ if __name__ == "__main__":
         key_combo(a[1])
     elif a[0] == "click":
         click(int(a[1]), int(a[2]), int(a[3]), int(a[4]))
+    elif a[0] == "move":
+        move(int(a[1]), int(a[2]), int(a[3]), int(a[4]))
+    elif a[0] == "drag":
+        drag(int(a[1]), int(a[2]), int(a[3]), int(a[4]), int(a[5]), int(a[6]), a[7] if len(a) > 7 else None)
+    elif a[0] == "scroll":
+        scroll(int(a[1]), int(a[2]), int(a[3]), int(a[4]), int(a[5]))

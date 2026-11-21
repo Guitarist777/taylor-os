@@ -1,0 +1,14 @@
+# Shared helpers for the phase checks (sourced by each .github/vm/checks/NAME.sh; run on the test runner, not in the VM).
+#   vm NAME CMD...    run the commands as her test account on the VM's console; saves out/NAME.txt and prints it
+#   expect NAME N     this check must produce N PASS lines (counted by the verdict)
+#   shot NAME         a screenshot, out/NAME.png
+#   ok "what" "test"  a VM command line that prints PASS what / FAIL what
+# Inside VM commands: $H sets Hyprland's instance (put it first), $Q is "quickshell ipc --pid <her desktop>".
+V="python3 .github/vm/vmctl.py"
+H='export HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1); Q="quickshell ipc --pid $(pgrep -u tester -x quickshell | head -1)"'
+vm() { local n="$1"; shift; $V run tester taylortest "out/$n.txt" "$H" "$@"; cat "out/$n.txt"; }
+expect() { echo "EXPECT $2" > "out/$1-expect.txt"; }
+shot() { $V shot "$PWD/out/$1.png"; }
+ok() { printf "%s && echo 'PASS %s' || echo 'FAIL %s'" "$2" "$1" "$1"; }
+screen() { tr -d '\r' < "out/$1.txt" | grep -oE 'SCREENWH [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-; }
+WH="hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(\"SCREENWH\", m[\"width\"], m[\"height\"])'"

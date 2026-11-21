@@ -1,0 +1,165 @@
+name: test phases in a virtual PC
+# The phase test (2026-11-21): install TAYLOR OS from Fedora's installer with the REAL kickstart into a virtual PC,
+# sign in on her login screen, then run each phase's own checks (.github/vm/checks/NAME.sh, in the order given).
+# Each check script writes out/NAME-*.txt with PASS / FAIL lines and out/NAME-expect.txt with "EXPECT n" (how many
+# PASS lines it must produce). The verdict fails on any FAIL or on fewer PASS lines than expected.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "image tag to install (latest, or a test branch's tag)"
+        required: true
+        default: latest
+      checks:
+        description: "which checks to run after signing in (names in .github/vm/checks/, in order)"
+        required: true
+        default: "desktop"
+
+jobs:
+  vm:
+    name: Install, start, look
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      NETINST: Fedora-Everything-netinst-x86_64-45-1.4.iso
+      CHECKSUM: Fedora-Everything-45-1.4-x86_64-CHECKSUM
+      BASE_URL: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/iso
+      TAG: ${{ inputs.tag }}
+      CHECKS: ${{ inputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Room on the disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: KVM and QEMU
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -q
+          sudo apt-get install -y -q qemu-system-x86 qemu-utils ovmf
+          ls -l /dev/kvm /usr/share/OVMF/
+
+      - name: The test kickstart (the real one plus test-only answers)
+        run: |
+          mkdir -p out
+          sed "s#ghcr.io/guitarist777/taylor-os:latest#ghcr.io/guitarist777/taylor-os:${TAG}#g" installer/taylor-os.ks > test.ks
+          cat >> test.ks <<'EOF'
+
+          # ---- test only ----
+          text
+          lang en_US.UTF-8
+          keyboard us
+          timezone America/New_York
+          zerombr
+          clearpart --all --initlabel --disklabel=gpt
+          autopart --type=btrfs --noswap
+          bootloader --append="console=tty0 console=ttyS0,115200"
+          rootpw --lock
+          user --name=tester --password=taylortest --plaintext --groups=wheel
+          poweroff
+
+          %post
+          # No Secure Boot in the test PC: cancel the key screen the real kickstart queued (it waits for a person forever).
+          mokutil --revoke-import || :
+          mokutil --timeout 0 || :
+          # Put the install in the state her PC was left in on 2026-11-18, so the start-up repair is tested on it:
+          systemctl set-default multi-user.target
+          rm -f /home/tester/.config/hypr/hyprland.lua
+          mkdir -p /home/tester/.config/hypr
+          printf -- '-- This is an example Hyprland Lua config file.\n-- Refer to the wiki for more information.\n' > /home/tester/.config/hypr/hyprland.lua
+          # and Bazzite's own welcome-window start-up file, as her account got it (the image's new copy already says KDE only)
+          mkdir -p /home/tester/.config/autostart
+          printf '[Desktop Entry]\nName=Bazzite Portal\nComment=Helps you setup Bazzite\nExec=yafti_gtk.py /usr/share/yafti/yafti.yml\nIcon=io.github.ublue_os.yafti_gtk\nTerminal=false\nType=Application\nX-GNOME-Autostart-enabled=true\n' > /home/tester/.config/autostart/bazzite-portal.desktop
+          chown -R tester:tester /home/tester/.config
+          %end
+          EOF
+          cp test.ks out/test.ks
+
+      - name: Fedora's installer with the test kickstart
+        run: |
+          curl -fsSL -o "$NETINST" "$BASE_URL/$NETINST"
+          curl -fsSL -o "$CHECKSUM" "$BASE_URL/$CHECKSUM"
+          want=$(grep -E "^SHA256 \($NETINST\)" "$CHECKSUM" | awk '{print $NF}')
+          test "$want" = "$(sha256sum "$NETINST" | awk '{print $1}')"
+          docker run --rm --privileged -e NETINST -v /dev:/dev -v "$PWD:/w" -w /w registry.fedoraproject.org/fedora:45 bash -c '
+            dnf install -y -q --setopt=install_weak_deps=False lorax xorriso pykickstart isomd5sum >/dev/null
+            ksvalidator -v F45 test.ks
+            mkksiso --ks test.ks -c "console=ttyS0,115200 inst.text" "$NETINST" test.iso
+            implantisomd5 --force test.iso'
+          rm -f "$NETINST"
+          ls -lh test.iso
+
+      - name: Install (unattended; the test PC turns itself off when done)
+        run: |
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd vars.fd
+          qemu-img create -f qcow2 disk.qcow2 60G
+          timeout 100m qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio -cdrom test.iso \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -serial file:out/install-serial.log
+          echo "exit $?"; tail -40 out/install-serial.log
+          rm -f test.iso
+
+      - name: First start, as her PC would
+        run: |
+          qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -smp 4 -m 8192 \
+            -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            -drive if=pflash,format=raw,file=vars.fd \
+            -drive file=disk.qcow2,if=virtio \
+            -nic user,model=virtio -device virtio-vga -display none \
+            -device qemu-xhci -device usb-tablet \
+            -serial unix:/tmp/vm-serial.sock,server,nowait \
+            -qmp unix:/tmp/vm-qmp.sock,server,nowait -daemonize -pidfile /tmp/vm.pid
+          python3 .github/vm/vmctl.py wait-login 900
+          sleep 60
+          python3 .github/vm/vmctl.py shot "$PWD/out/1-after-start.png"
+
+      - name: Sign in on her login screen
+        run: |
+          python3 .github/vm/vmctl.py shot "$PWD/out/0-login-screen.png"
+          python3 .github/vm/vmctl.py type 'taylortest'
+          sleep 1
+          python3 .github/vm/vmctl.py type '
+'
+          sleep 80
+          python3 .github/vm/vmctl.py shot "$PWD/out/0-desktop.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/0-signed-in.txt             "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS signing in opens Hyprland' || echo 'FAIL signing in opens Hyprland'"             "pgrep -u tester -x quickshell >/dev/null && echo 'PASS her desktop shell is running' || echo 'FAIL her desktop shell is running'"             "pkill -x kdialog; pkill -f steam; true"
+          echo "EXPECT 2" > out/0-expect.txt
+          cat out/0-signed-in.txt
+
+      - name: The phase checks
+        run: |
+          for c in $CHECKS; do
+            echo "::group::check $c"
+            if [ -f ".github/vm/checks/$c.sh" ]; then
+              bash ".github/vm/checks/$c.sh" || echo "FAIL the $c check script ran to its end" >> "out/$c-stopped.txt"
+            else
+              echo "FAIL there is a check called $c" >> "out/$c-missing.txt"
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: The verdict (fails on any FAIL)
+        run: |
+          cat out/*.txt 2>/dev/null | tr -d '' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=$(cat out/*-expect.txt 2>/dev/null | grep -oE 'EXPECT [0-9]+' | awk '{s+=$2} END {print s+0}')
+          got=$(grep -c '^PASS ' out/verdict.txt || true)
+          echo "PASS lines: $got of $want expected"
+          test "$got" -ge "$want"
+          ! grep -q '^FAIL ' out/verdict.txt
+
+      - name: Keep the pictures and logs
+        if: always()
+        run: |
+          cp /tmp/vm-serial.log out/ 2>/dev/null || true
+          [ -f /tmp/vm.pid ] && kill "$(cat /tmp/vm.pid)" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-phase-${{ inputs.tag }}
+          path: out/
