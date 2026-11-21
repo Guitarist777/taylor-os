@@ -39,6 +39,23 @@ Singleton {
 
     function save() { fv.writeAdapter(); }
 
+    // The file's watch is lost when the file is swapped for a new one (an editor's or a script's save writes a new file
+    // and renames it over: the virtual PC test of 2026-11-21 changed her idle minutes that way and the desktop never
+    // saw it). So every 4 seconds a tiny look at the file's identity and time; when they change, it is read again.
+    property string stamp: ""
+    Process {
+        id: look
+        command: ["stat", "-c", "%i %Y %s", p.path]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const s = this.text.trim();
+                if (s && p.stamp && s !== p.stamp) { console.info("taylor-prefs: her settings file changed; read again"); fv.reload(); }
+                if (s) p.stamp = s;
+            }
+        }
+    }
+    Timer { interval: 4000; repeat: true; running: true; onTriggered: look.running = true }
+
     FileView {
         id: fv
         path: p.path

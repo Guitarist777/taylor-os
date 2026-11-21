@@ -56,6 +56,15 @@ modules:
       - source: system
         destination: /
 
+  # Her fonts (Manrope, Share Tech Mono) must be in the system's font list. On an installed PC every file's time is the
+  # same fixed time, so fontconfig never notices new fonts by itself: the 2026-11-21 virtual PC had no Manrope at all and
+  # the dial's words fell back to Noto Sans. Rebuild the list here, and fail the build if either font is missing.
+  - type: script
+    snippets:
+      - "fc-cache -f -s"
+      - "fc-list | grep -q 'Manrope'"
+      - "fc-list | grep -q 'Share Tech Mono'"
+
   # Her icon set, Slot-Dark-Icons by L4ki (GPL-3.0), fetched from one pinned commit and checked (files/scripts/slot-icons.sh).
   - type: script
     scripts:

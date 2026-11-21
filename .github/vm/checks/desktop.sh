@@ -1,7 +1,7 @@
 # The desktop in general (the foundation, 2026-11-21): her pieces are on the main screen, her settings file is made,
 # Hyprland has no settings errors, and a colour scheme picked in her settings recolours the desktop at once.
 . .github/vm/checks/lib.sh
-expect desktop 7
+expect desktop 8
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 vm desktop \
   "$(ok 'Hyprland reports no settings errors' "hyprctl -j configerrors | tr -d ' \t\n' | grep -qxE '\[(\"\")?\]'")" \
@@ -9,7 +9,7 @@ vm desktop \
   "$(ok 'her settings file is made with the defaults' "grep -q '\"scheme\": *\"taylor\"' ~/.config/taylor-os/settings.json")" \
   "$(ok 'the desktop shell loaded with no script errors' "! $QSLOG | grep -qE 'ReferenceError|TypeError|SyntaxError|is not defined|Cannot assign|Type error'")" \
   "$QSLOG | grep -iE 'error|is not defined|cannot' | sort | uniq -c | sort -rn | head -30" \
-  "fc-list | grep -i -E 'manrope|share tech' ; fc-match Manrope"
+  "$(ok 'her fonts Manrope and Share Tech Mono are installed' "fc-list | grep -q Manrope && fc-list | grep -q 'Share Tech Mono'")"   "fc-list | grep -i -E 'manrope|share tech' ; fc-match Manrope"
 shot desktop-taylor
 vm desktop-scheme \
   "\$Q call theme scheme night; sleep 3" \
