@@ -29,7 +29,9 @@ var name = '';
 
 // C, the login
 var kdeNext = false;   // F2 on her login screen: this sign-in opens the KDE backup instead of her TAYLOR desktop
-function setKde(on) { kdeNext = on; }
+var kdeWhy = '';       // set when her login screen picked KDE itself (her TAYLOR desktop failed to start 5 times)
+function setKde(on) { kdeNext = on; if (!on) kdeWhy = ''; }
+function autoKde(n) { kdeNext = true; kdeWhy = 'Your TAYLOR desktop didn\u2019t start ' + n + ' times, so KDE is next  \u00b7  F2 for TAYLOR'; }
 var SL = 24, dots = [], free = [], mode = 'idle', tm = 0, fillDur = 0, hint = 'Type your password', hintT = 0, rot = 0;
 var stars = [];           // the sparks that became stars (B), with their resting places
 var fly = [], fall = [];  // D: the ring's dots rising to stars, and the faint stars falling into the desktop dial
@@ -440,7 +442,8 @@ function drawLogin(x, dt) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         x.fillText(name, cx, 298 * k);
         x.globalAlpha = N * 0.85 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
-        x.fillText(kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
+        x.fillText(kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
+            : kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
     x.globalAlpha = 1;
 }

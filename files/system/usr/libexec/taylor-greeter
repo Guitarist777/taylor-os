@@ -6,6 +6,25 @@
 # problem), the plain text sign-in (tuigreet) takes over, so she is never locked out. It still starts her TAYLOR
 # desktop, and F3 there can pick KDE Plasma instead. The count lives in /tmp, so a restart tries her screen again.
 
+# Her TAYLOR desktop (her ruling 2026-11-20): a start that ends within 40 s of her sign-in counts as a failed start;
+# after 5 in a row her login screen picks the KDE backup itself and says why. A desktop that runs longer resets it.
+# The login screen writes /tmp/taylor-desktop-start ("taylor" or "kde", and the time) just before it starts one.
+start=/tmp/taylor-desktop-start
+dfails=/tmp/taylor-desktop-fails
+if [ -r "$start" ]; then
+    read -r kind at < "$start"
+    d=$(cat "$dfails" 2>/dev/null || echo 0)
+    case "$d" in ''|*[!0-9]*) d=0 ;; esac
+    case "$at" in ''|*[!0-9]*) at=0 ;; esac
+    ran=$(( $(date +%s) - at ))
+    if [ "$kind" = taylor ]; then
+        if [ "$ran" -lt 40 ]; then d=$((d + 1)); else d=0; fi
+        echo "$d" > "$dfails"
+        echo "taylor-greeter: her TAYLOR desktop ran $ran s; failed starts in a row: $d" >&2
+    fi
+    rm -f "$start"
+fi
+
 fails="/tmp/taylor-greeter-fails-$(id -u)"
 n=$(cat "$fails" 2>/dev/null || echo 0)
 case "$n" in ''|*[!0-9]*) n=0 ;; esac

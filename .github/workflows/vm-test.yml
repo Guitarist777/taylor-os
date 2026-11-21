@@ -357,12 +357,56 @@ jobs:
             "echo taylortest | sudo -S sh -c 'tail -20 /tmp/taylor-greeter-scene.log; journalctl -b -u greetd --no-pager | tail -20'"
           cat out/11-kde.txt
 
+      - name: Her TAYLOR desktop fails to start 5 times, and the next sign-in opens KDE by itself (her ruling 2026-11-20)
+        run: |
+          # From the KDE backup back to her login screen; then five sign-ins whose desktop ends within seconds (as a broken
+          # update would), each counted by the login screen's start script.
+          python3 .github/vm/vmctl.py run tester taylortest out/12-0.txt "s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1); echo session \$s; echo taylortest | sudo -S loginctl terminate-session \$s"
+          sleep 40
+          for i in 1 2 3 4 5; do
+            python3 .github/vm/vmctl.py type 'taylortest'
+            sleep 1
+            python3 .github/vm/vmctl.py type '\n'
+            python3 .github/vm/vmctl.py run tester taylortest out/12-fail-$i.txt "for t in \$(seq 30); do s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1); [ -n \"\$s\" ] && break; sleep 1; done; sleep 3; echo ended \$s; echo taylortest | sudo -S loginctl terminate-session \$s"
+            sleep 40
+          done
+          python3 .github/vm/vmctl.py shot "$PWD/out/12a-kde-picked.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/12-picked.txt \
+            "echo taylortest | sudo -S cat /tmp/taylor-desktop-fails | grep -qx 5 && echo 'PASS five failed starts of her TAYLOR desktop are counted' || echo 'FAIL five failed starts of her TAYLOR desktop are counted'" \
+            "echo taylortest | sudo -S grep -q 'failed to start 5 times; next sign-in opens the KDE backup' /tmp/taylor-greeter-scene.log && echo 'PASS after five her login screen picks KDE by itself' || echo 'FAIL after five her login screen picks KDE by itself'" \
+            "echo taylortest | sudo -S sh -c 'cat /tmp/taylor-desktop-fails; journalctl -b -u greetd --no-pager | grep -i \"failed starts\" | tail -8'"
+          python3 .github/vm/vmctl.py type 'taylortest'
+          sleep 1
+          python3 .github/vm/vmctl.py type '\n'
+          sleep 60
+          python3 .github/vm/vmctl.py shot "$PWD/out/12b-kde.png"
+          python3 .github/vm/vmctl.py run tester taylortest out/12-kde.txt \
+            "pgrep -u tester -x plasmashell >/dev/null && ! pgrep -u tester -x Hyprland >/dev/null && echo 'PASS that sign-in opens KDE Plasma without F2' || echo 'FAIL that sign-in opens KDE Plasma without F2'" \
+            "s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1); echo session \$s; echo taylortest | sudo -S loginctl terminate-session \$s"
+          sleep 40
+          # F2 takes it back: her TAYLOR desktop starts, runs, and the count goes back to none
+          python3 .github/vm/vmctl.py key f2
+          sleep 3
+          python3 .github/vm/vmctl.py shot "$PWD/out/12c-f2-back.png"
+          python3 .github/vm/vmctl.py type 'taylortest'
+          sleep 1
+          python3 .github/vm/vmctl.py type '\n'
+          sleep 75
+          python3 .github/vm/vmctl.py run tester taylortest out/12-back.txt \
+            "pgrep -x -u tester Hyprland >/dev/null && echo 'PASS F2 takes the pick back to her TAYLOR desktop' || echo 'FAIL F2 takes the pick back to her TAYLOR desktop'" \
+            "s=\$(loginctl list-sessions --no-legend | awk '\$3==\"tester\" && \$4==\"seat0\" {print \$1}' | head -1); echo session \$s; echo taylortest | sudo -S loginctl terminate-session \$s"
+          sleep 15
+          python3 .github/vm/vmctl.py run tester taylortest out/12-reset.txt \
+            "echo taylortest | sudo -S cat /tmp/taylor-desktop-fails | grep -qx 0 && echo 'PASS a TAYLOR desktop that runs resets the count' || echo 'FAIL a TAYLOR desktop that runs resets the count'" \
+            "echo taylortest | sudo -S sh -c 'cat /tmp/taylor-desktop-fails; journalctl -b -u greetd --no-pager | grep -i \"failed starts\" | tail -3'"
+          cat out/12-*.txt
+
       - name: The verdict (fails on any FAIL)
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt out/11-kde.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
-          want=35; [ -n "$UPDATE_TO" ] && want=37
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt out/11-kde.txt out/12-picked.txt out/12-kde.txt out/12-back.txt out/12-reset.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          want=40; [ -n "$UPDATE_TO" ] && want=42
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt
 

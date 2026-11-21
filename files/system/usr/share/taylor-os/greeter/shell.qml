@@ -30,6 +30,27 @@ ShellRoot {
     property bool kde: false
     readonly property var kdeSession: ["/usr/libexec/taylor-kde-session"]
     readonly property var kdeEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=KDE", "XDG_SESSION_DESKTOP=KDE"]
+    // Her ruling 2026-11-20: when her TAYLOR desktop failed to start 5 times in a row (/usr/libexec/taylor-greeter
+    // counts them), this screen picks KDE itself and says why; F2 takes it back. A desktop that runs resets the count.
+    readonly property int kdeAfter: 5
+    property int desktopFails: 0
+    signal sKdeAuto(int n)
+    Process {
+        running: true
+        command: ["cat", "/tmp/taylor-desktop-fails"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const n = parseInt(this.text.trim());
+                if (isNaN(n) || n < root.kdeAfter) return;
+                root.desktopFails = n;
+                root.kde = true;
+                console.info("taylor-greeter: her TAYLOR desktop failed to start " + n + " times; next sign-in opens the KDE backup");
+                root.sKdeAuto(n);
+            }
+        }
+    }
+    // Written just before her desktop starts; the start script reads it when this screen comes back.
+    Process { id: startFile }
 
     signal sTyped()
     signal sErase(int left)
@@ -94,6 +115,8 @@ ShellRoot {
         launching = true;
         sAccepted();
         okFile.running = true;
+        startFile.command = ["sh", "-c", "echo " + (kde ? "kde" : "taylor") + " $(date +%s) > /tmp/taylor-desktop-start"];
+        startFile.running = true;
         launchWatch.start();
     }
     function bad(why) {
@@ -169,6 +192,7 @@ ShellRoot {
                 onKeyEscape: root.clear()
                 onSkipped: root.sSkip()
                 onKeyKde: root.toggleKde()
+                Component.onCompleted: if (root.desktopFails >= root.kdeAfter && root.kde) autoKde(root.desktopFails)
                 Connections {
                     target: root
                     function onSTyped() { sc.letter(); }
@@ -180,6 +204,7 @@ ShellRoot {
                     function onSRejected() { sc.rejected(); }
                     function onSSkip() { sc.skip(); }
                     function onSKde(on) { sc.setKde(on); }
+                    function onSKdeAuto(n) { sc.autoKde(n); }
                 }
             }
         }
