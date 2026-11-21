@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+# TaylorOS: "Check now" in Settings > About (2026-11-21). Runs as her, no root, changes nothing.
+# How this PC gets updates: every push to the taylor-os repo builds a new image (GitHub Actions) and publishes it as
+# ghcr.io/guitarist777/taylor-os:latest. Bazzite's own updater (uupd.timer, daily at 04:00 and at the next start if the
+# PC was off) downloads a newer image in the background and stages it; the PC switches to it at the next restart.
+# This script compares the image the PC is running with the newest one published under the same tag and says which:
+#   TAYLOR-UPDATE state=uptodate|staged|newer|offline|unknown|local booted=<digest> latest=<digest> tag=<tag> version=<v> auto=<on|off|unknown>
+# (digests shortened). It never downloads or installs anything. --local: only what this PC runs (state=local).
+import json, subprocess, sys, urllib.request
+
+def run(cmd, timeout=30):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout
+    except Exception:
+        return 1, ""
+
+def short(d):
+    return (d or "").replace("sha256:", "")[:12] or "-"
+
+def digest_of(dep):
+    for k in ("container-image-reference-digest", "image-digest", "manifest-digest"):
+        if dep.get(k):
+            return dep[k]
+    meta = dep.get("base-commit-meta") or {}
+    return meta.get("ostree.manifest-digest", "")
+
+def registry_digest(repo, tag):
+    rc, out = run(["skopeo", "inspect", "--retry-times", "1", "--format", "{{.Digest}}", "docker://%s:%s" % (repo, tag)], 40)
+    if rc == 0 and out.strip().startswith("sha256:"):
+        return out.strip()
+    # no skopeo, or it failed: the registry's anonymous token, then the manifest's digest
+    try:
+        host, name = repo.split("/", 1)
+        with urllib.request.urlopen("https://%s/token?scope=repository:%s:pull" % (host, name), timeout=20) as r:
+            tok = json.load(r)["token"]
+        req = urllib.request.Request("https://%s/v2/%s/manifests/%s" % (host, name, tag), method="HEAD", headers={
+            "Authorization": "Bearer " + tok,
+            "Accept": ", ".join([
+                "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json",
+                "application/vnd.oci.image.index.v1+json", "application/vnd.docker.distribution.manifest.list.v2+json"])})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.headers.get("Docker-Content-Digest", "")
+    except Exception:
+        return ""
+
+def main():
+    repo, tag = "ghcr.io/guitarist777/taylor-os", "latest"
+    booted, staged, version = "", "", ""
+    rc, out = run(["rpm-ostree", "status", "--json"], 30)
+    try:
+        st = json.loads(out)
+        for dep in st.get("deployments", []):
+            if dep.get("booted"):
+                booted = digest_of(dep)
+                version = dep.get("version", "") or ""
+                ref = dep.get("container-image-reference", "")
+                if "docker://" in ref:
+                    img = ref.split("docker://", 1)[1].split("@")[0]
+                    if ":" in img.rsplit("/", 1)[-1]:
+                        repo, tag = img.rsplit(":", 1)
+                    else:
+                        repo = img
+            elif dep.get("staged"):
+                staged = digest_of(dep)
+    except Exception:
+        pass
+    rc, out = run(["systemctl", "is-enabled", "uupd.timer"], 10)
+    auto = "on" if out.strip() == "enabled" else ("off" if out.strip() in ("disabled", "masked") else "unknown")
+    local = "--local" in sys.argv[1:]          # what this PC runs only; no question to the registry
+    latest = "" if local else registry_digest(repo, tag)
+    if local:
+        state = "local"
+    elif not latest:
+        state = "offline"
+    elif not booted:
+        state = "unknown"
+    elif latest == booted:
+        state = "uptodate"
+    elif staged and staged == latest:
+        state = "staged"
+    else:
+        state = "newer"
+    print("TAYLOR-UPDATE state=%s booted=%s latest=%s staged=%s tag=%s version=%s auto=%s"
+          % (state, short(booted), short(latest), short(staged), tag, version.replace(" ", "_") or "-", auto))
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

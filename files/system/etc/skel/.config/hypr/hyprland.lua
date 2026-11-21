@@ -123,3 +123,36 @@ hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+
+-- ==== TAYLOR-OS-SETTINGS (her Settings window and the volume and brightness ring, 2026-11-21) ====
+-- The window outline takes her colour scheme's accent. Hyprland reads it from her settings file
+-- (~/.config/taylor-os/settings.json) each time it loads this file; Settings runs "hyprctl reload" after she picks a
+-- scheme. A missing or broken settings file means TAYLOR green.
+do
+    local cfg = os.getenv("XDG_CONFIG_HOME") or ((os.getenv("HOME") or "") .. "/.config")
+    local scheme = "taylor"
+    local f = io.open(cfg .. "/taylor-os/settings.json", "r")
+    if f then
+        local txt = f:read("*a") or ""
+        f:close()
+        scheme = txt:match('"scheme"%s*:%s*"(%a+)"') or "taylor"
+    end
+    local accent = ({ taylor = "4fb386", quiet = "3f6152", night = "8fb5a1", slate = "8fb5a1" })[scheme] or "4fb386"
+    local inactive = (scheme == "quiet") and "1c1c1a1a" or "ffffff14"
+    hl.config({ general = { col = { active_border = "rgba(" .. accent .. "ee)", inactive_border = "rgba(" .. inactive .. ")" } } })
+end
+
+-- Settings is one normal window: floating, a sensible size, centred (not full screen)
+hl.window_rule({
+    name   = "taylor-settings",
+    match  = { class = "^org[.]quickshell$", title = "^Settings$" },
+    float  = true,
+    size   = "760 560",
+    center = true,
+})
+
+-- Brightness keys: the screen's own brightness through DDC/CI (quickshell's Brightness.qml); when no monitor answers,
+-- the keys do nothing and the ring stays away. Volume keys above show the ring by themselves (it follows PipeWire).
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("quickshell ipc call brightness up"),   { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("quickshell ipc call brightness down"), { locked = true, repeating = true })
+-- ==== end TAYLOR-OS-SETTINGS ====
