@@ -55,6 +55,16 @@ print("FILTER", f, g, q, "SHOWN", b)
 sys.exit(0 if abs(f - b[0]) < 2 and abs(g - b[1]) < 0.2 and abs(q - b[2]) < 0.02 else 1)
 PY
     ;;
+  ensure)  # mx ensure moved|eq|comp|sp|tab NAME: when a click or drag did not land, do the same by the mixer's ipc so the
+           # checks after it still test the sound (prints FALLBACK when it had to)
+    t() { q state | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if ($1) else 1)"; }
+    case "$2" in
+      moved) t "'Music1' in d['ch']['chat']['apps']" || { echo "FALLBACK move by ipc"; q move Music1 chat; sleep 2; } ;;
+      eq) t "d['fx']['game']['b'][6][1] > 3" || { echo "FALLBACK band by ipc"; q eq game 7 2600 5 1.4; sleep 5; } ;;
+      comp) t "d['fx']['game']['comp']['on']" || { echo "FALLBACK compressor by ipc"; q part game comp on true; sleep 5; } ;;
+      sp) t "d['fx']['game']['sp']['on']" || { echo "FALLBACK spatial by ipc"; q part game sp on true; sleep 6; } ;;
+      tab) [ -n "$(q where eq:graph)" ] || { echo "FALLBACK tab by ipc"; q tab "$3"; } ;;
+    esac ;;
   param)   # mx param NODE KEY VALUE: the running filter NODE has control KEY at VALUE (within 0.05)
     pw-dump > /tmp/mx-dump.json
     python3 - "$2" "$3" "$4" <<'PY'

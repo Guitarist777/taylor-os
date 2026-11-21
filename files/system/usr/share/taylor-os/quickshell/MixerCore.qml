@@ -39,7 +39,11 @@ Singleton {
     }
     function isOurs(n) { return n && String(n.name || "").startsWith("taylor_"); }
     // real outputs (never one of the mixer's own)
-    readonly property var outputs: all.filter(n => n && n.isSink && !n.isStream && !isOurs(n) && String((n.properties || {})["media.class"] || "Audio/Sink").startsWith("Audio/Sink"))
+    // every device-like node that is not the mixer's own (no properties are read here: the tracker below binds these,
+    // and a list that read properties would change while it is being bound, a binding loop)
+    readonly property var devSinks: all.filter(n => n && n.isSink && !n.isStream && !isOurs(n))
+    readonly property var devSources: all.filter(n => n && !n.isSink && !n.isStream && !isOurs(n))
+    readonly property var outputs: devSinks.filter(n => String((n.properties || {})["media.class"] || "Audio/Sink").startsWith("Audio/Sink"))
     function isHeadset(n) {
         const s = ((n.description || "") + " " + (n.name || "") + " " + (n.nickname || "")).toLowerCase();
         return s.includes("arctis") || s.includes("steelseries") || s.includes("gamedac") || s.includes("nova pro") || s.includes("headset");
@@ -51,14 +55,14 @@ Singleton {
     function word(n) { return n && isHeadset(n) ? "Headset" : "Speakers"; }
 
     // her real microphone (never the mixer's own shaped one)
-    readonly property var sources: all.filter(n => n && !n.isSink && !n.isStream && !isOurs(n) && String((n.properties || {})["media.class"] || "Audio/Source").startsWith("Audio/Source"))
+    readonly property var sources: devSources.filter(n => String((n.properties || {})["media.class"] || "").startsWith("Audio/Source"))
     // (while the shaped microphone is the default, hers is the one that was the default before it)
     property var lastMic: ({ name: "" })    // changed in place on purpose: no binding follows it
     readonly property var micHw: {
         const d = Pipewire.defaultAudioSource;
         if (d && !isOurs(d)) { lastMic.name = d.name; return d; }
         const named = lastMic.name ? all.find(n => n && n.name === lastMic.name && !n.isStream) : null;
-        return named || sources.find(n => String((n.properties || {})["media.class"] || "").startsWith("Audio/Source")) || null;
+        return named || sources[0] || null;
     }
     readonly property var micFx: byName("taylor_mic_fx", false)
     // while her microphone has sound shaping, apps record from the shaped one; without it, from hers again
@@ -87,7 +91,7 @@ Singleton {
     readonly property var anyStreams: all.filter(n => n && n.isStream && n.isSink && !isOurs(n))
     readonly property var streams: anyStreams.filter(n => (n.properties || {})["media.class"] === "Stream/Output/Audio")
     PwObjectTracker {
-        objects: m.keys.map(k => m.node(k)).concat(m.appChannels.map(k => m.outs[k])).concat(m.outputs).concat(m.sources).concat(m.anyStreams).filter(n => n)
+        objects: m.appChannels.map(k => m.sinks[k]).concat(m.appChannels.map(k => m.outs[k])).concat(m.devSinks).concat(m.devSources).concat(m.anyStreams).filter(n => n)
     }
 
     function appKey(n) {

@@ -12,8 +12,11 @@ vm mixer-setup "rm -f ~/mx.b64" "${parts[@]}" "base64 -d ~/mx.b64 > ~/mx && chmo
   "~/mx pretend; sleep 2" "~/mx tone Game1 440 Game; ~/mx tone Music1 660 Music; sleep 4" "$WH"
 SW=$(screen mixer-setup | cut -d' ' -f1); SH=$(screen mixer-setup | cut -d' ' -f2)
 SW=${SW:-1280}; SH=${SH:-800}
+# wake the virtual PC's pointer (an absolute tablet: its first events can be lost) and log where Hyprland has it
+for p in "300 600" "320 620" "640 700"; do $V move $p $SW $SH; sleep 0.7; done
+vm mixer-pointer "hyprctl cursorpos"
 
-expect mixer 28
+expect mixer 29
 vm mixer-channels \
   "$(ok 'the mixer channels Game, Chat, Media and Aux exist in PipeWire' "test \$(pw-cli ls Node | grep -cE 'node.name = \"taylor_(game|chat|media|aux)(\\.out)?\"') -eq 8")" \
   "$(ok 'the desktop mixer is on her screen' "hyprctl layers | grep -q taylor-mixer")" \
@@ -27,7 +30,7 @@ shot mixer-widget
 at=$(tr -d '\r' < out/mixer-channels.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$at" ]; then $V click $at $SW $SH; sleep 1; fi
 vm mixer-mute \
-  "$(ok 'a click on the green dot mutes Game' "wpctl get-volume \$(~/mx node taylor_game) | grep -q MUTED")"
+  "$(ok 'a click on the green dot mutes Game' "wpctl get-volume \$(~/mx node taylor_game) | grep -q MUTED")" "hyprctl cursorpos"
 shot mixer-widget-muted
 if [ -n "$at" ]; then $V click $at $SW $SH; sleep 1; fi
 vm mixer-unmute "$(ok 'a second click plays Game again' "! wpctl get-volume \$(~/mx node taylor_game) | grep -q MUTED")"
@@ -44,6 +47,9 @@ if [ -n "$from" ] && [ -n "$to" ]; then $V drag $from $to $SW $SH; sleep 2; fi
 shot mixer-window-moved
 vm mixer-moved \
   "$(ok 'dragging Music1 onto Chat moves its sound there' "~/mx t \"'Music1' in d['ch']['chat']['apps']\" && pw-link -l | grep -A3 '^taylor_chat:playback_FL' | grep -q pw-play")" \
+  "hyprctl cursorpos"
+# (if the drag did not land, the move is made by the mixer's ipc so the rest is still checked; the report says so)
+vm mixer-moved-rest "~/mx ensure moved" \
   "$(ok 'PipeWire has the new target for Music1' "pw-metadata | grep -q \"target.object' value:'taylor_chat'\"")" \
   "$(ok 'the move is remembered for Music1' "grep -q '\"Music1\": *\"chat\"' ~/.config/taylor-os/mixer.json")" \
   "~/mx untone Music1; sleep 1; ~/mx tone Music1 660 Music; sleep 4" \
@@ -64,7 +70,7 @@ shot mixer-window-output
 vm mixer-eqtab "~/mx at tab:Game"
 tg=$(tr -d '\r' < out/mixer-eqtab.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$tg" ]; then $V click $tg $SW $SH; sleep 2; fi
-vm mixer-eqband "~/mx at eq:band:7" "~/mx q state | python3 -c \"import json,sys; print('BAND7', json.load(sys.stdin)['fx']['game']['b'][6])\""
+vm mixer-eqband "~/mx ensure tab Game; sleep 1" "~/mx at eq:band:7" "~/mx q state | python3 -c \"import json,sys; print('BAND7', json.load(sys.stdin)['fx']['game']['b'][6])\""
 shot mixer-eq-flat
 b7=$(tr -d '\r' < out/mixer-eqband.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$b7" ]; then
@@ -73,11 +79,13 @@ if [ -n "$b7" ]; then
 fi
 vm mixer-eqdrag \
   "$(ok 'dragging an equalizer dot moves the band sideways and up' "~/mx t \"d['fx']['game']['b'][6][0] > 2300 and d['fx']['game']['b'][6][1] > 3\"")" \
+  "hyprctl cursorpos"
+vm mixer-eqrest "~/mx ensure eq" \
   "$(ok 'the Game channel now plays through its own sound-shaping filter' "~/mx t \"d['fx']['game']['node']\" && pw-link -l | grep -A1 '^taylor_game.out:output_FL' | grep -q taylor_game_fx")" \
   "$(ok 'the running filter has the band values that were dragged' "~/mx fxcheck game 7")" \
   "~/mx at eq:band:7"
 shot mixer-eq-dragged
-b7=$(tr -d '\r' < out/mixer-eqdrag.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+b7=$(tr -d '\r' < out/mixer-eqrest.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$b7" ]; then set -- $b7; $V scroll $1 $2 $SW $SH 3; sleep 2; $V scroll $1 $(( $2 + 60 )) $SW $SH 3; sleep 2; fi
 vm mixer-eqscroll \
   "$(ok 'scrolling over a band dot narrows it and scrolling elsewhere does nothing' "~/mx t \"abs(d['fx']['game']['b'][6][2] - 1.4*1.12**3) < 0.05\"")" \
@@ -86,10 +94,10 @@ vm mixer-eqpreset "~/mx q preset game Footsteps; sleep 2" \
   "$(ok 'a game preset changes the curve and the running filter' "~/mx t \"d['fx']['game']['pre'] == 'Footsteps' and d['fx']['game']['b'][7][1] == 7\" && ~/mx fxcheck game 8")"
 shot mixer-eq-preset
 # Follow the game: a full-screen window of a game with a preset (Deadlock's Steam id) picks Game's preset
-vm mixer-follow "setsid -f kitty --class steam_app_1422450 >/dev/null 2>&1; sleep 4" \
-  "hyprctl dispatch focuswindow class:steam_app_1422450; hyprctl dispatch fullscreen 0; sleep 3" \
+vm mixer-follow "setsid -f kitty --class steam_app_1422450 --start-as=fullscreen >/dev/null 2>&1; sleep 7" \
+  "hyprctl -j activewindow | grep -E 'class|fullscreen'" \
   "$(ok 'Follow the game switches Game to the game preset of the full-screen game' "~/mx t \"d['fx']['game']['pre'] == 'Deadlock'\"")" \
-  "hyprctl dispatch fullscreen 0; pkill -f 'class steam_app_1422450'; sleep 1"
+  "pkill -f 'class steam_app_1422450'; sleep 2"
 
 # ---- step 3: compressor, noise gate, background noise reduction, spatial audio ----
 vm mixer-comp-open "~/mx q sub Compressor; sleep 1" "~/mx at comp:onoff"
@@ -97,6 +105,7 @@ cs=$(tr -d '\r' < out/mixer-comp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail 
 if [ -n "$cs" ]; then $V click $cs $SW $SH; sleep 5; fi
 vm mixer-comp \
   "$(ok 'the Compressor switch puts a compressor in the Game filter' "~/mx t \"d['fx']['game']['comp']['on'] and d['fx']['game']['node']\" && ~/mx param taylor_game_fx 'comp:Ratio (1:n)' 3")" \
+  "hyprctl cursorpos; ~/mx ensure comp" \
   "~/mx q part game comp th -24; sleep 2" \
   "$(ok 'moving the compressor threshold changes the running filter' "~/mx param taylor_game_fx 'comp:Threshold level (dB)' -24")"
 shot mixer-compressor
@@ -104,6 +113,8 @@ vm mixer-sp-open "~/mx q sub 'Spatial audio'; sleep 1" "~/mx at sp:onoff"
 ss=$(tr -d '\r' < out/mixer-sp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 if [ -n "$ss" ]; then $V click $ss $SW $SH; sleep 6; fi
 vm mixer-spatial \
+  "$(ok 'the Spatial audio switch turns it on' "~/mx t \"d['fx']['game']['sp']['on']\"")" \
+  "hyprctl cursorpos; ~/mx ensure sp" \
   "$(ok 'Spatial audio on places seven virtual speakers with the head measurements' "test \$(grep -c 'label = spatializer' ~/.config/taylor-os/mixer-fx/game.conf) -eq 7 && ~/mx t \"d['fx']['game']['sp']['on'] and d['fx']['game']['node']\" && pw-link -l | grep -A1 '^taylor_game.out:output_FL' | grep -q taylor_game_fx")" \
   "~/mx q part game sp imm 1; sleep 2" \
   "$(ok 'the immersive end gives the back speakers more' "~/mx param taylor_game_fx 'sp_ol:Gain 6' 0.5")" \

@@ -66,7 +66,7 @@ Item {
             onPaint: {
                 const c = getContext("2d");
                 c.reset();
-                c.font = "10px " + Theme.sans;
+                c.font = "10px \"" + Theme.sans + "\", sans-serif";
                 // grid: gain lines and their numbers
                 for (const d of [12, 6, 0, -6, -12]) {
                     const y = graph.gy(d) + 0.5;
