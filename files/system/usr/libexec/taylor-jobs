@@ -1,0 +1,136 @@
+#!/usr/bin/python3
+# TAYLOR OS: copy and move progress for her desktop's small filling ring by the clock (her build brief, "Loading").
+#
+# KDE apps (Dolphin's copies and moves, Ark, downloads in KDE apps) report a running job to "kuiserver", the job
+# tracker Plasma provides. In her Hyprland session there is no Plasma, so they would open their own little progress
+# window instead. This takes kuiserver's place on the session bus (the same names and the same JobViewServerV2
+# interface KIO looks for), and prints one line of JSON per change on its output, which her desktop (shell.qml) reads:
+#   {"id": 3, "percent": 40, "title": "Copying", "files": 3, "of": 24, "done": false}
+# Nothing about a job (file names, places) is printed, only these numbers and the job's title.
+# Her desktop starts it and it ends with the desktop. If another job tracker already holds the names (KDE's own
+# session), it leaves quietly.
+import ctypes
+import json
+import signal
+import sys
+
+from gi.repository import Gio, GLib
+
+XML = """<node>
+  <interface name="org.kde.kuiserver">
+    <method name="registerService"><arg name="service" type="s" direction="in"/><arg name="objectPath" type="s" direction="in"/></method>
+    <method name="emitJobUrlsChanged"/>
+    <method name="requiresJobTracker"><arg type="b" direction="out"/></method>
+    <signal name="jobUrlsChanged"><arg type="as"/></signal>
+    <signal name="requiresJobTrackerChanged"><arg type="b"/></signal>
+  </interface>
+  <interface name="org.kde.JobViewServerV2">
+    <method name="requestView">
+      <arg name="desktopEntry" type="s" direction="in"/>
+      <arg name="capabilities" type="i" direction="in"/>
+      <arg name="hints" type="a{sv}" direction="in"/>
+      <arg name="trackerPath" type="o" direction="out"/>
+    </method>
+  </interface>
+</node>"""
+VIEW_XML = """<node>
+  <interface name="org.kde.JobViewV3">
+    <method name="terminate"><arg name="errorCode" type="u" direction="in"/><arg name="errorMessage" type="s" direction="in"/><arg name="hints" type="a{sv}" direction="in"/></method>
+    <method name="update"><arg name="properties" type="a{sv}" direction="in"/></method>
+    <signal name="suspendRequested"/>
+    <signal name="resumeRequested"/>
+    <signal name="cancelRequested"/>
+  </interface>
+</node>"""
+
+SERVER = Gio.DBusNodeInfo.new_for_xml(XML)
+VIEW = Gio.DBusNodeInfo.new_for_xml(VIEW_XML).interfaces[0]
+NAMES = ["org.kde.kuiserver", "org.kde.JobViewServer"]
+
+loop = GLib.MainLoop()
+jobs = {}
+seq = [0]
+owned = []
+
+
+def say(job):
+    try:
+        print(json.dumps({k: v for k, v in job.items() if k != "reg"}), flush=True)
+    except (BrokenPipeError, OSError):
+        loop.quit()        # her desktop has gone
+
+
+def view_call(conn, sender, path, iface, method, params, inv):
+    job = jobs.get(path)
+    if job is None:
+        inv.return_value(None)
+        return
+    if method == "update":
+        p = params.unpack()[0]
+        if "title" in p:
+            job["title"] = str(p["title"])[:40]
+        if "percent" in p:
+            job["percent"] = max(0, min(100, int(p["percent"])))
+        if "processedFiles" in p:
+            job["files"] = int(p["processedFiles"])
+        if "totalFiles" in p:
+            job["of"] = int(p["totalFiles"])
+        if p.get("terminated"):
+            job["done"] = True
+            job["error"] = int(p.get("errorCode", 0)) != 0
+        say(job)
+        if job["done"]:
+            forget(conn, path)
+    elif method == "terminate":
+        code = params.unpack()[0]
+        if not job["done"]:
+            job["done"] = True
+            job["error"] = code != 0
+            say(job)
+        forget(conn, path)
+    inv.return_value(None)
+
+
+def forget(conn, path):
+    job = jobs.pop(path, None)
+    if job and job.get("reg"):
+        GLib.timeout_add_seconds(2, lambda: (conn.unregister_object(job["reg"]), False)[1])
+
+
+def server_call(conn, sender, path, iface, method, params, inv):
+    if method == "requiresJobTracker":
+        inv.return_value(GLib.Variant("(b)", (False,)))
+    elif method == "requestView":
+        seq[0] += 1
+        vp = "/JobViewServer/JobView_%d" % seq[0]
+        job = {"id": seq[0], "percent": 0, "title": "", "files": 0, "of": 0, "done": False}
+        job["reg"] = conn.register_object(vp, VIEW, view_call, None, None)
+        jobs[vp] = job
+        say(job)
+        inv.return_value(GLib.Variant("(o)", (vp,)))
+    else:
+        inv.return_value(None)
+
+
+def on_bus(conn):
+    conn.register_object("/JobViewServer", SERVER.interfaces[0], server_call, None, None)
+    conn.register_object("/JobViewServer", SERVER.interfaces[1], server_call, None, None)
+    for n in NAMES:
+        owned.append(Gio.bus_own_name_on_connection(conn, n, Gio.BusNameOwnerFlags.DO_NOT_QUEUE,
+                                                    lambda c, nm: print("# holding " + nm, file=sys.stderr, flush=True),
+                                                    lambda c, nm: (print("# not holding " + nm + "; another job tracker has it", file=sys.stderr, flush=True), loop.quit())))
+
+
+def main():
+    try:   # end with her desktop, whatever happens to it
+        ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)
+    except OSError:
+        pass
+    signal.signal(signal.SIGTERM, lambda *a: loop.quit())
+    conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    on_bus(conn)
+    loop.run()
+
+
+if __name__ == "__main__":
+    main()

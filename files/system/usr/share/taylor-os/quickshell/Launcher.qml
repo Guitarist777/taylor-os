@@ -6,7 +6,11 @@
 // Her mockup is a small picture of the desktop; here its lengths are multiplied by u = 1.6, the size at which her
 // mockup's dock and mixer match the real ones. The dial's own move uses its real size and spot (dial_draw.js).
 //
-// Ask TAYLOR opens TAYLOR's page (as the dock's TAYLOR button does); the question is not carried into it yet.
+// Ask TAYLOR (only while her "Ask TAYLOR" setting is on) hands what she typed to TAYLOR (Taylor.qml: her page opens
+// with the question in it; if TAYLOR is not reachable her page opens plainly) and the dial says "THINKING.".
+// Files and folders: a quick look through her home (four folders deep, hidden and settings folders skipped, at most
+// 1.5 seconds and 20 finds). Every colour is her scheme's (Theme.qml). Reduced motion: the dial fades out at its spot and
+// the bar fades in, instead of the dial travelling.
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -21,10 +25,12 @@ PanelWindow {
     property string status: "ALL CLEAR."
     property string preset: ""        // the preview's pictures: text typed into the box when it opens
     signal closeMe()
-    signal picked(string line)        // the dial's line: "OPENING STEAM."
+    signal picked(string line, string kind)   // the dial's line ("OPENING STEAM.") and what it was: App, File, Folder, TAYLOR
+    signal ask(string text)           // Ask TAYLOR
     signal toggleMixer()
 
-    readonly property string taylorUrl: "https://home.tail0b45b7.ts.net/"
+    property bool askOn: true         // her "Ask TAYLOR" setting
+    property bool dialShown: true     // her "Show TAYLOR" setting: without her, the bar's icon just appears
     readonly property real u: 1.6
 
     anchors { top: true; bottom: true; left: true; right: true }
@@ -120,7 +126,7 @@ PanelWindow {
             findFiles.forQ = q;
             findFiles.command = ["sh", "-c",
                 "q=$(printf '%s' \"$1\" | tr -d '[]*?\\\\'); [ -n \"$q\" ] || exit 0; " +
-                "find \"$HOME\" -mindepth 1 -maxdepth 4 -name '.*' -prune -o -iname \"*$q*\" -printf '%y\\t%p\\n' 2>/dev/null | head -n 20",
+                "timeout 1.5 find \"$HOME\" -xdev -mindepth 1 -maxdepth 4 -name '.*' -prune -o -iname \"*$q*\" -printf '%y\\t%p\\n' 2>/dev/null | head -n 20",
                 "sh", q];
             findFiles.running = true;
         }
@@ -160,9 +166,11 @@ PanelWindow {
                 seen[key] = true;
                 list.push(found[i].it);
             }
-            if (Prefs.askTaylor) list.push({ k: "TAYLOR", n: "Ask TAYLOR: “" + q + "”" });   // her Settings switch
+            if (askOn) list.push({ k: "TAYLOR", n: "Ask TAYLOR: “" + q + "”", q: q });
         }
         rows = list;
+        // the log gets the kind of each row only, never a name
+        if (q) console.info("taylor-launcher: rows " + list.map((r) => r.k).join(","));
         if (sel >= list.length) sel = list.length - 1;
         if (sel < 0) sel = 0;
     }
@@ -170,7 +178,7 @@ PanelWindow {
     function choose(it) {
         if (!it) return;
         let line;
-        if (it.k === "TAYLOR") { Quickshell.execDetached(["xdg-open", taylorUrl]); line = "OPENING TAYLOR."; }
+        if (it.k === "TAYLOR") { ask(it.q); line = "THINKING."; }
         else if (it.mixer) { toggleMixer(); line = "OPENING MIXER."; remember({ k: "Mixer", n: "Mixer" }); }
         else if (it.k === "App") {
             if (it.entry) it.entry.execute();
@@ -182,7 +190,7 @@ PanelWindow {
             remember(it);
         }
         console.info("taylor-launcher: " + line);
-        picked(line);
+        picked(line, it.mixer ? "Mixer" : it.k);
         closeMe();
     }
 
@@ -216,35 +224,42 @@ PanelWindow {
             const e = win.sm(win.o), U = win.u, T = Date.now() / 1000;
             if (e <= 0) return;
             const sp = Dial.spot(width, height);
-            x.globalAlpha = 0.34 * e; x.fillStyle = "#000"; x.fillRect(0, 0, width, height);
+            x.globalAlpha = 0.34 * e; x.fillStyle = "#000000"; x.fillRect(0, 0, width, height);
             const bwid = Math.max(46 * U, win.bw * e);
-            x.globalAlpha = 0.97 * Math.min(1, e * 1.6); x.fillStyle = String(win.theme.panel); rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.fill();
-            x.globalAlpha = 0.6 * e; x.strokeStyle = "rgba(255,255,255,0.16)"; x.lineWidth = 1; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.stroke();
-            // the dial: from her spot to the bar's icon, shrinking; its ticks, arcs and line fade on the way
-            const px = sp.x + (win.bx + 23 * U - sp.x) * e, py = sp.y + (win.by + 22 * U - sp.y) * e;
-            const R = sp.r + (12 * U - sp.r) * e, k = R / 30, ks = sp.k + (U - sp.k) * e;
-            x.lineCap = "round"; x.strokeStyle = String(win.theme.accent);
-            x.globalAlpha = 0.12 * (1 - e) + 0.05; x.lineWidth = 7 * k; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
-            x.globalAlpha = 0.95; x.lineWidth = 1.5 * ks; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
-            if (e < 1) {
-                x.globalAlpha = 0.35 * (1 - e); x.lineWidth = ks; x.beginPath(); x.arc(px, py, R * 0.62, 0, 6.2832, false); x.stroke();
-                x.strokeStyle = String(win.theme.text);
-                for (let t2 = 0; t2 < 48; t2++) {
-                    const an = -1.5708 + t2 / 48 * 6.2832, big = t2 % 4 === 0;
-                    x.globalAlpha = (big ? 0.5 : 0.25) * (1 - e);
-                    x.beginPath(); x.moveTo(px + Math.cos(an) * (R + 6 * k), py + Math.sin(an) * (R + 6 * k));
-                    x.lineTo(px + Math.cos(an) * (R + (big ? 12 : 9) * k), py + Math.sin(an) * (R + (big ? 12 : 9) * k)); x.stroke();
+            x.globalAlpha = 0.97 * Math.min(1, e * 1.6); x.fillStyle = win.theme.panel; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.fill();
+            x.globalAlpha = 0.6 * e; x.strokeStyle = win.theme.alpha(win.theme.text, 0.16); x.lineWidth = 1; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.stroke();
+            // the dial: from her spot to the bar's icon, shrinking; its ticks, arcs and line fade on the way.
+            // Reduced motion: no travel, the dial fades out at her spot while the icon fades in on the bar.
+            // Without TAYLOR on the desktop (her setting) the icon simply fades in.
+            const still = win.theme.still, ix = win.bx + 23 * U, iy = win.by + 22 * U;
+            function dial(px, py, R, ks, d, al) {      // d: how far it has become the icon (0 the dial .. 1 the icon)
+                const k = R / 30;
+                x.lineCap = "round"; x.strokeStyle = win.theme.accent;
+                x.globalAlpha = (0.12 * (1 - d) + 0.05) * al; x.lineWidth = 7 * k; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
+                x.globalAlpha = 0.95 * al; x.lineWidth = 1.5 * ks; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
+                if (d < 1) {
+                    x.globalAlpha = 0.35 * (1 - d) * al; x.lineWidth = ks; x.beginPath(); x.arc(px, py, R * 0.62, 0, 6.2832, false); x.stroke();
+                    x.strokeStyle = win.theme.text;
+                    for (let t2 = 0; t2 < 48; t2++) {
+                        const an = -1.5708 + t2 / 48 * 6.2832, big = t2 % 4 === 0;
+                        x.globalAlpha = (big ? 0.5 : 0.25) * (1 - d) * al;
+                        x.beginPath(); x.moveTo(px + Math.cos(an) * (R + 6 * k), py + Math.sin(an) * (R + 6 * k));
+                        x.lineTo(px + Math.cos(an) * (R + (big ? 12 : 9) * k), py + Math.sin(an) * (R + (big ? 12 : 9) * k)); x.stroke();
+                    }
+                    x.strokeStyle = win.theme.accent; x.lineWidth = 2.5 * ks;
+                    const rot = still ? 0 : Dial.arcAngle();
+                    for (let j = 0; j < 3; j++) {
+                        const st = rot + j * 2.0944;
+                        x.globalAlpha = 0.8 * (1 - d) * al * (still ? 1 : 0.85 + 0.15 * Math.sin(T * 0.8));
+                        x.beginPath(); x.arc(px, py, R + 18 * k, st, st + 0.9, false); x.stroke();
+                    }
+                    Dial.words(x, sp.x, sp.y + 118 * sp.k, sp.k, (1 - d) * al, Math.round(11 * sp.k) + "px " + win.theme.sans, win.status);
                 }
-                x.strokeStyle = String(win.theme.accent); x.lineWidth = 2.5 * ks;
-                const rot = Dial.arcAngle();
-                for (let j = 0; j < 3; j++) {
-                    const st = rot + j * 2.0944;
-                    x.globalAlpha = 0.8 * (1 - e) * (0.85 + 0.15 * Math.sin(T * 0.8));
-                    x.beginPath(); x.arc(px, py, R + 18 * k, st, st + 0.9, false); x.stroke();
-                }
-                Dial.words(x, sp.x, sp.y + 118 * sp.k, sp.k, 1 - e, Math.round(11 * sp.k) + "px " + win.theme.sans, win.status);
+                if (d > 0.2) { x.globalAlpha = d * al; x.fillStyle = win.theme.accent; x.beginPath(); x.arc(px, py, 2.2 * U, 0, 6.2832, false); x.fill(); }
             }
-            if (e > 0.2) { x.globalAlpha = e; x.fillStyle = String(win.theme.accent); x.beginPath(); x.arc(px, py, 2.2 * U, 0, 6.2832, false); x.fill(); }
+            if (!win.dialShown) dial(ix, iy, 12 * U, U, 1, e);
+            else if (still) { dial(sp.x, sp.y, sp.r, sp.k, 0, 1 - e); dial(ix, iy, 12 * U, U, 1, e); }
+            else dial(sp.x + (ix - sp.x) * e, sp.y + (iy - sp.y) * e, sp.r + (12 * U - sp.r) * e, sp.k + (U - sp.k) * e, e, 1);
             x.globalAlpha = 1;
         }
     }

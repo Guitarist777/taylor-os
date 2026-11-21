@@ -17,7 +17,14 @@
 // Her notifications (her design tour, part 5): the desktop is the notification service itself, and nothing pops up.
 // Each one becomes a dot circling the dial (Dial.qml) and a green count by the clock (Tray.qml); a click on either shows
 // the list (NoteList.qml). With none waiting the dial opens the launcher as before. At most five wait: a sixth sends the
-// oldest away. Only counts go to the log, never what a notification says.
+// oldest away. Only counts go to the log, never what a notification says. A notification that carries a progress value
+// (the "value" hint) is drawn as the filling ring by the clock (Progress.qml) instead of a dot.
+//
+// TAYLOR herself (Taylor.qml, the one hook to her assistant at 127.0.0.1:8080): while she is thinking the dial says
+// "THINKING." and dots swirl inside it; what she has waiting is counted with the notifications ("2 NEW.") and is one
+// line in the list (a click opens her page). Ask TAYLOR in the launcher hands the question to her. When TAYLOR is not
+// running nothing changes on the dial.
+// Loading (Loading.qml): circling dots by the pointer until an app she picked opens its window.
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Notifications
@@ -41,7 +48,45 @@ ShellRoot {
     Behavior on launcherO { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
     property string dialStatus: "ALL CLEAR."
     property bool dialBusy: false
-    Timer { id: statusBack; interval: 2400; onTriggered: { root.dialStatus = "ALL CLEAR."; root.dialBusy = false; } }
+    property bool askThinking: false  // a moment after she asked TAYLOR from the launcher (her tour: think for 2.4 s)
+    Timer { id: statusBack; interval: 2400; onTriggered: { root.dialStatus = "ALL CLEAR."; root.dialBusy = false; root.askThinking = false; } }
+
+    // ---- TAYLOR herself ----
+    Taylor { id: taylor }
+    readonly property bool thinking: taylor.thinking || askThinking
+    // her count: each notification waiting, plus everything TAYLOR has waiting (her one line stands for all of them)
+    readonly property int waitingAll: { notesRev; return notes.filter((n) => n.st === "in" && !n.taylor).length + ((taylorNote && taylorNote.st === "in") ? taylor.waiting : 0); }
+    // the line under her: what she just did, then a sequence's own word (GOODNIGHT.), then thinking, then what waits
+    readonly property string dialLine: dialBusy && !askThinking ? dialStatus
+        : dialStatus !== "ALL CLEAR." && !askThinking ? dialStatus
+        : thinking ? "THINKING."
+        : waitingAll === 1 ? "ONE NEW." : waitingAll > 1 ? waitingAll + " NEW." : "ALL CLEAR."
+    onDialLineChanged: console.info("taylor-desktop: status " + dialLine)
+    // what TAYLOR has waiting is one line in her list (and so one dot and part of the count)
+    property var taylorNote: null
+    property int taylorSeen: 0        // how many were waiting when she last opened them from the list
+    function taylorWaiting() {
+        const w = taylor.waiting;
+        if (w < taylorSeen) taylorSeen = w;
+        const show = w > taylorSeen;
+        if (show && !(taylorNote && taylorNote.st === "in")) {
+            const now = Date.now() / 1000;
+            taylorNote = { id: ++noteSeq, t: "TAYLOR", b: "", st: "in", t0: now, src: null, taylor: true };
+            notes.push(taylorNote);
+            kickAt = now;
+        } else if (!show && taylorNote && taylorNote.st === "in") {
+            taylorNote.st = "fade"; taylorNote.t0 = Date.now() / 1000;
+        }
+        if (taylorNote && taylorNote.st === "in") taylorNote.b = w === 1 ? "1 thing waiting for you" : w + " things waiting for you";
+        notesRev++;
+    }
+    Connections { target: taylor; function onWaitingChanged() { root.taylorWaiting(); } }
+    IpcHandler {
+        target: "taylor"
+        function state(): string { return "up=" + taylor.up + " thinking=" + taylor.thinking + " waiting=" + taylor.waiting + " line=" + root.dialLine; }
+        // the same as picking "Ask TAYLOR" in her launcher (for the checks)
+        function ask(text: string): void { root.askThinking = true; root.dialBusy = true; statusBack.restart(); taylor.ask(text); }
+    }
     IpcHandler {
         target: "launcher"
         function toggle(): void { root.launcherOpen = !root.launcherOpen; }
@@ -70,12 +115,32 @@ ShellRoot {
     function noteDismiss(n) {
         if (!n || n.st !== "in") return;
         n.st = "fade"; n.t0 = Date.now() / 1000; notesRev++;
+        if (n.taylor) { taylorSeen = taylor.waiting; taylor.openPage(taylor.base + "/"); console.info("taylor-notes: her TAYLOR line opens her page"); return; }
         const s = n.src; n.src = null;
         if (s) { try { s.dismiss(); } catch (e) {} }
     }
+    // a progress value (0..100) in a notification's hints, or -1
+    function progressOf(src) {
+        let h = null;
+        try { h = src.hints; } catch (e) { h = null; }
+        if (!h || h.value === undefined || h.value === null) return -1;
+        const v = Number(h.value);
+        return isNaN(v) ? -1 : Math.max(0, Math.min(100, v));
+    }
     function noteIn(src) {
         src.tracked = true;
-        const live = notes.filter((n) => n.st === "in");
+        const pv = progressOf(src);
+        if (pv >= 0) {           // a progress report: the filling ring by the clock, not a dot
+            const key = "note-" + src.id;
+            const say = () => { const v = progressOf(src); progress.report(key, plain(src.summary), v < 0 ? 100 : v, 0, 0, v < 0 || v >= 100); };
+            say();
+            src.hintsChanged.connect(say);
+            src.summaryChanged.connect(say);
+            src.closed.connect(() => progress.report(key, "", 100, 0, 0, true));
+            console.info("taylor-notes: one came in with progress");
+            return;
+        }
+        const live = notes.filter((n) => n.st === "in" && !n.taylor);
         if (live.length >= 5) noteDismiss(live[0]);
         const now = Date.now() / 1000;
         const m = { id: ++noteSeq, t: "", b: "", st: "in", t0: now, src: src };
@@ -130,7 +195,7 @@ ShellRoot {
         target: "notes"
         function waiting(): int { return root.notesWaiting; }
         function toggle(): void { root.toggleList(); }
-        function clear(): void { for (const n of root.notes.filter((n) => n.st === "in")) root.noteDismiss(n); }
+        function clear(): void { for (const n of root.notes.filter((n) => n.st === "in" && !n.taylor)) root.noteDismiss(n); }
     }
 
     // ---- her arrival ----
@@ -171,7 +236,8 @@ ShellRoot {
     Dial {
         screen: root.mainScreen; theme: root.c; arrive2: root.arriveU2
         visible: Prefs.showTaylor
-        status: away.active ? "STILL THERE?" : root.dialStatus; busy: root.dialBusy
+        status: away.active ? "STILL THERE?" : root.dialLine; busy: root.dialBusy; thinking: root.thinking
+        showLine: Prefs.statusLine
         stepAside: root.launcherO > 0.001
         notes: root.notes; waiting: root.notesWaiting; kickAt: root.kickAt; whisper: root.whisper
         onClicked: root.dialClicked()
@@ -190,9 +256,12 @@ ShellRoot {
     }
     Tray {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU2
-        waiting: root.notesWaiting
+        id: tray
+        waiting: root.waitingAll
         onCountClicked: root.toggleList()
     }
+    Progress { screen: root.mainScreen; theme: root.c; id: progress; trayWidth: tray.implicitWidth }
+    Loading { screen: root.mainScreen; theme: root.c; id: loading }
     WindowBar { screen: root.mainScreen; theme: root.c }
     // her Settings window, the volume and brightness ring (on the main screen; it shows over a full-screen window),
     // and warmer colours at night (Settings.qml, Osd.qml, Warm.qml)
@@ -228,10 +297,18 @@ ShellRoot {
         theme: root.c
         o: root.launcherO
         open: root.launcherOpen
-        status: root.dialStatus
+        status: root.dialLine
+        askOn: Prefs.askTaylor
+        dialShown: Prefs.showTaylor
         preset: root.launcherPreview === "-" ? "" : root.launcherPreview
         onCloseMe: root.launcherOpen = false
-        onPicked: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
+        onPicked: (line, kind) => {
+            root.askThinking = kind === "TAYLOR";
+            root.dialStatus = kind === "TAYLOR" ? "ALL CLEAR." : line;
+            root.dialBusy = true; statusBack.restart();
+            if (kind === "App" || kind === "File" || kind === "Folder") loading.start();
+        }
+        onAsk: (text) => taylor.ask(text)
         onToggleMixer: root.mixerShown = !root.mixerShown
     }
 }
