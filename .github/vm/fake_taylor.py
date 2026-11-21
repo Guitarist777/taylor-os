@@ -69,7 +69,7 @@ class H(BaseHTTPRequestHandler):
             text = ""
         nonce = uuid.uuid4().hex
         log("ASK text=%r nonce=%s" % (text, nonce))
-        return self.reply(200, {"nonce": nonce})
+        return self.reply(200, {"nonce": nonce, "expires_s": 60})
 
 
 ThreadingHTTPServer(("127.0.0.1", 8080), H).serve_forever()
