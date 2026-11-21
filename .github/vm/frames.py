@@ -9,7 +9,7 @@
 Each frame is one of:
     black    almost all pure black (#000000): the firmware, or the PC's own text screen
     dark     almost all her dark (#0B0D0C, or the #0F1010 her login fades to), nothing on it
-    text     mostly black or dark, with a little grey/white on it (letters on a text screen)
+    text     mostly black or dark, with grey/white on it (letters on a text screen; more than a mouse pointer)
     opening  her green sparks on her dark (the opening / login scene)
     other    anything else (a firmware logo, her desktop's sky, ...)
 Prints one line per frame and PASS / FAIL lines for the check.
@@ -27,19 +27,19 @@ def near(p, c, d=4):
 def classify(path):
     im = Image.open(path).convert("RGB")
     im = im.resize((im.width // 2, im.height // 2), Image.NEAREST)
-    px = list(im.getdata())
+    px = list(im.get_flattened_data()) if hasattr(im, "get_flattened_data") else list(im.getdata())
     n = len(px)
     black = sum(1 for p in px if max(p) <= 3)
     dark = sum(1 for p in px if near(p, DARKS[0]) or near(p, DARKS[1]))
     grey = sum(1 for p in px if min(p) > 90 and max(p) - min(p) < 25)
     green = sum(1 for p in px if p[1] > 80 and p[1] > p[0] + 25 and p[1] > p[2] + 10)
     if black > 0.97 * n:
-        kind = "text" if grey > 20 else "black"
+        kind = "text" if grey > 150 else "black"
     elif dark > 0.97 * n and green < 5:
-        kind = "text" if grey > 20 else "dark"
+        kind = "text" if grey > 150 else "dark"
     elif dark + black > 0.9 * n and green >= 5:
         kind = "opening"
-    elif black + dark > 0.9 * n and grey > 20:
+    elif black + dark > 0.9 * n and grey > 150:
         kind = "text"
     else:
         kind = "other"

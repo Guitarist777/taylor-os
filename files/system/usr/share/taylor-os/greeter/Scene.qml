@@ -28,6 +28,8 @@ PanelWindow {
     property bool held: Quickshell.env("TAYLOR_GREETER_HOLD") === "1"
     property bool started: false
     property int marks: 0
+    property real lastW: 0
+    property real lastH: 0
     property double startedMs: 0
     signal skipped()
     signal keyTyped(string text)
@@ -48,6 +50,8 @@ PanelWindow {
     function begin() {
         if (width <= 200 || height <= 200) return;   // the 100 x 100 placeholder: wait for the real size
         if (started && Date.now() - startedMs > 1500) { Eng.setSize(width, height); return; }
+        if (started && width === lastW && height === lastH) return;   // the same size again: nothing to start over
+        lastW = width; lastH = height;
         started = true;
         startedMs = Date.now();
         marks = 0;

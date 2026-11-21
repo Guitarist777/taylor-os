@@ -12,8 +12,7 @@ gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 vm boot-1 \
   "$(ok 'the boot screen theme is TAYLOR' "[ \"\$(plymouth-set-default-theme)\" = taylor ]")" \
   "$(ok 'the initramfs carries her boot screen' "echo taylortest | sudo -S lsinitrd /usr/lib/modules/\$(uname -r)/initramfs.img 2>/dev/null | grep -q 'plymouth/themes/taylor/taylor.script'")" \
-  "$(ok 'the boot screen is switched on (rhgb or splash)' "grep -qwE 'rhgb|splash' /proc/cmdline")" \
-  "$(ok 'the text screen black is her dark' "[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ] && [ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_grn)\" = 13 ]")" \
+  "$(ok 'the image carries her boot kernel options' "grep -q 'vt.default_red=11,' /usr/lib/bootc/kargs.d/10-taylor-boot.toml && grep -q rhgb /usr/lib/bootc/kargs.d/10-taylor-boot.toml")" \
   "$(ok 'her login screen motion file holds just two true/false values' "python3 -c 'import json,sys; j=json.load(open(\"/var/lib/taylor-os/greeter.json\")); sys.exit(0 if sorted(j)==[\"bootAnimation\",\"reduceMotion\"] and all(type(v) is bool for v in j.values()) else 1)'")" \
   "$(ok 'the motion file is root-owned and only readable by others' "[ \"\$(stat -c %U:%a /var/lib/taylor-os/greeter.json)\" = root:644 ]")" \
   "$(ok 'her settings are watched for the login screen' "systemctl list-units --no-legend --state=active 'taylor-greeter-prefs@*.path' | grep -q path")" \
@@ -31,6 +30,12 @@ vm boot-2 \
   "printf '{\"bootAnimation\": \"yes\", \"reduceMotion\": [1], \"x\": \"\$(head -c 3000 /dev/urandom | base64 -w0)\"' > ~/.config/taylor-os/settings.json; sleep 4" \
   "$(ok 'a broken settings file gives the login screen its defaults' "grep -qx '{\"bootAnimation\": true, \"reduceMotion\": false}' /var/lib/taylor-os/greeter.json")" \
   "cp /tmp/settings.keep ~/.config/taylor-os/settings.json; sleep 4; cat /var/lib/taylor-os/greeter.json"
+
+# The test PC is installed by a kickstart that sets its own kernel options (a serial console, no rhgb or quiet) and
+# does not read the image's kargs.d (bootc adds them on her PC at install and update). Give it hers, as her PC has them,
+# and tell its boot screen to ignore the serial console (her PC has none; with one, Plymouth shows plain text instead).
+KARGS=$(python3 -c 'import tomllib; print(" ".join("--append-if-missing=" + k for k in tomllib.load(open("files/system/usr/lib/bootc/kargs.d/10-taylor-boot.toml", "rb"))["kargs"]))')
+vm boot-kargs "grep -q vt.default_red=11, /proc/cmdline && echo the test PC already has her kernel options || { echo the test PC did not get her kernel options at install, adding them for this test; echo taylortest | sudo -S rpm-ostree kargs $KARGS --append-if-missing=plymouth.ignore-serial-consoles; }"
 
 # ---- a cold-ish start: restart the PC and watch firmware -> her dark -> her opening -> the hand-off -> login
 vm boot-restart "echo taylortest | sudo -S systemd-run --on-active=4 --timer-property=AccuracySec=100ms systemctl reboot"
@@ -51,8 +56,9 @@ vm boot-3 \
   "$(ok 'the lost dot hops and the friend hops lower' "$(gsudo 'grep -q "the lost dot hops, the friend hops lower" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the opening hands over to the login' "$(gsudo 'grep -qE "the hand-off begins at 14[.][67] s" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'no QML errors on her login screen' "$(gsudo '! grep -qiE "ReferenceError|TypeError|is not defined|Cannot assign" /tmp/taylor-greeter-scene.log')")" \
-  "$(ok 'the text screen black is her dark after a restart' "[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ]")" \
-  "$(gsudo 'cat /tmp/taylor-greeter-scene.log; head -c 2000 /tmp/taylor-greeter-hyprland.log; journalctl -b -u greetd -u taylor-console -u taylor-greeter-prefs --no-pager | tail -30; systemd-analyze blame | head -15')" \
+  "$(ok 'the boot screen is switched on (rhgb)' "grep -qw rhgb /proc/cmdline")" \
+  "$(ok 'the text screen black is her dark after a restart'"[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ]")" \
+  "$(gsudo 'cat /tmp/taylor-greeter-scene.log; head -c 2000 /tmp/taylor-greeter-hyprland.log; journalctl -b -u greetd -u taylor-console -u taylor-greeter-prefs --no-pager | tail -30; systemd-analyze blame | head -15; cat /proc/cmdline')" \
   "journalctl -b -o short-monotonic --no-pager | grep -E 'plymouth|greetd|taylor-console|Started|Reached target' | grep -iE 'plymouth|greetd|taylor|graphical' | head -40"
 
 # ---- the first sign-in after a start: her login -> "Welcome back" -> her desktop, no text or black on the way
@@ -92,7 +98,7 @@ vm boot-9 \
 
 # ---- a disk password would still be asked on her boot screen: run her boot screen on another text screen and ask
 vm boot-10 \
-  "$(gsudo 'chvt 8; sleep 1; plymouthd --tty=tty8 --mode=boot; sleep 1; plymouth show-splash; sleep 2')"
+  "$(gsudo 'chvt 8; sleep 1; plymouthd --tty=tty8 --mode=boot --kernel-command-line="rhgb quiet splash"; sleep 1; plymouth show-splash; sleep 2')"
 shot boot-plymouth-dark
 vm boot-11 "$(gsudo '(plymouth ask-for-password --prompt="Unlock disk" > /tmp/pw.out 2>&1 &) ; sleep 2')"
 $V type 'abc'
