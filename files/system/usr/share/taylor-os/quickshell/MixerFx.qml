@@ -1,6 +1,6 @@
 pragma Singleton
 // The mixer's sound shaping (her brief: Mixer window, "Clicking a channel name or tab opens its sound shaping").
-// Step 2: the equalizer. Ten bands per channel, each a PipeWire filter-chain biquad (bq_peaking, bq_lowshelf,
+// The equalizer (step 2): ten bands per channel, each a PipeWire filter-chain biquad (bq_peaking, bq_lowshelf,
 // bq_highshelf, bq_highpass = Low cut, bq_lowpass = High cut), plus three broad ones for her Bass / Voice / Treble
 // lines (a low shelf at 100 Hz, a bell at 1.8 kHz, a high shelf at 6 kHz).
 //
@@ -32,13 +32,20 @@ Singleton {
     property int rev: 0                 // bumped on every change (the drawing follows it)
 
     function flatBands() { return freqs.map(f => ({ f: f, g: 0, q: 1.4, t: 0 })); }
-    function fresh(k) { return { eqOn: true, bands: flatBands(), tone: [0, 0, 0], pre: "Flat", follow: k === "game" }; }
+    // Compressor, gate and spatial audio start off (her brief: a filter only where she turned something on).
+    function fresh(k) {
+        return { eqOn: true, bands: flatBands(), tone: [0, 0, 0], pre: "Flat", follow: k === "game",
+                 comp: { on: false, th: -18, ra: 3, at: 10, re: 120, mk: 0 },
+                 gate: { on: false, th: -45, auto: true },
+                 sp: { on: false, mode: 1, imm: 0.5, dist: 0.7 } };
+    }
     // a channel's shaping (a copy is made the first time she changes it)
     function get(k) {
         rev;
         const all = MixerCore.saved.fx || {};
         const s = all[k];
         if (!s || !s.bands || s.bands.length !== 10) return fresh(k);
+        if (!s.comp || !s.gate || !s.sp) { const f = fresh(k); return Object.assign({}, s, { comp: s.comp || f.comp, gate: s.gate || f.gate, sp: s.sp || f.sp }); }
         return s;
     }
     function put(k, s) {
@@ -75,6 +82,14 @@ Singleton {
         put(k, s); changed(k);
     }
     function setEq(k, on) { const s = copy(get(k)); s.eqOn = on; put(k, s); changed(k); console.info("taylor-mixer:", k, "equalizer", on ? "on" : "off"); }
+    // the compressor, the gate and spatial audio: part is "comp", "gate" or "sp", key one of its values
+    function setPart(k, part, key, v) {
+        const s = copy(get(k));
+        s[part][key] = v;
+        put(k, s); changed(k);
+        if (key === "on" || key === "mode") console.info("taylor-mixer:", k, part, key, v);
+    }
+    function setNs(on) { const s = copy(get("mic")); s.ns = on; put("mic", s); changed("mic"); console.info("taylor-mixer: mic noise reduction", on ? "on" : "off"); }
     function setFollow(k, on) { const s = copy(get(k)); s.follow = on; put(k, s); if (on) followNow(); }
     function usePreset(k, name) {
         const p = Presets.find(name);
@@ -132,22 +147,110 @@ Singleton {
         if (!s.eqOn) return false;
         return s.bands.some(b => b.t >= 3 || Math.abs(b.g) > 0.05) || s.tone.some(x => Math.abs(x) > 0.05);
     }
-    function active(k) { return eqActive(get(k)); }
+    function hasGate(k) { return k === "chat" || k === "mic"; }
+    function hasSpatial(k) { return k === "game" || k === "media" || k === "aux"; }
+    function active(k) {
+        const s = get(k);
+        return eqActive(s) || s.comp.on || (hasGate(k) && s.gate.on) || (hasSpatial(k) && s.sp.on) || (k === "mic" && !!s.ns);
+    }
     function shape(k) {                 // what needs a restart when it changes
         const s = get(k);
-        return JSON.stringify({ eq: eqActive(s) ? s.bands.map(b => b.t) : null });
+        return JSON.stringify({ eq: eqActive(s) ? s.bands.map(b => b.t) : null, comp: s.comp.on, gate: hasGate(k) && s.gate.on,
+                                sp: hasSpatial(k) && s.sp.on ? s.sp.mode : null, ns: k === "mic" && !!s.ns, mic: k === "mic" ? micName() : "" });
     }
-    function num(v) { return Number(v).toFixed(3); }
-    function nodes(k) {
-        const s = get(k), list = [];
-        if (eqActive(s)) {
-            s.bands.forEach((b, i) => list.push({ name: "b" + (i + 1), label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.t >= 3 ? 0 : b.g } }));
-            toneBands(s).forEach((b, i) => list.push({ name: "t" + (i + 1), label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.g } }));
+    // her real microphone, which the shaped one is made from (written into the settings: a new microphone restarts it)
+    function micName() { return MixerCore.micHw ? MixerCore.micHw.name : ""; }
+    readonly property string micNow: micName()
+    onMicNowChanged: if (micNow && active("mic")) changed("mic")
+    function num(v) { return Number(v).toFixed(4); }
+    function gateDb(k) { const s = get(k); return s.gate.auto ? (autoGate[k] !== undefined ? autoGate[k] : -50) : s.gate.th; }
+    // The seven virtual speakers (SOFA azimuth, counter-clockwise: 90 is her left) and their weights.
+    // Pinpoint (0) keeps the sound in front; immersive (1) gives the sides and the back more; distance pushes the front
+    // back a little and puts more time between the front and the back.
+    readonly property var speakers: [{ n: "fl", az: 30, src: "l" }, { n: "fr", az: 330, src: "r" }, { n: "fc", az: 0, src: "c" },
+                                     { n: "sl", az: 90, src: "l" }, { n: "sr", az: 270, src: "r" },
+                                     { n: "rl", az: 150, src: "dl" }, { n: "rr", az: 210, src: "dr" }]
+    function spWeights(sp) {
+        const u = sp.imm, d = sp.dist, front = 1 - 0.3 * d;
+        const w = { fl: front, fr: front, fc: 0.7 * front, sl: 0.15 + 0.55 * u, sr: 0.15 + 0.55 * u, rl: 0.1 + 0.6 * u, rr: 0.1 + 0.6 * u };
+        const k = 1 / (1 + 0.4 * u);
+        for (const key in w) w[key] *= k;
+        return w;
+    }
+    // The graph: nodes { name, type, label, plugin?, config?, c: controls }, links [out, in], inputs, outputs.
+    // Stereo channels get a left and a right copy of every mono node (_l, _r); the microphone is mono.
+    function graph(k) {
+        const s = get(k), mono = k === "mic", sides = mono ? ["m"] : ["l", "r"];
+        const N = [], L = [], heads = sides.map(() => ""), ends = sides.map(() => "");
+        function add(i, node, inP, outP) {
+            N.push(node);
+            if (ends[i]) L.push([ends[i], node.name + ":" + inP]); else heads[i] = node.name + ":" + inP;
+            ends[i] = node.name + ":" + outP;
         }
-        return list;
+        sides.forEach((sd, i) => {
+            if (eqActive(s)) {
+                s.bands.forEach((b, j) => add(i, { name: "b" + (j + 1) + "_" + sd, type: "builtin", label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.t >= 3 ? 0 : b.g } }, "In", "Out"));
+                toneBands(s).forEach((b, j) => add(i, { name: "t" + (j + 1) + "_" + sd, type: "builtin", label: labels[b.t], c: { Freq: b.f, Q: b.q, Gain: b.g } }, "In", "Out"));
+            }
+            if (hasGate(k) && s.gate.on)          // swh gate (LADSPA), keyed on the voice band
+                add(i, { name: "gate_" + sd, type: "ladspa", plugin: "gate_1410", label: "gate",
+                         c: { "LF key filter (Hz)": 80, "HF key filter (Hz)": 8000, "Threshold (dB)": gateDb(k), "Attack (ms)": 5, "Hold (ms)": 150, "Decay (ms)": 120, "Range (dB)": -60 } }, "Input", "Output");
+            if (mono && s.comp.on)
+                add(i, compNode("comp_m", "sc4m_1916", "sc4m", s.comp), "Input", "Output");
+        });
+        if (!mono && s.comp.on) {                 // swh SC4 (LADSPA), one stereo compressor: both sides move together
+            const c = compNode("comp", "sc4_1882", "sc4", s.comp);
+            N.push(c);
+            ["l", "r"].forEach((sd, i) => {
+                const inP = "comp:" + (i ? "Right" : "Left") + " input";
+                if (ends[i]) L.push([ends[i], inP]); else heads[i] = inP;
+                ends[i] = "comp:" + (i ? "Right" : "Left") + " output";
+            });
+        }
+        if (hasSpatial(k) && s.sp.on) {
+            // start from a copy of each side (a graph input can feed one port only)
+            ["l", "r"].forEach((sd, i) => add(i, { name: "cp_" + sd, type: "builtin", label: "copy", c: {} }, "In", "Out"));
+            const w = spWeights(s.sp), hp = s.sp.mode === 1;
+            N.push({ name: "sp_c", type: "builtin", label: "mixer", c: { "Gain 1": 0.5, "Gain 2": 0.5 } });
+            L.push([ends[0], "sp_c:In 1"]); L.push([ends[1], "sp_c:In 2"]);
+            ["l", "r"].forEach((sd, i) => {
+                N.push({ name: "sp_d" + sd, type: "builtin", label: "delay", config: "{ max-delay = 0.1 }", c: { "Delay (s)": 0.004 + 0.02 * s.sp.dist } });
+                L.push([ends[i], "sp_d" + sd + ":In"]);
+            });
+            const srcPort = { l: ends[0], r: ends[1], c: "sp_c:Out", dl: "sp_dl:Out", dr: "sp_dr:Out" };
+            N.push({ name: "sp_ol", type: "builtin", label: "mixer", c: {} });
+            N.push({ name: "sp_or", type: "builtin", label: "mixer", c: {} });
+            speakers.forEach((v, j) => {
+                const gL = "Gain " + (j + 1);
+                if (hp) {                       // headphones: each virtual speaker through her ears (MIT KEMAR HRTF)
+                    N.push({ name: "sp_" + v.n, type: "sofa", label: "spatializer", config: "{ filename = \"/usr/share/libmysofa/default.sofa\" }",
+                             c: { Azimuth: v.az, Elevation: 0, Radius: 1 } });
+                    L.push([srcPort[v.src], "sp_" + v.n + ":In"]);
+                    L.push(["sp_" + v.n + ":Out L", "sp_ol:In " + (j + 1)]);
+                    L.push(["sp_" + v.n + ":Out R", "sp_or:In " + (j + 1)]);
+                    N.find(x => x.name === "sp_ol").c[gL] = w[v.n];
+                    N.find(x => x.name === "sp_or").c[gL] = w[v.n];
+                } else {                        // speakers: each virtual speaker panned between her two speakers
+                    const a = v.az * Math.PI / 180, pan = -Math.sin(a);              // -1 left .. +1 right
+                    const th = (pan + 1) * Math.PI / 4, back = Math.cos(a) < 0 ? 0.8 : 1;
+                    L.push([srcPort[v.src], "sp_ol:In " + (j + 1)]);
+                    L.push([srcPort[v.src], "sp_or:In " + (j + 1)]);
+                    N.find(x => x.name === "sp_ol").c[gL] = w[v.n] * Math.cos(th) * back;
+                    N.find(x => x.name === "sp_or").c[gL] = w[v.n] * Math.sin(th) * back;
+                }
+            });
+            ends[0] = "sp_ol:Out"; ends[1] = "sp_or:Out";
+        }
+        if (!N.length)                            // only noise reduction on: the filter just passes the sound on
+            sides.forEach((sd, i) => add(i, { name: "pass_" + sd, type: "builtin", label: "copy", c: {} }, "In", "Out"));
+        return { nodes: N, links: L, inputs: heads, outputs: ends };
+    }
+    function compNode(name, plugin, label, c) {
+        return { name: name, type: "ladspa", plugin: plugin, label: label,
+                 c: { "RMS/peak": 0, "Attack time (ms)": c.at, "Release time (ms)": c.re, "Threshold level (dB)": c.th, "Ratio (1:n)": c.ra, "Knee radius (dB)": 3.25, "Makeup gain (dB)": c.mk } };
     }
     function conf(k) {
-        const name = MixerCore.names[k], ns = nodes(k);
+        const name = MixerCore.names[k], g = graph(k);
         let t = "# The TaylorOS mixer's sound shaping for " + name + " (written by the desktop, MixerFx.qml; rewritten when she\n"
               + "# changes it in the Mixer window). Run by taylor-mixer-fx@" + k + ".service.\n"
               + "context.properties = { log.level = 0 }\n"
@@ -161,29 +264,40 @@ Singleton {
               + "      node.description = \"TaylorOS " + name + ", sound shaping\"\n"
               + "      media.name = \"TaylorOS " + name + ", sound shaping\"\n"
               + "      filter.graph = {\n        nodes = [\n";
-        for (const n of ns) {
+        for (const n of g.nodes) {
             let c = "";
             for (const key in n.c) c += " \"" + key + "\" = " + num(n.c[key]);
-            t += "          { type = builtin name = " + n.name + " label = " + n.label + " control = {" + c + " } }\n";
+            t += "          { type = " + n.type + " name = " + n.name + " label = " + n.label + (n.plugin ? " plugin = " + n.plugin : "")
+               + (n.config ? " config = " + n.config : "") + " control = {" + c + " } }\n";
         }
         t += "        ]\n        links = [\n";
-        for (let i = 1; i < ns.length; i++) t += "          { output = \"" + ns[i - 1].name + ":Out\" input = \"" + ns[i].name + ":In\" }\n";
-        t += "        ]\n      }\n";
+        for (const l of g.links) t += "          { output = \"" + l[0] + "\" input = \"" + l[1] + "\" }\n";
+        t += "        ]\n        inputs = [ " + g.inputs.map(x => "\"" + x + "\"").join(" ") + " ]\n"
+           + "        outputs = [ " + g.outputs.map(x => "\"" + x + "\"").join(" ") + " ]\n      }\n";
         if (k === "mic")      // the microphone: hers in, a shaped microphone out that apps record from
             t += "      audio.channels = 1\n      audio.position = [ MONO ]\n"
-               + "      capture.props = { node.name = \"taylor_mic_fx.in\" node.passive = true audio.position = [ MONO ] }\n"
+               + "      capture.props = { node.name = \"taylor_mic_fx.in\" node.passive = true audio.position = [ MONO ] target.object = \"" + (get(k).ns ? "taylor_mic_ns" : micName()) + "\" }\n"
                + "      playback.props = { node.name = \"taylor_mic_fx\" node.description = \"TaylorOS Mic\" media.class = Audio/Source audio.position = [ MONO ] priority.session = 0 priority.driver = 0 }\n";
         else
             t += "      audio.channels = 2\n      audio.position = [ FL FR ]\n"
                + "      capture.props = { node.name = \"taylor_" + k + "_fx\" media.class = Audio/Sink audio.position = [ FL FR ] priority.session = 0 priority.driver = 0 }\n"
                + "      playback.props = { node.name = \"taylor_" + k + "_fx.out\" node.passive = true audio.position = [ FL FR ] }\n";
-        t += "    }\n  }\n]\n";
+        t += "    }\n  }\n";
+        if (k === "mic" && get(k).ns)   // background noise reduction: WebRTC's noise suppression, before the shaping
+            t += "  { name = libpipewire-module-echo-cancel\n    args = {\n"
+               + "      library.name = aec/libspa-aec-webrtc\n      monitor.mode = true\n"
+               + "      audio.channels = 1\n      audio.position = [ MONO ]\n"
+               + "      aec.args = { webrtc.noise_suppression = true webrtc.high_pass_filter = true webrtc.gain_control = false webrtc.extended_filter = false webrtc.delay_agnostic = true webrtc.voice_detection = false }\n"
+               + "      capture.props = { node.name = \"taylor_mic_ns.in\" node.passive = true target.object = \"" + micName() + "\" }\n"
+               + "      source.props = { node.name = \"taylor_mic_ns\" node.description = \"TaylorOS Mic, less noise\" priority.session = 0 priority.driver = 0 }\n"
+               + "    }\n  }\n";
+        t += "]\n";
         return t;
     }
     // the live values, for pw-cli set-param
     function params(k) {
         let p = "";
-        for (const n of nodes(k)) for (const key in n.c) p += " \"" + n.name + ":" + key + "\" " + num(n.c[key]);
+        for (const n of graph(k).nodes) for (const key in n.c) p += " \"" + n.name + ":" + key + "\" " + num(n.c[key]);
         return "{ params = [" + p + " ] }";
     }
 
@@ -269,6 +383,34 @@ Singleton {
         }
     }
 
+    // ---- the gate's own threshold ("Set the threshold for me") ----
+    // From the channel's live level (MixerCore.levels, -60..0 dB): the quiet floor of the last ~6 s (its 15th
+    // percentile) plus 10 dB, between -70 and -25 dB; sent to the running gate when it moves by 2 dB or more.
+    property var autoGate: ({})
+    property var heardLv: ({})
+    Timer {
+        interval: 270; repeat: true
+        running: fx.channels.some(k => fx.hasGate(k) && fx.get(k).gate.on && fx.get(k).gate.auto)
+        onTriggered: {
+            for (const k of ["chat", "mic"]) {
+                const s = fx.get(k);
+                if (!s.gate.on || !s.gate.auto) continue;
+                const lv = MixerCore.levels[k] || 0;
+                if (lv <= 0) continue;                       // nothing measured (meter off or silence)
+                const h = (fx.heardLv[k] || []).concat([lv * 60 - 60]).slice(-24);
+                fx.heardLv[k] = h;
+                if (h.length < 12) continue;
+                const floor = h.slice().sort((a, b) => a - b)[Math.floor(h.length * 0.15)];
+                const th = Math.round(Math.max(-70, Math.min(-25, floor + 10)));
+                if (fx.autoGate[k] === undefined || Math.abs(th - fx.autoGate[k]) >= 2) {
+                    const a = Object.assign({}, fx.autoGate); a[k] = th; fx.autoGate = a;
+                    fx.changed(k);
+                    console.info("taylor-mixer:", k, "gate threshold set for her:", th, "dB");
+                }
+            }
+        }
+    }
+
     // ---- Follow the game (Game): the focused full-screen window's game picks Game's preset ----
     readonly property var top: ToplevelManager.activeToplevel
     property string followed: ""
@@ -294,7 +436,7 @@ Singleton {
         const r = { top: top ? [top.appId, top.title, top.fullscreen] : null };
         for (const k of channels) {
             const s = get(k);
-            r[k] = { on: active(k), node: !!fxNode(k), pre: s.pre, eqOn: s.eqOn, follow: !!s.follow, b: s.bands.map(b => [Math.round(b.f), Math.round(b.g * 10) / 10, Math.round(b.q * 100) / 100, b.t]), tone: s.tone };
+            r[k] = { on: active(k), node: !!fxNode(k), pre: s.pre, eqOn: s.eqOn, follow: !!s.follow, comp: s.comp, gate: s.gate, gateDb: gateDb(k), sp: s.sp, ns: !!s.ns, b: s.bands.map(b => [Math.round(b.f), Math.round(b.g * 10) / 10, Math.round(b.q * 100) / 100, b.t]), tone: s.tone };
         }
         return r;
     }

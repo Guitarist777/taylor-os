@@ -6,6 +6,7 @@ Item {
     id: sh
     property string k
     property string sub: "Equalizer"
+    Connections { target: MixerCore; function onShapingSubChanged() { if (sh.subs.indexOf(MixerCore.shapingSub) >= 0) sh.sub = MixerCore.shapingSub; } }
     readonly property var subs: {
         const l = ["Equalizer", "Compressor"];
         if (k === "chat" || k === "mic") l.push("Noise gate");
@@ -41,11 +42,8 @@ Item {
         width: parent.width - 8
         height: parent.height - y
         EqView { anchors.fill: parent; k: sh.k; visible: sh.sub === "Equalizer" }
-        Text {
-            visible: sh.sub !== "Equalizer"
-            text: "The " + sh.sub.toLowerCase() + " comes in the next step."
-            font.family: Theme.sans; font.pixelSize: 12
-            color: Theme.muted
-        }
+        CompView { anchors.fill: parent; k: sh.k; visible: sh.sub === "Compressor" }
+        GateView { anchors.fill: parent; k: sh.k; visible: sh.sub === "Noise gate" }
+        SpatialView { anchors.fill: parent; k: sh.k; visible: sh.sub === "Spatial audio" }
     }
 }

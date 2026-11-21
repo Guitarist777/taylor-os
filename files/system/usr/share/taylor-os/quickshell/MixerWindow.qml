@@ -37,6 +37,12 @@ Scope {
         function eqType(channel: string, band: int): void { MixerFx.cycleType(channel, band - 1); }
         function preset(channel: string, name: string): void { MixerFx.usePreset(channel, name); }
         function follow(on: bool): void { MixerFx.setFollow("game", on); }
+        // the compressor, gate and spatial audio (for the checks): part comp | gate | sp, a value of it
+        function part(channel: string, part: string, key: string, value: string): void {
+            MixerFx.setPart(channel, part, key, value === "true" ? true : value === "false" ? false : Number(value));
+        }
+        function noise(on: bool): void { MixerFx.setNs(on); }
+        function sub(name: string): void { MixerCore.shapingSub = name; }
         function curveAt(channel: string, freq: real): real { return MixerFx.responseDb(channel, freq); }
     }
 

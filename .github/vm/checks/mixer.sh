@@ -13,7 +13,7 @@ vm mixer-setup "rm -f ~/mx.b64" "${parts[@]}" "base64 -d ~/mx.b64 > ~/mx && chmo
 SW=$(screen mixer-setup | cut -d' ' -f1); SH=$(screen mixer-setup | cut -d' ' -f2)
 SW=${SW:-1280}; SH=${SH:-800}
 
-expect mixer 21
+expect mixer 28
 vm mixer-channels \
   "$(ok 'the mixer channels Game, Chat, Media and Aux exist in PipeWire' "test \$(pw-cli ls Node | grep -cE 'node.name = \"taylor_(game|chat|media|aux)(\\.out)?\"') -eq 8")" \
   "$(ok 'the desktop mixer is on her screen' "hyprctl layers | grep -q taylor-mixer")" \
@@ -90,3 +90,31 @@ vm mixer-follow "setsid -f kitty --class steam_app_1422450 >/dev/null 2>&1; slee
   "hyprctl dispatch focuswindow class:steam_app_1422450; hyprctl dispatch fullscreen 0; sleep 3" \
   "$(ok 'Follow the game switches Game to the game preset of the full-screen game' "~/mx t \"d['fx']['game']['pre'] == 'Deadlock'\"")" \
   "hyprctl dispatch fullscreen 0; pkill -f 'class steam_app_1422450'; sleep 1"
+
+# ---- step 3: compressor, noise gate, background noise reduction, spatial audio ----
+vm mixer-comp-open "~/mx q sub Compressor; sleep 1" "~/mx at comp:onoff"
+cs=$(tr -d '\r' < out/mixer-comp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+if [ -n "$cs" ]; then $V click $cs $SW $SH; sleep 5; fi
+vm mixer-comp \
+  "$(ok 'the Compressor switch puts a compressor in the Game filter' "~/mx t \"d['fx']['game']['comp']['on'] and d['fx']['game']['node']\" && ~/mx param taylor_game_fx 'comp:Ratio (1:n)' 3")" \
+  "~/mx q part game comp th -24; sleep 2" \
+  "$(ok 'moving the compressor threshold changes the running filter' "~/mx param taylor_game_fx 'comp:Threshold level (dB)' -24")"
+shot mixer-compressor
+vm mixer-sp-open "~/mx q sub 'Spatial audio'; sleep 1" "~/mx at sp:onoff"
+ss=$(tr -d '\r' < out/mixer-sp-open.txt | grep -oE '^AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+if [ -n "$ss" ]; then $V click $ss $SW $SH; sleep 6; fi
+vm mixer-spatial \
+  "$(ok 'Spatial audio on places seven virtual speakers with the head measurements' "test \$(grep -c 'label = spatializer' ~/.config/taylor-os/mixer-fx/game.conf) -eq 7 && ~/mx t \"d['fx']['game']['sp']['on'] and d['fx']['game']['node']\" && pw-link -l | grep -A1 '^taylor_game.out:output_FL' | grep -q taylor_game_fx")" \
+  "~/mx q part game sp imm 1; sleep 2" \
+  "$(ok 'the immersive end gives the back speakers more' "~/mx param taylor_game_fx 'sp_ol:Gain 6' 0.5")" \
+  "journalctl --user -u taylor-mixer-fx@game -n 20 --no-pager | tail -8"
+shot mixer-spatial
+vm mixer-gate "~/mx q tab Chat; sleep 1; ~/mx q sub 'Noise gate'; ~/mx q part chat gate auto false; ~/mx q part chat gate th -40; ~/mx q part chat gate on true; sleep 6" \
+  "$(ok 'the Chat noise gate runs with her threshold' "~/mx param taylor_chat_fx 'gate_l:Threshold (dB)' -40")"
+shot mixer-gate
+vm mixer-noise "~/mx q tab Mic; sleep 1; ~/mx q noise true; sleep 7" \
+  "$(ok 'background noise reduction makes a cleaner microphone that apps record from' "pw-cli ls Node | grep -q 'node.name = \"taylor_mic_ns\"' && wpctl inspect @DEFAULT_AUDIO_SOURCE@ | grep -q 'node.name = \"taylor_mic_fx\"'")" \
+  "$(ok 'no QML errors after the sound shaping' "! timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -iE 'error|ReferenceError|TypeError|is not defined' | grep -qiE 'mixer|Mx|pipewire'")" \
+  "timeout 8 quickshell log --pid \$(pgrep -u tester -x quickshell | head -1) 2>&1 | grep -iE 'error|warn' | tail -15" \
+  "systemctl --user list-units 'taylor-mixer-fx@*' --no-pager | head"
+shot mixer-noise

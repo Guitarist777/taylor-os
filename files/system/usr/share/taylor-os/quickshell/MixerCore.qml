@@ -52,16 +52,20 @@ Singleton {
 
     // her real microphone (never the mixer's own shaped one)
     readonly property var sources: all.filter(n => n && !n.isSink && !n.isStream && !isOurs(n) && String((n.properties || {})["media.class"] || "Audio/Source").startsWith("Audio/Source"))
+    // (while the shaped microphone is the default, hers is the one that was the default before it)
+    property var lastMic: ({ name: "" })    // changed in place on purpose: no binding follows it
     readonly property var micHw: {
         const d = Pipewire.defaultAudioSource;
-        if (d && !isOurs(d)) return d;
-        return sources[0] || null;
+        if (d && !isOurs(d)) { lastMic.name = d.name; return d; }
+        const named = lastMic.name ? all.find(n => n && n.name === lastMic.name && !n.isStream) : null;
+        return named || sources.find(n => String((n.properties || {})["media.class"] || "").startsWith("Audio/Source")) || null;
     }
     readonly property var micFx: byName("taylor_mic_fx", false)
     // while her microphone has sound shaping, apps record from the shaped one; without it, from hers again
     onMicFxChanged: {
-        if (micFx) { Pipewire.preferredDefaultAudioSource = micFx; console.info("taylor-mixer: apps record the shaped microphone"); }
-        else if (micHw && Pipewire.defaultAudioSource !== micHw) { Pipewire.preferredDefaultAudioSource = micHw; console.info("taylor-mixer: apps record her microphone directly"); }
+        // (by wpctl: Quickshell only takes a node it is bound to, and the shaped microphone is never bound)
+        if (micFx) { Quickshell.execDetached(["wpctl", "set-default", String(micFx.id)]); console.info("taylor-mixer: apps record the shaped microphone"); }
+        else if (micHw && Pipewire.defaultAudioSource !== micHw) { Quickshell.execDetached(["wpctl", "set-default", String(micHw.id)]); console.info("taylor-mixer: apps record her microphone directly"); }
     }
     readonly property var sinks: ({ game: byName("taylor_game", false), chat: byName("taylor_chat", false), media: byName("taylor_media", false), aux: byName("taylor_aux", false) })
     readonly property var outs: ({ game: byName("taylor_game.out", true), chat: byName("taylor_chat.out", true), media: byName("taylor_media.out", true), aux: byName("taylor_aux.out", true) })
@@ -227,8 +231,7 @@ Singleton {
     }
     function pinAll() {
         for (const k of appChannels) pin(k);
-        const mi = byName("taylor_mic_fx.in", true);
-        if (mi && micHw) pinNode(mi, micHw, "Mic shaping in");
+        // (the microphone's shaping is told its source in its own settings, MixerFx.conf)
     }
     Timer { interval: 1500; repeat: true; running: Pipewire.ready; onTriggered: m.pinAll() }
 
@@ -281,6 +284,7 @@ Singleton {
     // ---- live levels ----
     property bool widgetShown: false   // the widget and the window say when they are on screen
     property bool windowOpen: false
+    property string shapingSub: ""     // the checks open a sound-shaping section by name
     readonly property int viewers: (widgetShown ? 1 : 0) + (windowOpen ? 1 : 0)
     function meterOn(k) {
         if (viewers <= 0) return false;

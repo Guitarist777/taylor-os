@@ -43,6 +43,8 @@ modules:
         - qt6-qtsvg # draws the dock and tray line icons (SVG)
         - python3-hidapi # ChatMix: talks to her Arctis Nova Pro Wireless base station
         - pulseaudio-utils # pactl (the mixer's checks make pretend outputs with it)
+        - ladspa-swh-plugins # the mixer's compressor (SC4) and noise gate (Steve Harris' LADSPA plugins, GPL)
+        - mysofa # the mixer's spatial audio: the MIT KEMAR head measurements (default.sofa) for PipeWire's SOFA spatializer
         - greetd # runs her login screen (2026-11-19: her own design, drawn by Quickshell; replaces the Plasma login screen)
         - tuigreet # the plain text sign-in, only if her login screen fails twice (never locked out)
         - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)

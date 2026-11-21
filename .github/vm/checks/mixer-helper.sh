@@ -1,7 +1,7 @@
 #!/bin/bash
 # Helper for the mixer check (.github/vm/checks/mixer.sh), copied into the virtual PC as ~/mx and run as her test account.
-#   mx pretend               two silent pretend outputs, "Speakers" and a "SteelSeries Arctis Nova Pro Wireless" (the
-#                            virtual PC has no sound card)
+#   mx pretend               two silent pretend outputs, "Speakers" and a "SteelSeries Arctis Nova Pro Wireless", and a
+#                            silent pretend microphone (the virtual PC has no sound card)
 #   mx tone NAME FREQ ROLE   a test tone played by an app called NAME (in the background); mx untone NAME stops it
 #   mx q FUNCTION [ARGS]     quickshell ipc call mixer FUNCTION ARGS
 #   mx t 'PYTHON'            true when the expression holds on the mixer's state (d), e.g. mx t "d['ch']['game']['muted']"
@@ -14,7 +14,8 @@ case "$1" in
   pretend)
     pactl list sinks short | grep -q pretend_speakers || pactl load-module module-null-sink sink_name=pretend_speakers "sink_properties=device.description=Speakers priority.session=1500" >/dev/null
     pactl list sinks short | grep -q pretend_arctis || pactl load-module module-null-sink sink_name=pretend_arctis "sink_properties=device.description=\"SteelSeries Arctis Nova Pro Wireless\" priority.session=1400" >/dev/null
-    pactl set-default-sink pretend_speakers ;;
+    pactl list sources short | grep -q pretend_mic || pactl load-module module-null-sink sink_name=pretend_mic media.class=Audio/Source/Virtual "sink_properties=device.description=Microphone" >/dev/null
+    pactl set-default-sink pretend_speakers; pactl set-default-source pretend_mic ;;
   tone)
     cat > "/tmp/tone-$2.py" <<EOF
 import math,struct,sys
@@ -52,6 +53,21 @@ m = dict(zip(p[0::2], p[1::2]))
 f, g, q = m["b%d:Freq" % i], m["b%d:Gain" % i], m["b%d:Q" % i]
 print("FILTER", f, g, q, "SHOWN", b)
 sys.exit(0 if abs(f - b[0]) < 2 and abs(g - b[1]) < 0.2 and abs(q - b[2]) < 0.02 else 1)
+PY
+    ;;
+  param)   # mx param NODE KEY VALUE: the running filter NODE has control KEY at VALUE (within 0.05)
+    pw-dump > /tmp/mx-dump.json
+    python3 - "$2" "$3" "$4" <<'PY'
+import json, sys
+node, key, want = sys.argv[1], sys.argv[2], float(sys.argv[3])
+d = json.load(open("/tmp/mx-dump.json"))
+n = [o for o in d if o.get("info", {}).get("props", {}).get("node.name") == node]
+m = {}
+for x in (n[0]["info"]["params"].get("Props", []) if n else []):
+    v = x.get("params", [])
+    if v and ":" in str(v[0]): m.update(dict(zip(v[0::2], v[1::2])))
+print("PARAM", node, key, m.get(key))
+sys.exit(0 if key in m and abs(m[key] - want) < 0.05 else 1)
 PY
     ;;
   node) pw-dump | python3 -c "import json,sys; print(next((o['id'] for o in json.load(sys.stdin) if o['type'].endswith(':Node') and o.get('info',{}).get('props',{}).get('node.name')=='$2'), ''))" ;;

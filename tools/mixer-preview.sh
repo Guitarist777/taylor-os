@@ -42,6 +42,8 @@ EOS
 cat > "$OUT/.run.sh" <<EOS
 set -u
 command -v sway >/dev/null || dnf install -y -q --setopt=install_weak_deps=False sway grim dbus-daemon >/dev/null 2>&1
+# the mixer's sound shaping needs these (in the image from the recipe; a preview image made before may lack them)
+rpm -q ladspa-swh-plugins mysofa >/dev/null 2>&1 || dnf install -y -q --setopt=install_weak_deps=False ladspa-swh-plugins mysofa >/dev/null 2>&1
 id tester >/dev/null 2>&1 || useradd -m tester
 dbus-uuidgen > /etc/machine-id 2>/dev/null
 cp -a /repo/files/system/etc/pipewire/. /etc/pipewire/
