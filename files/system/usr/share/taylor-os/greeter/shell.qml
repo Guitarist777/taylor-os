@@ -24,12 +24,13 @@ ShellRoot {
     // Started exactly so: on 2026-11-19 wrapping it (screen cleared, its lines sent to the journal) made uwsm stop at
     // once and her login came back. uwsm's own quiet switch (UWSM_SILENT_START=1, uwsm 0.24) keeps its start-up lines
     // off the text screen instead; they still go to the journal, and its warnings still show.
-    readonly property var session: ["uwsm", "start", "-e", "-D", "Hyprland", "hyprland.desktop"]
+    // taylor-session-wait (2026-11-21) only waits for the desktop before to finish closing, then runs this line unchanged.
+    readonly property var session: ["/usr/libexec/taylor-session-wait", "uwsm", "start", "-e", "-D", "Hyprland", "hyprland.desktop"]
     readonly property var sessionEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland", "XDG_SESSION_DESKTOP=Hyprland", "UWSM_SILENT_START=1"]
     // The KDE backup (her build brief: KDE always works as a backup login). F2 on this screen picks it for the next
     // sign-in only; the hint says "KDE next" while it is picked, and F2 again takes it back.
     property bool kde: false
-    readonly property var kdeSession: ["/usr/libexec/taylor-kde-session"]
+    readonly property var kdeSession: ["/usr/libexec/taylor-session-wait", "/usr/libexec/taylor-kde-session"]
     readonly property var kdeEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=KDE", "XDG_SESSION_DESKTOP=KDE"]
     // Her ruling 2026-11-20: when her TAYLOR desktop failed to start 5 times in a row (/usr/libexec/taylor-greeter
     // counts them), this screen picks KDE itself and says why; F2 takes it back. A desktop that runs resets the count.

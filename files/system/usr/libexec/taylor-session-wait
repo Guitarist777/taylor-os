@@ -1,0 +1,14 @@
+#!/bin/sh
+# Start her desktop only once the one before it has finished closing (2026-11-21). Signing in a few seconds after
+# leaving KDE (or her TAYLOR desktop), the old session's "graphical session" was still shutting down; uwsm saw it,
+# said "A compositor or graphical-session* target is already active!" and gave up, so her login screen came back
+# (virtual PC run 44903035629). Wait for it to go (at most 20 s), then run the desktop exactly as given: exec keeps
+# the same process, screen and environment, so nothing else about how the desktop starts changes.
+i=0
+while [ "$i" -lt 40 ] && systemctl --user -q is-active graphical-session.target 2>/dev/null; do
+    [ "$i" = 0 ] && echo "taylor-session-wait: the last desktop is still closing; waiting" >&2
+    sleep 0.5
+    i=$((i + 1))
+done
+[ "$i" -gt 0 ] && echo "taylor-session-wait: waited $((i / 2)) s" >&2
+exec "$@"
