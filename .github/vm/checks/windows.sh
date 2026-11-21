@@ -90,7 +90,7 @@ r=$(tr -d '\r' < out/windows-before-drag.txt | grep -oE 'info: active \([0-9-]+,
 set -- $r; cx=$(( ${1:-400} + ${3:-400}/2 )); cy=$(( ${2:-200} + ${4:-300}/2 ))
 echo "dragging from $cx,$cy"
 $V drag $cx $cy 3 $((HH/2)) $W $HH meta_l &
-dp=$!; sleep 1.7
+dp=$!; sleep 2.15
 shot windows-6-drag-mid
 wait $dp; sleep 2
 shot windows-7-dropped
@@ -129,10 +129,10 @@ vm windows-ws1 \
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \
   "python3 /tmp/w.py settings reduceMotion=true scheme=night; sleep 4" \
-  "$(ok 'less motion makes workspaces fade instead of slide' "hyprctl repl 'tostring(taylor.still) .. tostring(taylor.ws_style)' | grep -q truefade")" \
+  "$(ok 'less motion makes workspaces fade instead of slide' "python3 /tmp/w.py anim workspaces fade")" \
   "$(ok 'the focused outline takes her scheme colour' "hyprctl getoption general.col.active_border | grep -qi 8fb5a1")" \
   "hyprctl animations | grep -iA4 'name: workspaces'" "hyprctl getoption general.col.active_border" \
   "python3 /tmp/w.py settings reduceMotion=false scheme=taylor; sleep 4" \
   "$(ok 'Hyprland shows no error notices from her windows' "hyprctl repl '#hl.notification.get()' | grep -qx 0")" \
-  "hyprctl repl '#hl.notification.get()'" "hyprctl -j animations | head -c 1200" \
+  "hyprctl repl '#hl.notification.get()'" "python3 /tmp/w.py anim workspaces slide; python3 /tmp/w.py anim windows popin" \
   "hyprctl getoption general.col.active_border" "hyprctl repl 'taylor.tail()'"

@@ -60,6 +60,12 @@ elif cmd == "settings":
     with open(p, "r+") as f:
         f.seek(0); f.write(json.dumps(d, indent=4)); f.truncate()
     print("info: settings", {k: d[k] for k in ("scheme", "reduceMotion")})
+elif cmd == "anim":
+    a = hj("animations")
+    a = a[0] if a and isinstance(a[0], list) else a
+    got = [x for x in a if x.get("name") == sys.argv[2]]
+    print("info: animation", got)
+    sys.exit(0 if got and got[0].get("style", "").startswith(sys.argv[3]) else 1)
 elif cmd == "info":
     print("info: screen", X, Y, W, H)
     for c in hj("clients"): print("info: client", c.get("class"), rect(c), "ws", c["workspace"]["id"], "fs", c.get("fullscreen"), "fl", c.get("floating"))

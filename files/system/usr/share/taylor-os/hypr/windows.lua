@@ -56,11 +56,12 @@ end
 -- ---------------------------------------------------------------- the look
 -- TAYLOR scheme ---------------------------------------------------------------------------------------------------
 -- The window outline follows her colour scheme (Theme.qml has the same table). At load it is read from her settings
--- file; after that the desktop calls taylor.look(accent, light, still) whenever her scheme or less-motion changes, so
--- nothing needs a reload. (The settings helper changes only settings.json; this is the one place Hyprland's colours
--- are set.)
+-- file, and read again every two seconds (only when the file changed does anything happen), so a change in Settings
+-- needs no reload. The desktop also calls taylor.look(accent, light, still, systemStill) when its own colours change,
+-- and it alone knows the system's "no animations" setting (systemStill). (The settings helper changes only
+-- settings.json; this is the one place Hyprland's colours are set.)
 T.accents = { taylor = "4fb386", quiet = "3f6152", night = "8fb5a1", slate = "8fb5a1" }
-local function readSettings()
+local function readText()
     local ok, txt = pcall(function()
         local home = os.getenv("XDG_CONFIG_HOME") or ((os.getenv("HOME") or "") .. "/.config")
         local f = io.open(home .. "/taylor-os/settings.json", "r")
@@ -68,6 +69,10 @@ local function readSettings()
         local t = f:read("*a"); f:close(); return t
     end)
     if not ok or type(txt) ~= "string" then return nil end
+    return txt
+end
+local function parseSettings(txt)
+    if not txt then return nil end
     local scheme = txt:match('"scheme"%s*:%s*"(%w+)"') or "taylor"
     if not T.accents[scheme] then scheme = "taylor" end
     local level = tonumber(txt:match('"slateLevel"%s*:%s*([%d%.]+)') or "0.19") or 0.19
@@ -95,7 +100,8 @@ function T.motion(still)
     end
 end
 
-function T.look(accent, light, still)
+function T.look(accent, light, still, systemStill)
+    if systemStill ~= nil then T.sysStill = systemStill and true or false end
     accent = tostring(accent or "4fb386"):gsub("^#", ""):lower():sub(1, 6)
     if not accent:match("^%x%x%x%x%x%x$") then accent = "4fb386" end
     hl.config({ general = { col = {
@@ -126,7 +132,8 @@ hl.config({
     },
 })
 do
-    local s = readSettings() or { accent = "4fb386", light = false, still = false }
+    T.settingsText = readText()
+    local s = parseSettings(T.settingsText) or { accent = "4fb386", light = false, still = false }
     T.still = nil
     T.motion(s.still)
     T.look(s.accent, s.light, s.still)
@@ -404,6 +411,15 @@ local function tick()
         local cur = hl.get_cursor_pos() or { x = 0, y = 0 }
         local w = hl.get_active_window()
         dragTick(w, cur)
+        T.n = (T.n or 0) + 1
+        if T.n % 50 == 0 then        -- every two seconds: her settings file, if it changed
+            local txt = readText()
+            if txt and txt ~= T.settingsText then
+                T.settingsText = txt
+                local st = parseSettings(txt)
+                if st then T.look(st.accent, st.light, st.still or T.sysStill == true) end
+            end
+        end
         coverTick(cur)
     end)
     if not ok then

@@ -68,10 +68,10 @@ Singleton {
     // ask Hyprland for the state once at start, and hand it her look; again whenever her scheme or motion changes
     function hypr(code) { Quickshell.execDetached(["hyprctl", "eval", code]); }
     function sendLook() {
-        hypr("if taylor then taylor.look('" + Theme.hex + "', " + (Theme.light ? "true" : "false") + ", " + (Theme.still ? "true" : "false") + ") end");
+        hypr("if taylor then taylor.look('" + Theme.hex + "', " + (Theme.light ? "true" : "false") + ", " + (Theme.still ? "true" : "false") + ", " + (Theme.systemStill ? "true" : "false") + ") end");
     }
     Timer { id: lookSoon; interval: 300; onTriggered: c.sendLook() }
-    readonly property string lookKey: Theme.hex + Theme.light + Theme.still
+    readonly property string lookKey: Theme.hex + Theme.light + Theme.still + Theme.systemStill
     onLookKeyChanged: lookSoon.restart()
     Component.onCompleted: { hypr("if taylor then taylor.push() end"); lookSoon.restart(); }
 
