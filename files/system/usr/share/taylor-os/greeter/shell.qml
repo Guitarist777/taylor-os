@@ -22,9 +22,10 @@ ShellRoot {
     property real fade: 0
 
     // Started exactly so: on 2026-11-19 wrapping it (screen cleared, its lines sent to the journal) made uwsm stop at
-    // once and her login came back. uwsm's start-up lines still show on the text screen until Hyprland's first picture.
+    // once and her login came back. uwsm's own quiet switch (UWSM_SILENT_START=1, uwsm 0.24) keeps its start-up lines
+    // off the text screen instead; they still go to the journal, and its warnings still show.
     readonly property var session: ["uwsm", "start", "-e", "-D", "Hyprland", "hyprland.desktop"]
-    readonly property var sessionEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland", "XDG_SESSION_DESKTOP=Hyprland"]
+    readonly property var sessionEnv: ["XDG_SESSION_TYPE=wayland", "XDG_CURRENT_DESKTOP=Hyprland", "XDG_SESSION_DESKTOP=Hyprland", "UWSM_SILENT_START=1"]
     // The KDE backup (her build brief: KDE always works as a backup login). F2 on this screen picks it for the next
     // sign-in only; the hint says "KDE next" while it is picked, and F2 again takes it back.
     property bool kde: false
@@ -51,6 +52,30 @@ ShellRoot {
     }
     // Written just before her desktop starts; the start script reads it when this screen comes back.
     Process { id: startFile }
+
+    // Her two Settings choices for this screen, "Boot animation: play the full opening" and "Reduce motion" (hers, or the
+    // system's no-animations setting). This screen runs as the greeter account and cannot read her home, so a root job
+    // (/usr/libexec/taylor-greeter-prefs) copies just those two to /var/lib/taylor-os/greeter.json. Only two true/false
+    // values are taken from it; a missing, broken or strange file means the defaults (the full opening, with motion).
+    FileView {
+        id: prefsFile
+        path: Quickshell.env("TAYLOR_GREETER_PREFS") || "/var/lib/taylor-os/greeter.json"
+        blockLoading: true
+        printErrors: false
+    }
+    readonly property var motion: {
+        const o = { full: true, still: false, from: "the defaults" };
+        try {
+            const j = JSON.parse(prefsFile.text());
+            if (j !== null && typeof j === "object" && !Array.isArray(j)) {
+                if (typeof j.bootAnimation === "boolean") o.full = j.bootAnimation;
+                if (typeof j.reduceMotion === "boolean") o.still = j.reduceMotion;
+                o.from = "her settings";
+            }
+        } catch (e) {}
+        return o;
+    }
+    Component.onCompleted: console.info("taylor-greeter: motion from " + motion.from + ": opening " + (motion.full ? "full" : "off") + ", reduce motion " + (motion.still ? "on" : "off"))
 
     signal sTyped()
     signal sErase(int left)
@@ -189,6 +214,8 @@ ShellRoot {
                 primary: modelData === Quickshell.screens[0]
                 who: root.who
                 fade: root.fade
+                still: root.motion.still
+                full: root.motion.full
                 onKeyTyped: (text) => root.typed(text)
                 onKeyErase: root.erase()
                 onKeyEnter: root.submit()

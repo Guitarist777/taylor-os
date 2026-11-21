@@ -1,0 +1,11 @@
+# TAYLOR OS boot screen (2026-11-21): her dark (#0B0D0C), with nothing on it, from the firmware's picture to her
+# opening on the login screen. Only when the PC must ask her something (a disk password) or say something does it
+# show a few plain words in the middle. Drawn by taylor.script (Plymouth's script plugin).
+[Plymouth Theme]
+Name=TAYLOR
+Description=Her dark, with nothing on it, until her opening plays on the login screen
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/taylor
+ScriptFile=/usr/share/plymouth/themes/taylor/taylor.script

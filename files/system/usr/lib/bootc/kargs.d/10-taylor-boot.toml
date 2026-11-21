@@ -1,0 +1,4 @@
+# TAYLOR OS boot (2026-11-21, phase 8): her boot screen shows (rhgb, quiet: Fedora's usual pair), and the text screen's
+# black is her dark #0B0D0C (vt.default_*: the kernel's own 16 colours with only the first, black, changed), so the
+# moment between the boot screen and her login screen is her dark, not black. bootc adds these on install and update.
+kargs = ["rhgb", "quiet", "vt.default_red=11,170,0,170,0,170,0,170,85,255,85,255,85,255,85,255", "vt.default_grn=13,0,170,85,0,0,170,170,85,85,255,255,85,85,255,255", "vt.default_blu=12,0,0,0,170,170,170,170,85,85,85,85,255,255,255,255"]

@@ -48,11 +48,17 @@ function setSize(w, h) {
 function setName(n) { name = n; }
 function setFont(f) { if (f) FONT = f; }
 
-function targets() {
-    var F = Math.min(H * 0.3, W * 0.165), st = F * Pts.STEP, c = Pts.cells(), pts = [];
-    for (var i = 0; i < c.length; i++) pts.push([W / 2 + c[i][0] * st, H / 2 + c[i][1] * st]);
-    return pts;
-}
+// Her targets(): the word sampled on her grid (intro_points.js does exactly what her page's hidden canvas does).
+function targets() { return Pts.cells(W, H); }
+
+// Reduced motion (her Settings switch "Reduce motion", or the system's): her opening's own still, the word as it rests
+// (her settle(): 930 steps of 0.016 s, shown at 13.9 s), then the login as one simple fade, with nothing moving.
+// Opening off (her Settings switch "Boot animation"): the login screen starts at the hand-off, the word already made.
+var still = false, opening = true, ripple = true;
+var STILL_AT = 13.9, STILL_HOLD = 1.5, STILL_FADE = 1.0;
+function setMotion(isStill, full) { still = !!isStill; opening = full !== false; }
+// the clock everything that sways, twinkles or turns follows: it stands still when she asked for less motion
+function vT() { return still ? 0 : T; }
 
 function shuffle() {
     free = []; for (var i = 0; i < SL; i++) free.push(i);
@@ -60,7 +66,7 @@ function shuffle() {
 }
 
 function spawn() {
-    P = []; t = 0; T = 1000 * Math.random(); tb = -1; skipCover = 0;
+    P = []; t = 0; T = 1000 * Math.random(); tb = -1; skipCover = 0; coverGone = false;
     dots = []; shuffle(); mode = 'idle'; hint = 'Type your password'; rot = 0;
     var pts = targets(), n = pts.length, ring = 260, total = n + ring;
     for (var i = 0; i < total; i++) {
@@ -90,7 +96,20 @@ function spawn() {
     }
     stars = [];
     for (var j = 0; j < P.length; j++) if (P[j].star) stars.push(P[j]);
+    ripple = true;
+    if (still) {
+        // her settle(), step for step
+        for (var s2 = 0; s2 < 930; s2++) { var tt = s2 * 0.016; for (var i3 = 0; i3 < P.length; i3++) { if (tt >= P[i3].d) step(P[i3], 0.016, tt, tt); } }
+        t = STILL_AT; skipCover = 1;
+    } else if (!opening) {
+        ripple = false;
+        settleTo(A_END); skipCover = 1;
+    }
 }
+
+// Reduced motion: how much of the still word still covers the login (1 .. 0, a simple fade).
+var coverGone = false;
+function stillCover() { return still && tb >= 0 && !coverGone ? 1 - sm((t - STILL_AT - STILL_HOLD) / STILL_FADE) : 0; }
 
 // ---------- A: the opening (her code) ----------
 
@@ -145,7 +164,7 @@ function waves(x, al) {
         x.beginPath();
         var base = H * (0.1 + j * 0.105), amp = (5 + j * 1.1) * S, sp = 0.3 + j * 0.04, stp = Math.max(8, W / 120);
         for (var u = 0; u <= W + stp; u += stp) {
-            var un = u / S, yy = base + Math.sin(un * 0.009 + T * sp + j * 1.7) * amp + Math.sin(un * 0.023 - T * sp * 0.7 + j * 0.9) * amp * 0.45;
+            var un = u / S, yy = base + Math.sin(un * 0.009 + vT() * sp + j * 1.7) * amp + Math.sin(un * 0.023 - vT() * sp * 0.7 + j * 0.9) * amp * 0.45;
             if (u === 0) x.moveTo(u, yy); else x.lineTo(u, yy);
         }
         x.stroke();
@@ -178,7 +197,7 @@ function bigDial(x, t, T) {
     x.globalAlpha = 1;
 }
 
-function drawOpening(x) {
+function drawOpening(x, t) {
     x.globalAlpha = 1; x.fillStyle = '#0B0D0C'; x.fillRect(0, 0, W, H);
     waves(x, 1);
     bigDial(x, t, T);
@@ -204,7 +223,7 @@ function drawOpening(x) {
             var b = Math.sin(q / band * 3.1416);
             px += dx / r * b * 3.5 * S; py += dy / r * b * 3.5 * S; al = Math.min(1, al + b * 0.4); rad = rad * (1 + b * 0.5);
         }
-        if (p.t && !hero && m > 0.99 && sp2 < 20 * S) { px += Math.sin(T * 1.7 + p.ph) * 0.5 * S; py += Math.cos(T * 1.3 + p.ph) * 0.5 * S; }
+        if (p.t && !hero && m > 0.99 && sp2 < 20 * S) { px += Math.sin(vT() * 1.7 + p.ph) * 0.5 * S; py += Math.cos(vT() * 1.3 + p.ph) * 0.5 * S; }
         x.globalAlpha = al; x.fillStyle = p.col;
         x.beginPath(); x.arc(px, py, Math.max(0.4, rad), 0, 6.2832, false); x.fill();
         x.globalAlpha = 1;
@@ -213,18 +232,30 @@ function drawOpening(x) {
 
 // ---------- B: the hand-off, and C: the login (her code) ----------
 
+// The hand-off starts from the very picture the opening last drew (no cut): each spark keeps its place, its size and
+// how bright it was; the text sparks keep their little sway and the first ripple goes on out, while the word holds its beat.
 function beginHandoff(at) {
-    for (var i = 0; i < P.length; i++) { P[i].hx = P[i].x; P[i].hy = P[i].y; P[i].r = P[i].r / S; }   // her hand-off sizes are unscaled
+    for (var i = 0; i < P.length; i++) {
+        var p = P[i];
+        p.hx = p.x; p.hy = p.y; p.hr = p.r;
+        if (p.role) p.hr = p.r * (1 + 0.45 * sm((t - 6.2) / 0.8) * (1 - sm((t - 13.1) / 0.6)));
+    }
     tb = at || 0;
 }
+// how bright a spark is at the hand-off (her opening's numbers; the ring's sparks keep breathing)
+function baseAl(p) { return p.t ? 0.9 : cl(0.5 + 0.25 * Math.sin((p.age + (still ? 0 : tb)) * 1.3 + p.ph)); }
+// her first ripple, carried across the hand-off: how far it has gone (-1 when there is none)
+function rippleAt() { return ripple && t > 14.0 ? (t - 14.0) * 150 * S : -1; }
 
 // Jump from the opening straight to the login (a key or a click during the opening).
 function skipToLogin() {
+    coverGone = true;
     if (tb >= 0 && tb >= 7) return;
     if (tb < 0) beginHandoff(0);
     tb = 7.5; skipCover = 1;
 }
 function inLogin() { return tb >= 0; }
+function sceneT() { return t; }
 
 function hills(x, al) {
     x.globalAlpha = al;
@@ -314,7 +345,7 @@ function dot(x, px, py, r, al, col) {
 }
 
 function drawLogin(x, dt) {
-    var u0 = tb;
+    var u0 = still ? 99 : tb;
     var K = sm((u0 - 1.3) / 2.8), L = sm((u0 - 3.7) / 1.5), D = sm((u0 - 4.3) / Dd), B = sm((u0 - (4.3 + Dd * 0.62)) / 1.1), N = sm((u0 - (4.3 + Dd * 0.8)) / 1.1);
     var cx = W / 2, DY = 238 * k, Rd = 30 * k;
     if (mode === 'fill' && T - tm > fillDur) { mode = 'ok'; tm = T; hint = 'Welcome back'; }
@@ -335,24 +366,37 @@ function drawLogin(x, dt) {
     if (K < 1) waves(x, 1 - K);
 
     // the sparks: stars rise to their places, the rest drift up and fade
+    var wave = rippleAt(), band = 46 * S, reach = Math.sqrt(W * W + H * H) / 2 + 80 * S;
+    if (wave > reach) wave = -1;
     for (var i = 0; i < P.length; i++) {
-        var p = P[i], u2 = sm((u0 - 1.2 - p.dl) / 2.7), px, py, rad;
+        var p = P[i], u2 = sm((u0 - 1.2 - p.dl) / 2.7), px, py, rad, a0 = baseAl(p), bump = 1;
+        var hx = p.hx, hy = p.hy;
+        if (u2 < 1) {
+            if (p.t) { hx += Math.sin(vT() * 1.7 + p.ph) * 0.5 * S * (1 - u2); hy += Math.cos(vT() * 1.3 + p.ph) * 0.5 * S * (1 - u2); }
+            if (wave > 0) {
+                var wdx = p.hx - W / 2, wdy = p.hy - H / 2, wr = Math.sqrt(wdx * wdx + wdy * wdy) + 0.01, wq = wave - wr;
+                if (wq > 0 && wq < band) {
+                    var wb = Math.sin(wq / band * 3.1416) * (1 - u2);
+                    hx += wdx / wr * wb * 3.5 * S; hy += wdy / wr * wb * 3.5 * S; a0 = Math.min(1, a0 + wb * 0.4); bump = 1 + wb * 0.5;
+                }
+            }
+        }
         if (p.star) {
-            px = p.hx + (p.ssx - p.hx) * u2; py = p.hy + (p.ssy - p.hy) * u2 - Math.sin(u2 * 3.1416) * 26 * k;
-            rad = (p.r + (p.sr / k - p.r) * u2) * k;
-            var twk = 0.55 + 0.4 * Math.sin(T * p.tw + p.ph);
+            px = hx + (p.ssx - hx) * u2; py = hy + (p.ssy - hy) * u2 - Math.sin(u2 * 3.1416) * 26 * k;
+            rad = (p.hr * bump + (p.sr - p.hr * bump) * u2);
+            var twk = 0.55 + 0.4 * Math.sin(vT() * p.tw + p.ph);
             // a star a letter took is gone, and comes back after a while (her login)
             var backK = p.gone ? (T < p.gone ? 1 : sm((T - p.gone - 1.5) / 2)) : 1;
-            if (u2 < 1) { x.globalAlpha = (p.t ? 0.9 : 0.6) * (1 - u2); x.fillStyle = p.col; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill(); }
+            if (u2 < 1) { x.globalAlpha = a0 * (1 - u2); x.fillStyle = p.col; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill(); }
             if (u2 > 0) {
                 x.globalAlpha = u2 * twk * backK * (1 - 0.5 * L * (1 - A) * Math.exp(-((px - cx) * (px - cx)) / (2 * 150 * k * 150 * k)));
                 x.fillStyle = '#E4EEE8'; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill();
             }
         } else {
             if (u2 >= 1) continue;
-            px = p.hx + p.dr * u2; py = p.hy - p.up * u2 * u2;
-            rad = p.r * k * (1 - 0.5 * u2);
-            x.globalAlpha = (p.t ? 0.9 : 0.6) * (1 - u2) * (1 - u2); x.fillStyle = p.col;
+            px = hx + p.dr * u2; py = hy - p.up * u2 * u2;
+            rad = p.hr * bump * (1 - 0.5 * u2);
+            x.globalAlpha = a0 * (1 - u2) * (1 - u2); x.fillStyle = p.col;
             x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill();
         }
     }
@@ -364,13 +408,13 @@ function drawLogin(x, dt) {
         var d0 = new Date(), h = d0.getHours() % 12 || 12;
         x.globalAlpha = L * 0.95 * (1 - A); x.fillStyle = '#EDEFEE';
         x.font = fontAt(Math.min(68 * k, W * 0.11));
-        x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (1 - L) * 8 - A * 10) * k);
+        x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
         x.globalAlpha = L * 0.85 * (1 - A); x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
-        x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (1 - L) * 8 - A * 10) * k);
+        x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
     }
 
     if (D > 0 && da > 0) {
-        var shake = mode === 'wrong' ? Math.sin(e * 42) * 7 * k * Math.exp(-e * 5) : 0, dx = cx + shake;
+        var shake = mode === 'wrong' && !still ? Math.sin(e * 42) * 7 * k * Math.exp(-e * 5) : 0, dx = cx + shake;
         var okp = mode === 'ok' ? sm(e / 0.9) : 0;
         var s0 = -1.5708, s1 = s0 + D * 6.2832;
         x.lineCap = 'round'; x.strokeStyle = ACC;
@@ -385,15 +429,15 @@ function drawLogin(x, dt) {
             x.lineTo(dx + Math.cos(an) * (Rd + (big ? 12 : 9) * k), DY + Math.sin(an) * (Rd + (big ? 12 : 9) * k)); x.stroke();
         }
         if (B > 0) {
-            rot += (0.12 + (mode === 'ok' ? 1.6 * okp : 0) + (mode === 'fill' || mode === 'wait' ? 0.5 : 0) + (dots.length && mode === 'idle' ? 0.25 : 0)) * dt;
+            if (!still) rot += (0.12 + (mode === 'ok' ? 1.6 * okp : 0) + (mode === 'fill' || mode === 'wait' ? 0.5 : 0) + (dots.length && mode === 'idle' ? 0.25 : 0)) * dt;
             x.strokeStyle = ACC; x.lineWidth = 2 * k;
             for (var j = 0; j < 3; j++) {
                 var st = rot + j * 2.0944;
-                x.globalAlpha = 0.8 * B * da * (0.85 + 0.15 * Math.sin(T * 0.8));
+                x.globalAlpha = 0.8 * B * da * (0.85 + 0.15 * Math.sin(vT() * 0.8));
                 x.beginPath(); x.arc(dx, DY, Rd + 18 * k, st, st + 0.2 + 0.7 * B, false); x.stroke();
             }
         }
-        if (mode === 'ok' && e > 0.7) {
+        if (mode === 'ok' && e > 0.7 && !still) {
             var pu = cl((e - 0.7) / 1.3);
             x.strokeStyle = ACC; x.globalAlpha = 0.6 * (1 - pu); x.lineWidth = (2 * (1 - pu) + 0.5) * k;
             x.beginPath(); x.arc(cx, DY, Rd + pu * 130 * k, 0, 6.2832, false); x.stroke();
@@ -401,7 +445,12 @@ function drawLogin(x, dt) {
         for (var m2 = 0; m2 < dots.length; m2++) {
             var d = dots[m2], px2, py2, al2 = 1, r2 = 2.6 * k;
             if (T < d.born || tt >= 0.9) continue;
-            if (mode === 'wrong') {
+            if (still) {
+                // reduced motion: a dot fades in on its place, and a wrong password fades them out where they are
+                var sp4 = slotPos(d.slot, 0);
+                px2 = sp4[0]; py2 = sp4[1];
+                al2 = mode === 'wrong' ? 1 - sm((e - 0.2) / 0.9) : sm((T - d.born) / 0.45);
+            } else if (mode === 'wrong') {
                 var f = Math.exp(-3 * dt); d.vx *= f; d.vy *= f; d.x += d.vx * dt; d.y += d.vy * dt;
                 px2 = d.x; py2 = d.y; al2 = 1 - sm((e - 0.5) / 0.9);
             } else {
@@ -415,8 +464,9 @@ function drawLogin(x, dt) {
     if (tt >= 0) {
         var sp = Dial.spot(W, H);
         if (!fly.length) makeAfter(cx, DY, Rd, sp);
-        Dial.draw(x, sp.x, sp.y, sp.r, 1, sm((tt - 2.1) / 1.5), sm((tt - 2.9) / 1.0), 0, Dial.arcAngle(), T);
-        if (tt >= 0.9) {
+        if (still) Dial.draw(x, sp.x, sp.y, sp.r, sm((tt - 1.0) / 1.2), 1, 1, 0, Dial.arcAngle(), 0);
+        else Dial.draw(x, sp.x, sp.y, sp.r, 1, sm((tt - 2.1) / 1.5), sm((tt - 2.9) / 1.0), 0, Dial.arcAngle(), T);
+        if (tt >= 0.9 && !still) {
             var f, u;
             for (var q3 = 0; q3 < fly.length; q3++) {
                 f = fly[q3]; u = sm((tt - 0.9 - f.dl) / 1.3);
@@ -441,7 +491,7 @@ function drawLogin(x, dt) {
     if (N > 0) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         x.fillText(name, cx, 298 * k);
-        x.globalAlpha = N * 0.85 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
+        x.globalAlpha = N * 0.8 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
         x.fillText(kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
             : kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
@@ -454,8 +504,9 @@ function advance(dt) {
     dt = Math.min(0.033, Math.max(0, dt));
     t += dt; T += dt;
     if (tb < 0) {
-        for (var i = 0; i < P.length; i++) { if (t >= P[i].d) step(P[i], dt, T, t); }
-        if (t >= A_END) beginHandoff(0);
+        if (!still) for (var i = 0; i < P.length; i++) { if (t >= P[i].d) step(P[i], dt, T, t); }
+        if (!still && t >= A_END) beginHandoff(0);
+        if (still && t >= STILL_AT + STILL_HOLD) beginHandoff(0);
     } else {
         tb += dt;
     }
@@ -469,9 +520,12 @@ function settleTo(at) { while (t < at) advance(Math.min(1 / 60, at - t + 1e-6));
 
 function draw(x) {
     x.reset();
-    if (tb < 0) drawOpening(x); else drawLogin(x, lastDt);
+    if (tb < 0) drawOpening(x, t); else drawLogin(x, lastDt);
     if (skipCover > 0) { x.globalAlpha = skipCover; x.fillStyle = '#0B0D0C'; x.fillRect(0, 0, W, H); x.globalAlpha = 1; }
 }
+
+// Reduced motion: the still word, drawn once into the cover that fades off the login (Scene.qml).
+function drawStillWord(x) { x.reset(); drawOpening(x, STILL_AT); }
 
 // The last half second before her desktop starts: fade to the desktop's own dark.
 function fadeOut(x, a) { x.globalAlpha = a; x.fillStyle = '#0F1010'; x.fillRect(0, 0, W, H); x.globalAlpha = 1; }

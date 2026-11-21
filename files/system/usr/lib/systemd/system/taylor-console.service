@@ -1,0 +1,14 @@
+# Her dark on the text screen between the boot screen and her login screen (/usr/libexec/taylor-console).
+[Unit]
+Description=TAYLOR OS: her dark on the text screen before the login screen
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+Before=plymouth-quit.service plymouth-quit-wait.service greetd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/taylor-console
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
