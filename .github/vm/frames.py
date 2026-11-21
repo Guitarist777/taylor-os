@@ -38,7 +38,8 @@ def classify(path):
     elif dark > 0.97 * n and green < 5:
         kind = "text" if grey > 150 else "dark"
     elif dark + black > 0.9 * n and green >= 5:
-        kind = "opening"
+        # lines of start-up text (white, with green [ OK ]s) are text; her opening is green sparks with little white
+        kind = "text" if grey > 3000 else "opening"
     elif black + dark > 0.9 * n and grey > 150:
         kind = "text"
     else:
