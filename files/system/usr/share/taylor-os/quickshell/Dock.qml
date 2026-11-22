@@ -17,6 +17,10 @@
 // through Lutris) shows its icon dimmed; a click says in her status line that it is being set up.
 // After a launch, the icon gently brightens and dims until the app's window appears (her call 2026-11-21: no dots).
 //
+// Power (her pick S3, 2026-11-22): the last slot, after a thin line, shows a power sign. A click fans out Lock, Sleep,
+// Restart and Shut down under it the same way (four, a little wider apart); a click on one does it. Restart and Shut
+// down play her goodnight first (Goodnight.qml); Sleep locks first (hypridle's before_sleep_cmd).
+//
 // The log says what it does (app ids and counts, nothing private): "taylor-dock: ..." lines.
 import Quickshell
 import Quickshell.Io
@@ -45,11 +49,13 @@ Scope {
     readonly property real padX: 12 * s
     readonly property real padY: 7 * s
     readonly property real sepW: 1 + 6 * s        // the thin line after the dial, with its margins
-    readonly property real barW: 2 * padX + 2 + (slots.length + 1) * ic + slots.length * gap + sepW + gap
+    readonly property int seps: 1 + slots.filter((q) => q.sep).length      // the line after the dial, and one before Power
+    readonly property real barW: 2 * padX + 2 + (slots.length + 1) * ic + slots.length * gap + seps * (sepW + gap)
     readonly property real barH: 2 * padY + ic + 2
     readonly property real barX: Math.round((sw - barW) / 2)
     // the centre of slot i on the screen (0 is the dial)
-    function slotX(i) { return barX + 1 + padX + i * (ic + gap) + (i >= 1 ? sepW + gap : 0) + ic / 2; }
+    function sepsBefore(i) { let n = i >= 1 ? 1 : 0; for (let k = 0; k < i && k < slots.length; k++) if (k + 1 <= i && slots[k].sep) n++; return n; }
+    function slotX(i) { return barX + 1 + padX + i * (ic + gap) + sepsBefore(i) * (sepW + gap) + ic / 2; }
     readonly property real slotY: top + 1 + padY + ic / 2
 
     // ---- the apps ----
@@ -67,12 +73,19 @@ Scope {
         spotify:   { name: "Spotify", icons: ["spotify", "com.spotify.Client"], desktop: "com.spotify.Client", flatpak: "com.spotify.Client", match: /^(spotify|com\.spotify\.client)$/i },
         messages:  { name: "Messages", tip: "Messages for web", icons: ["taylor-messages"], desktop: "taylor-messages", run: ["/usr/libexec/taylor-open-messages"], match: /messages\.google\.com/i, orTitle: /Messages for web/i },
         mixer:     { name: "Mixer", icons: ["multimedia-volume-control", "audio-card"], match: /quickshell/i, andTitle: /^Mixer$/ },
-        settings:  { name: "Settings", icons: ["preferences-system", "systemsettings"], match: /quickshell/i, andTitle: /^Settings$/ }
+        settings:  { name: "Settings", icons: ["preferences-system", "systemsettings"], match: /quickshell/i, andTitle: /^Settings$/ },
+        // Power's four (things to do, not apps: no window, never "running")
+        lock:      { name: "Lock", icons: ["system-lock-screen"], act: ["/usr/libexec/taylor-lock", "now"] },
+        sleep:     { name: "Sleep", icons: ["system-suspend"], act: ["systemctl", "suspend"] },
+        restart:   { name: "Restart", icons: ["system-reboot"], act: ["quickshell", "ipc", "call", "power", "restart"] },
+        shutdown:  { name: "Shut down", icons: ["system-shutdown"], act: ["quickshell", "ipc", "call", "power", "shutdown"], warn: true }
     })
-    readonly property var groups: ({ browser: ["edge", "firefox", "chrome"], games: ["steam", "ea", "battlenet"] })
+    readonly property var groups: ({ browser: ["edge", "firefox", "chrome"], games: ["steam", "ea", "battlenet"],
+                                     power: ["lock", "sleep", "restart", "shutdown"] })
     readonly property var slots: [
         { id: "files" }, { group: "browser", name: "Browser" }, { id: "terminal" }, { group: "games", name: "Games" },
-        { id: "spotify" }, { id: "messages" }, { id: "mixer" }, { id: "settings" }
+        { id: "spotify" }, { id: "messages" }, { id: "mixer" }, { id: "settings" },
+        { group: "power", name: "Power", sep: true }
     ]
 
     // what is on the PC (the flatpaks, Steam, the Lutris games, the Messages icon): taylor-dock-apps prints one id a line
@@ -80,7 +93,7 @@ Scope {
     property bool scanned: false
     function present(id) {
         const a = apps[id];
-        if (!a.flatpak && !a.need) return true;
+        if (!a || (!a.flatpak && !a.need)) return true;           // Power and its four are always there
         if (!scanned) return true;               // no dimming before the first look
         return have[id] === true;
     }
@@ -117,6 +130,7 @@ Scope {
 
     // the app a group slot shows: the last one she used, else the first one on the PC, else the first
     function groupShows(g) {
+        if (g === "power") return "power";
         const last = g === "browser" ? Prefs.lastBrowser : Prefs.lastGames;
         if (groups[g].indexOf(last) >= 0) return last;
         for (const k of groups[g]) if (present(k)) return k;
@@ -134,7 +148,7 @@ Scope {
         const out = {};
         for (const t of ToplevelManager.toplevels.values) {
             const act = t.activated, ti = t.title;   // read here so a change of either redoes this
-            for (const k in apps) if (matches(apps[k], t)) out[k] = Math.max(out[k] || 0, act ? 2 : 1);
+            for (const k in apps) if (apps[k].match && matches(apps[k], t)) out[k] = Math.max(out[k] || 0, act ? 2 : 1);
         }
         return out;
     }
@@ -153,7 +167,7 @@ Scope {
         const l = Object.assign({}, loading);
         let changed = false;
         const lut = tops.some((t) => /lutris/i.test(t.appId || ""));
-        for (const k in l) if (run[k] || (apps[k].lutris && lut)) { delete l[k]; changed = true; }
+        for (const k in l) if (run[k] || (apps[k] && apps[k].lutris && lut)) { delete l[k]; changed = true; }
         if (changed) loading = l;
     }
 
@@ -249,7 +263,7 @@ Scope {
         fanShown = true;
         Qt.callLater(() => { if (dock.openGroup === g) dock.fanOn = true; });   // the tour's requestAnimationFrame
         console.info("taylor-dock: splay " + g + " [" + groups[g].join(" ") + "] from " + Math.round(slotX(i)) + "," + Math.round(slotY)
-                     + "; the fan at " + [0, 1, 2].map((k) => Math.round(slotX(i) + fanAt(k).x) + "," + Math.round(slotY + fanAt(k).y)).join(" "));
+                     + "; the fan at " + groups[g].map((_, k) => k).map((k) => Math.round(slotX(i) + fanAt(k).x) + "," + Math.round(slotY + fanAt(k).y)).join(" "));
     }
     function fold() {
         if (openGroup === "" || !fanShown) return;
@@ -283,6 +297,12 @@ Scope {
     }
     function pick(id) {
         const g = openGroup;
+        if (g === "power") {
+            console.info("taylor-dock: power: " + id + " (" + apps[id].act.join(" ") + ")");
+            fold();
+            Quickshell.execDetached(apps[id].act);
+            return;
+        }
         if (present(id) || apps[id].lutris) {
             if (g === "browser") { Prefs.lastBrowser = id; makeDefaultBrowser(id); } else Prefs.lastGames = id;
             console.info("taylor-dock: picked " + id + " (the " + g + " slot shows it now)");
@@ -292,6 +312,10 @@ Scope {
     }
     // where each one in the fan goes (the tour: sin/cos of -42, 0, 42 degrees; 84, 74, 84 px)
     function fanAt(k) {
+        if (openGroup === "power") {                           // four: -60, -20, 20, 60 degrees; 100, 84, 84, 100 px
+            const r = [-60, -20, 20, 60][k] * Math.PI / 180, R = (k === 1 || k === 2 ? 84 : 100) * s;
+            return Qt.point(Math.sin(r) * R, Math.cos(r) * R);
+        }
         const r = [-42, 0, 42][k] * Math.PI / 180, R = (k === 1 ? 74 : 84) * s;
         return Qt.point(Math.sin(r) * R, Math.cos(r) * R);
     }
@@ -300,6 +324,7 @@ Scope {
     function tipFor(i) {
         if (i === 0) return "TAYLOR";
         const sl = slots[i - 1];
+        if (sl.group === "power") return sl.name;
         if (sl.group) return sl.name + ": " + apps[groupShows(sl.group)].name;
         return apps[sl.id].tip || apps[sl.id].name;
     }
@@ -383,6 +408,20 @@ Scope {
                 color: Qt.rgba(dock.theme.text.r, dock.theme.text.g, dock.theme.text.b, 0.12)
             }
 
+            // the thin line before Power
+            Repeater {
+                model: dock.slots
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    visible: modelData.sep === true
+                    x: dock.slotX(index + 1) - dock.barX - dock.ic / 2 - dock.gap - 3 * dock.s - 1
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 1; height: 20 * dock.s
+                    color: Qt.rgba(dock.theme.text.r, dock.theme.text.g, dock.theme.text.b, 0.12)
+                }
+            }
+
             Repeater {
                 model: dock.slots
                 delegate: Item {
@@ -399,10 +438,33 @@ Scope {
                     x: dock.slotX(i) - dock.barX - dock.ic / 2; y: 1 + dock.padY
                     width: dock.ic; height: dock.ic
 
+                    // Power: a power sign in her text colour (no app icon)
+                    Canvas {
+                        id: pw
+                        visible: slot.appId === "power"
+                        anchors.centerIn: parent
+                        width: 24 * dock.s; height: 24 * dock.s
+                        onPaint: {
+                            const x = getContext("2d"); x.reset();
+                            const u = width / 24;
+                            x.strokeStyle = dock.theme.text; x.lineWidth = 1.8 * u; x.lineCap = "round";
+                            x.beginPath(); x.moveTo(12 * u, 3 * u); x.lineTo(12 * u, 11 * u); x.stroke();
+                            x.beginPath(); x.arc(12 * u, 13 * u, 8 * u, -Math.PI / 2 + 0.75, -Math.PI / 2 - 0.75 + 2 * Math.PI, false); x.stroke();
+                        }
+                        Connections { target: dock.theme; function onTextChanged() { pw.requestPaint(); } }
+                    }
+                    // while Power's four are out, its slot has a soft green square behind it
+                    Rectangle {
+                        visible: slot.appId === "power" && dock.openGroup === "power"
+                        anchors.fill: parent; anchors.margins: -2 * dock.s
+                        radius: 9 * dock.s; z: -1
+                        color: Qt.rgba(dock.theme.accent.r, dock.theme.accent.g, dock.theme.accent.b, 0.14)
+                    }
                     IconImage {
+                        visible: slot.appId !== "power"
                         anchors.centerIn: parent
                         implicitSize: dock.ic
-                        source: { dock.have; return dock.iconFor(slot.appId); }
+                        source: { dock.have; return slot.appId === "power" ? "" : dock.iconFor(slot.appId); }
                         // loading (her call 2026-11-21, instead of the tour's circling dots, which she read as "a
                         // thinking thing"): the icon itself gently brightens and dims, 1.6 s a breath, until the app's
                         // window appears. Reduced motion: it only stays a little dimmed.
@@ -504,7 +566,8 @@ Scope {
                 required property string modelData
                 required property int index
                 readonly property point to: dock.fanAt(index)
-                readonly property bool last: dock.groupShows(dock.openGroup) === modelData
+                readonly property bool last: dock.openGroup !== "power" && dock.groupShows(dock.openGroup) === modelData
+                readonly property bool warn: dock.apps[modelData].warn === true
                 // the tour's .fi: a 38 px circle with its name 5 px under it, starting on the slot at a third of its size
                 property real u: 0          // 0 folded, 1 out
                 property real o: 0
@@ -540,11 +603,12 @@ Scope {
                     radius: width / 2
                     color: dock.theme.panel
                     border.width: fi.last ? 1.5 * dock.s : 1
-                    border.color: fi.last ? dock.theme.accent : Qt.rgba(dock.theme.text.r, dock.theme.text.g, dock.theme.text.b, 0.18)
+                    border.color: fi.last ? dock.theme.accent : fi.warn ? Qt.rgba(0.91, 0.47, 0.43, 0.55)
+                                : Qt.rgba(dock.theme.text.r, dock.theme.text.g, dock.theme.text.b, 0.18)
                 }
                 IconImage {
                     anchors.centerIn: parent
-                    implicitSize: 26 * dock.s
+                    implicitSize: (dock.openGroup === "power" ? 22 : 26) * dock.s
                     source: { dock.have; return dock.iconFor(fi.modelData); }
                     opacity: dock.present(fi.modelData) ? 1 : 0.4
                 }

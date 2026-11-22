@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 18
+expect taskbar 23
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -89,3 +89,28 @@ vm taskbar-follow \
   "for i in \$(seq 1 30); do grep -q '\"lastBrowser\": *\"chrome\"' ~/.config/taylor-os/settings.json && break; sleep 5; done" \
   "$(ok 'a default browser changed elsewhere moves the Browser slot' "grep -q '\"lastBrowser\": *\"chrome\"' ~/.config/taylor-os/settings.json && $QL | grep -q 'default browser is chrome'")" \
   "$QL | grep -E 'default browser' | tail -3"
+
+# Power (her pick S3, 2026-11-22): the last slot fans out Lock, Sleep, Restart and Shut down; Lock really locks
+LH='s=$(loginctl list-sessions --no-legend | awk '"'"'$3=="tester"{print $1}'"'"' | while read s; do [ "$(loginctl show-session $s -p Seat --value)" = seat0 ] && echo $s; done | head -1); loginctl show-session $s -p LockedHint --value'
+PX=${XS[9]}
+$V click "$PX" "$DY" "$SW" "$SH"; sleep 1.2
+shot taskbar-10-power
+vm taskbar-power \
+  "$(ok 'Power is the last slot, after a thin line' "$QL | grep -oE 'slots at y=[0-9]+ x=[0-9,]+ \(dial, [a-z, ]+\)' | tail -1 | grep -q 'settings, power)'")" \
+  "$(ok 'a click on Power fans out Lock, Sleep, Restart and Shut down' "$QL | grep -q 'taylor-dock: splay power \[lock sleep restart shutdown\]' && hyprctl layers | grep -q taylor-dock-splay")" \
+  "$QL | grep -E 'splay power' | tail -1"
+# Lock is the first of the four: -60 degrees, 100 px
+LX=$(python3 -c "import math; print(round($PX + math.sin(math.radians(-60)) * 100 * $S))")
+LY=$(python3 -c "import math; print(round($DY + math.cos(math.radians(-60)) * 100 * $S))")
+$V click "$LX" "$LY" "$SW" "$SH"
+sleep 8
+shot taskbar-11-locked
+vm taskbar-lock \
+  "$(ok 'Lock in the Power fan locks the PC' "$QL | grep -q 'taylor-dock: power: lock' && [ \"\$($LH)\" = yes ]")" \
+  "$(ok 'the dock with Power loaded with no QML errors' "! $QL | grep -iE 'Dock.qml' | grep -qiE 'error|TypeError|ReferenceError|not defined'")"
+$V type 'taylortest'
+sleep 0.5
+$V type '\n'
+sleep 9
+vm taskbar-unlock \
+  "$(ok 'her password opens it again after Lock' "[ \"\$($LH)\" = no ]")"
