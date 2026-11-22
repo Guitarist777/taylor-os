@@ -3,9 +3,11 @@
 -- Hyprland 0.57 reads only this Lua file (hyprland.conf is no longer read). Options: https://wiki.hypr.land/configuring/
 -- TAYLOR-OS-DESKTOP (taylor-heal recognises this file as TAYLOR's by this line; keep it if you edit the file)
 
+-- "highrr": the screen's highest refresh rate at its full size (2026-11-21: "preferred" is what the monitor names first,
+-- usually 60 Hz; her 240 Hz monitor ran the whole desktop at 60). Settings will offer the others (her ask: refresh rate in Settings).
 hl.monitor({
     output   = "",
-    mode     = "preferred",
+    mode     = "highrr",
     position = "auto",
     scale    = "auto",
 })

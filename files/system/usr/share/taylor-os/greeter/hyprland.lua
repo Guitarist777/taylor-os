@@ -4,7 +4,7 @@
 
 hl.monitor({
     output   = "",
-    mode     = "preferred",
+    mode     = "highrr",          -- the screen's highest refresh rate (2026-11-21: "preferred" was 60 Hz on her 240 Hz monitor, so the opening looked slow)
     position = "auto",
     scale    = "auto",
 })

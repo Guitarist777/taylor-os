@@ -1,7 +1,7 @@
 # The desktop in general (the foundation, 2026-11-21): her pieces are on the main screen, her settings file is made,
 # Hyprland has no settings errors, and a colour scheme picked in her settings recolours the desktop at once.
 . .github/vm/checks/lib.sh
-expect desktop 10
+expect desktop 11
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 vm desktop \
   "$(ok 'Hyprland reports no settings errors' "hyprctl -j configerrors | tr -d ' \t\n' | grep -qxE '\[(\"\")?\]'")" \
@@ -29,3 +29,9 @@ vm desktop-login-gap \
   "cat /tmp/taylor-greeter-times.log" \
   "$(ok 'the login screen logs where the time after her password goes' "grep -q 'password accepted' /tmp/taylor-greeter-times.log && grep -q 'launched; closing the login screen' /tmp/taylor-greeter-times.log")" \
   "$(ok 'her desktop starts within 2 s of greetd taking it' "$GAP")"
+
+# the screen's highest refresh rate (2026-11-21: "preferred" ran her 240 Hz monitor at 60 Hz, desktop and opening alike). The virtual
+# screen has one mode, so this checks what is asked for; "Hyprland reports no settings errors" above checks Hyprland takes it.
+vm desktop-refresh \
+  "$(ok 'her desktop and login screen ask for the highest refresh rate' "grep -qE 'mode *= *.highrr.' ~/.config/hypr/hyprland.lua && grep -qE 'mode *= *.highrr.' /usr/share/taylor-os/greeter/hyprland.lua")" \
+  "hyprctl monitors | grep -E 'Monitor|@'"
