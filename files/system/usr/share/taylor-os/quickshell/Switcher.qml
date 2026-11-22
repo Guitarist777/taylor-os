@@ -81,13 +81,21 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "taylor-switcher"
-    WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // while open the strip holds the keyboard, so letting go of the Windows key or Alt reaches it (Hyprland's own
+    // release binds did not on the 2026-11-22 test PC; they stay as a second way)
+    WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     MouseArea { anchors.fill: parent; onClicked: sw.cancel() }
     Item {
         anchors.fill: parent
         focus: sw.open
         Keys.onEscapePressed: sw.cancel()
+        Keys.onReleased: (e) => {
+            if (e.key === Qt.Key_Meta || e.key === Qt.Key_Super_L || e.key === Qt.Key_Super_R || e.key === Qt.Key_Alt) {
+                console.info("taylor-switcher: the key was let go");
+                sw.commit();
+            }
+        }
         Keys.onReturnPressed: sw.commit()
         Keys.onLeftPressed: sw.step(-1)
         Keys.onRightPressed: sw.step(1)

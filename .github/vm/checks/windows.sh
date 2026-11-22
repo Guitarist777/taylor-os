@@ -157,15 +157,16 @@ vm windows-desk-back \
 
 # an app's own full-screen square (her ask 2026-11-22): a window that asks to be maximised (what its square button does)
 # fills the whole screen; asking again puts it back. The test window asks at 3 s and again at 10 s.
-MAXW="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"maxtest\"]; print(c[0][\"size\"][0] if c else 0)'"
+#MAXW="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"maxtest\"]; print(c[0][\"size\"][0] if c else 0)'"
 SCRW="hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(int(m[\"width\"]/m[\"scale\"]))'"
 vm windows-square \
-  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'GLib.timeout_add(3000, lambda: w.maximize() or False)' 'GLib.timeout_add(10000, lambda: w.maximize() or False)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
-  "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py\")'; sleep 6; echo width \$($MAXW) of \$($SCRW)" \
-  "$(ok 'an app clicking its full-screen square fills the whole screen' "[ \"\$($MAXW)\" = \"\$($SCRW)\" ]")" \
-  "sleep 6; echo width \$($MAXW)" \
-  "$(ok '...and clicking it again puts it back to its own size' "w=\$($MAXW); [ \"\$w\" -gt 0 ] && [ \"\$w\" -lt \"\$($SCRW)\" ]")" \
-  "hyprctl repl 'taylor.tail()' | grep square | tail -3"
+  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'def ask(): print(\"maxtest asks, maximized=\" + str(w.is_maximized()), flush=True); w.maximize(); return False' 'GLib.timeout_add(3000, ask)' 'GLib.timeout_add(10000, ask)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
+  "printf '%s\\n' 'import json,subprocess,sys' 'c=[c for c in json.loads(subprocess.run([\"hyprctl\",\"-j\",\"clients\"],capture_output=True,text=True).stdout) if c[\"class\"]==\"maxtest\"]' 'm=json.loads(subprocess.run([\"hyprctl\",\"-j\",\"monitors\"],capture_output=True,text=True).stdout)[0]' 'print(c[0][\"size\"][0] if c else 0, int(m[\"width\"]/m[\"scale\"]), c[0][\"fullscreen\"] if c else -1)' > /tmp/maxw.py" \
+  "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py > /tmp/maxtest.log 2>&1\")'; for t in 2 4 6 8; do sleep 1; echo t\$t \$(python3 /tmp/maxw.py); sleep 1; done" \
+  "$(ok 'an app clicking its full-screen square fills the whole screen' "python3 /tmp/maxw.py | awk '{exit !(\$1 == \$2)}'")" \
+  "for t in 10 12 14; do sleep 2; echo t\$t \$(python3 /tmp/maxw.py); done; cat /tmp/maxtest.log" \
+  "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2)}'")" \
+  "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \
