@@ -122,11 +122,11 @@ vm taskbar-unlock \
 GW='journalctl --user -u taylor-gamewatch --no-pager -o cat'
 vm taskbar-game-on \
   "$(ok 'the gaming-mode watcher runs in her desktop' "systemctl --user is-active --quiet taylor-gamewatch.service")" \
-  "tuned-adm active; hyprctl eval 'hl.exec_cmd(\"kitty --class steam_app_123 --start-as fullscreen sleep 60\")'; sleep 8; hyprctl clients | grep -E 'class:|fullscreen:' | tail -6" \
-  "$(ok 'a full-screen game turns gaming mode on (the desktop holds still, the PC runs at full power)' "$GW | grep -q 'on for steam_app_123' && quickshell ipc call gaming state | grep -qx on && tuned-adm active | grep -q throughput-performance-bazzite")" \
+  "tuned-adm active; hyprctl eval 'hl.exec_cmd(\"kitty --class steam_app_123 --start-as fullscreen sleep 60\")'; sleep 14; hyprctl clients | grep -E 'class:|fullscreen:' | tail -6" \
+  "$(ok 'a full-screen game turns gaming mode on (the desktop holds still, the PC runs at full power)' "$GW | grep -q 'on for steam_app_123' && \$Q call gaming state | grep -qx on && tuned-adm active | grep -q throughput-performance-bazzite")" \
   "$GW | tail -3"
 shot taskbar-12-game
 vm taskbar-game-off \
   "pkill -f 'kitty --class steam_app_123'; sleep 16" \
-  "$(ok 'closing the game turns everything back' "$GW | grep -q 'off (no game full screen)' && quickshell ipc call gaming state | grep -qx off && ! tuned-adm active | grep -q throughput-performance-bazzite")" \
+  "$(ok 'closing the game turns everything back' "$GW | grep -q 'off (no game full screen)' && \$Q call gaming state | grep -qx off && ! tuned-adm active | grep -q throughput-performance-bazzite")" \
   "$GW | tail -3; tuned-adm active"
