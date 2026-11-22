@@ -1,0 +1,22 @@
+#!/bin/sh
+# TAYLOR's window (2026-11-21, her ask: "clicking on the dial brings up her whole window, as on the Mac and Windows").
+# The TAYLOR app (taylor-shell built for Linux, installed per user in ~/.local/share/taylor-app) when it is there: one copy runs, so
+# a second start only brings the window forward. Otherwise her page in the default browser.
+#   taylor-open-app               her window
+#   taylor-open-app --ask CODE    her window on a question already sent from the launcher (TAYLOR's one-use code)
+# Prints one line for the desktop's log; nothing of hers.
+app="$HOME/.local/share/taylor-app/taylor"
+url="http://127.0.0.1:8080/"
+ask=""
+if [ "${1:-}" = "--ask" ]; then
+    case "${2:-}" in
+        ''|*[!A-Za-z0-9_-]*) echo "taylor-open-app: not a code"; exit 2 ;;
+    esac
+    ask="$2"; url="http://127.0.0.1:8080/?ask=$2"
+fi
+if [ -x "$app" ]; then
+    echo "taylor-open-app: the TAYLOR app${ask:+ (an ask)}"
+    if [ -n "$ask" ]; then exec "$app" "--ask=$ask"; else exec "$app"; fi
+fi
+echo "taylor-open-app: her page in the browser (no TAYLOR app here)${ask:+ (an ask)}"
+exec xdg-open "$url"

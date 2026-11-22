@@ -88,7 +88,11 @@ Scope {
     }
 
     // "Ask TAYLOR" from her launcher. If TAYLOR is not reachable her page opens plainly.
-    function openPage(url) { Quickshell.execDetached(["xdg-open", url]); }
+    // her window: the TAYLOR app when it is installed, else her page in the browser (/usr/libexec/taylor-open-app)
+    function openPage(url) {
+        const m = /[?&]ask=([A-Za-z0-9_-]+)/.exec(url);
+        Quickshell.execDetached(["sh", "-c", "/usr/libexec/taylor-open-app \"$@\" 2>&1 | logger -t taylor-open-app", "sh"].concat(m ? ["--ask", m[1]] : []));
+    }
     function ask(text) {
         const plainPage = () => { console.info("taylor-hook: TAYLOR not reachable; opening her page plainly"); openPage(base + "/"); };
         if (!hasToken) { plainPage(); return; }
