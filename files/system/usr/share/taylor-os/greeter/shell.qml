@@ -133,7 +133,28 @@ ShellRoot {
         busy = true;
         sWaiting();
         if (!Greetd.available) { demo.start(); return; }
+        mark("password sent");
+        answerWatch.tries = 0;
+        answerWatch.restart();
         Greetd.createSession(user);
+    }
+    // greetd sometimes never answers a sign-in (virtual PC runs 44998803379 and 45008051770, 2026-11-22: her ring spun
+    // for minutes after her password and no key did anything, so the only way out was a restart). After 12 s with no
+    // answer the session is cancelled and asked again once with the same password; a second silence gives her the
+    // password back to type, so she is never stuck on the spinning ring.
+    Timer {
+        id: answerWatch
+        interval: 12000
+        property int tries: 0
+        onTriggered: {
+            if (!root.busy) return;
+            tries += 1;
+            console.info("taylor-greeter: greetd did not answer in 12 s (try " + tries + "); state " + Greetd.state);
+            root.mark("greetd did not answer (try " + tries + ")");
+            if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
+            if (tries < 2) { Greetd.createSession(root.user); restart(); }
+            else root.bad("greetd did not answer");
+        }
     }
     // times, for /tmp/taylor-greeter-times.log (seconds since boot; nothing private): where the wait after her
     // password goes. taylor-greeter adds "login screen starting"; her desktop's start is logind's (the session's
@@ -142,6 +163,7 @@ ShellRoot {
         Quickshell.execDetached(["sh", "-c", "echo \"$(cut -d' ' -f1 /proc/uptime) $1\" >> /tmp/taylor-greeter-times.log", "sh", what]);
     }
     function good() {
+        answerWatch.stop();
         mark("password accepted");
         pw = "";
         busy = false;
@@ -153,6 +175,7 @@ ShellRoot {
         launchWatch.start();
     }
     function bad(why) {
+        answerWatch.stop();
         pw = "";
         busy = false;
         console.info("taylor-greeter: not signed in (" + why + ")");
@@ -165,7 +188,11 @@ ShellRoot {
             if (responseRequired) Greetd.respond(root.pw);
             else console.info("taylor-greeter: " + (error ? "error: " : "") + message);
         }
-        function onAuthFailure(message) { root.bad("wrong password"); }
+        function onAuthFailure(message) {
+            root.bad("wrong password");
+            // close the refused session so the next password starts a fresh one (2026-11-22)
+            if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
+        }
         function onReadyToLaunch() { root.good(); }
         // greetd has her desktop's start in hand: close this login screen's Hyprland now; her desktop can only start
         // once this screen is gone. Before 2026-11-21 nothing closed it (the old exit command is refused by Hyprland
