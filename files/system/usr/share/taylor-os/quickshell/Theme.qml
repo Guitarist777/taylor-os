@@ -55,7 +55,8 @@ Singleton {
 
     // ---- reduced motion ----
     property bool systemStill: false
-    readonly property bool still: Prefs.reduceMotion || systemStill || Quickshell.env("TAYLOR_STILL") === "1"
+    property bool gameStill: false                  // gaming mode (taylor-gamewatch): a full-screen game, so nothing moves behind it
+    readonly property bool still: Prefs.reduceMotion || systemStill || gameStill || Quickshell.env("TAYLOR_STILL") === "1"
     Process {
         running: true
         command: ["sh", "-c", "gsettings get org.gnome.desktop.interface enable-animations 2>/dev/null || echo true"]

@@ -1,0 +1,15 @@
+[Unit]
+Description=TAYLOR OS gaming mode: while a game is full screen, background work waits and the PC runs at full power
+# her TAYLOR desktop only (it asks Hyprland for the windows); never for the login screen's own account
+ConditionUser=!@system
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/taylor-gamewatch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,224 @@
+#!/usr/bin/python3 -I
+"""TAYLOR OS gaming mode (her pick S4, 2026-11-22): automatic, and it holds back background work, like Game Boost.
+
+While a game is full screen (or fills the whole screen, as borderless games do):
+  * TAYLOR's own game flag is set (her TAYLOR folder's game_mode.flag): its night jobs wait and the local model is not
+    loaded into the GPU. A flag she set herself is left alone; only the one set here is taken away again.
+  * The TAYLOR timers that copy and pack her backups wait (backup, Drive copy, weekly ark, nightly consolidate). They
+    are all Persistent, so a run they missed happens as soon as she stops playing.
+  * TAYLOR's server and its local model get the smallest share of the processor and disk.
+  * The PC runs Bazzite's performance profile (tuned: throughput-performance-bazzite), and goes back to the one it had.
+  * The desktop holds still: the sky, the dial and every other animation pause (Theme.gameStill). Notifications already
+    wait as dots on the dial, out of sight behind the game.
+About 10 seconds after no game is full screen any more, everything goes back as it was.
+
+What counts as a game: a window whose process descends from Steam's game launcher (reaper / SteamLaunch), Proton or
+Wine (a Windows .exe, which is how EA and Battle.net games run through Lutris), Lutris, or gamescope; or a window whose
+class is steam_app_<number>. A full-screen video in a browser is not a game.
+
+State lives in $XDG_RUNTIME_DIR/taylor-gaming.json, so if this stops in the middle, its next start puts things back.
+The log (the journal, "taylor-gamewatch") says what it did: window classes and on/off, nothing else.
+"""
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+RUN = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+STATE = os.path.join(RUN, "taylor-gaming.json")
+TIMERS = ["taylor-backup.timer", "taylor-drive-sync.timer", "taylor-ark.timer", "taylor-consolidate.timer"]
+SLOW = ["taylor-server.service", "ollama.service"]
+FAST_PROFILE = "throughput-performance-bazzite"
+POLL_S = 2.0
+OFF_AFTER = 5                      # polls with no game before it ends (about 10 s)
+
+
+def log(msg):
+    print("taylor-gamewatch: " + msg, flush=True)
+
+
+def run(cmd, timeout=10):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except Exception as e:
+        return subprocess.CompletedProcess(cmd, 1, "", f"{type(e).__name__}")
+
+
+def hypr(what):
+    r = run(["hyprctl", "-j", what], timeout=5)
+    try:
+        return json.loads(r.stdout) if r.returncode == 0 else []
+    except ValueError:
+        return []
+
+
+def proc_name(pid):
+    try:
+        with open(f"/proc/{pid}/comm") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def proc_cmd(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().replace(b"\0", b" ").decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def parent(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            s = f.read()
+        return int(s[s.rindex(")") + 2:].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+GAME_PARENTS = re.compile(r"^(reaper|gamescope|wineserver|wine.*|proton|lutris-wrapper.*|pressure-vessel.*)$", re.I)
+
+
+def is_game(client):
+    cls = client.get("class") or client.get("initialClass") or ""
+    if re.match(r"^steam_app_\d+$", cls) or cls.lower() == "gamescope":
+        return True
+    if cls.lower().endswith(".exe"):
+        return True
+    pid = client.get("pid") or 0
+    seen = 0
+    while pid > 1 and seen < 40:
+        name = proc_name(pid)
+        if GAME_PARENTS.match(name):
+            return True
+        cmd = proc_cmd(pid)
+        if "SteamLaunch" in cmd or re.search(r"\.exe(\s|$)", cmd, re.I):
+            return True
+        pid = parent(pid)
+        seen += 1
+    return False
+
+
+def fills(client, monitors):
+    if client.get("fullscreen"):
+        return True
+    x, y = client.get("at", [0, 0])
+    w, h = client.get("size", [0, 0])
+    for m in monitors:
+        mw, mh = (m.get("width", 0) / (m.get("scale") or 1)), (m.get("height", 0) / (m.get("scale") or 1))
+        if x <= m.get("x", 0) and y <= m.get("y", 0) and w >= mw - 1 and h >= mh - 1:
+            return True
+    return False
+
+
+def game_now():
+    mons = hypr("monitors")
+    for c in hypr("clients"):
+        if c.get("mapped", True) and not c.get("hidden") and fills(c, mons) and is_game(c):
+            return c.get("class") or "?"
+    return ""
+
+
+def taylor_flag():
+    p = os.path.expanduser("~/.config/taylor/taylor.env")
+    try:
+        for line in open(p):
+            if line.startswith("TAYLOR_SHARED_DIR="):
+                d = line.split("=", 1)[1].strip()
+                return os.path.join(d, "game_mode.flag") if os.path.isdir(d) else ""
+    except OSError:
+        pass
+    d = os.path.expanduser("~/taylor")
+    return os.path.join(d, "game_mode.flag") if os.path.isfile(os.path.join(d, "server.py")) else ""
+
+
+def tuned_active():
+    r = run(["tuned-adm", "active"])
+    m = re.search(r"Current active profile:\s*(\S+)", r.stdout or "")
+    return m.group(1) if m else ""
+
+
+def start(game):
+    st = {"game": game, "at": time.time(), "flag": "", "timers": [], "profile": ""}
+    f = taylor_flag()
+    if f and not os.path.exists(f):
+        try:
+            open(f, "w").close()
+            st["flag"] = f
+        except OSError:
+            pass
+    for t in TIMERS:
+        if run(["systemctl", "--user", "is-active", "--quiet", t]).returncode == 0:
+            run(["systemctl", "--user", "stop", t])
+            st["timers"].append(t)
+    for u in SLOW:
+        run(["systemctl", "--user", "set-property", "--runtime", u, "CPUWeight=10", "IOWeight=10"])
+    prof = tuned_active()
+    if prof and prof != FAST_PROFILE and run(["tuned-adm", "profile", FAST_PROFILE], timeout=30).returncode == 0:
+        st["profile"] = prof
+    run(["quickshell", "ipc", "call", "gaming", "set", "true"])
+    with open(STATE, "w") as fh:
+        json.dump(st, fh)
+    log(f"on for {game}: TAYLOR's game flag {'set' if st['flag'] else 'already on or no TAYLOR'}; "
+        f"waiting: {', '.join(st['timers']) or 'none'}; background slowed; profile {st['profile'] or '-'} -> "
+        f"{FAST_PROFILE if st['profile'] else 'unchanged'}; the desktop holds still")
+
+
+def stop(why):
+    try:
+        st = json.load(open(STATE))
+    except (OSError, ValueError):
+        st = {}
+    if st.get("flag"):
+        try:
+            os.remove(st["flag"])
+        except OSError:
+            pass
+    for t in st.get("timers", []):
+        run(["systemctl", "--user", "start", t])
+    for u in SLOW:
+        run(["systemctl", "--user", "set-property", "--runtime", u, "CPUWeight=100", "IOWeight=100"])
+    if st.get("profile"):
+        run(["tuned-adm", "profile", st["profile"]], timeout=30)
+    run(["quickshell", "ipc", "call", "gaming", "set", "false"])
+    try:
+        os.remove(STATE)
+    except OSError:
+        pass
+    log(f"off ({why}): everything is back; timers started again: {', '.join(st.get('timers', [])) or 'none'}; "
+        f"profile {st.get('profile') or 'unchanged'}")
+
+
+def main():
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))     # systemd's stop: put everything back on the way out
+    if os.path.exists(STATE):
+        stop("left on by an earlier run")
+    on, misses = False, 0
+    log("watching for a full-screen game")
+    while True:
+        g = game_now()
+        if g and not on:
+            start(g)
+            on, misses = True, 0
+        elif g:
+            misses = 0
+        elif on:
+            misses += 1
+            if misses >= OFF_AFTER:
+                stop("no game full screen")
+                on = False
+        time.sleep(POLL_S)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        if os.path.exists(STATE):
+            stop("stopping")

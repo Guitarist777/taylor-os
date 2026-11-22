@@ -195,6 +195,12 @@ ShellRoot {
             if (changed) { root.notes = root.notes.filter((n) => n.st !== "gone"); root.notesRev++; }
         }
     }
+    // gaming mode (taylor-gamewatch, her pick S4): while a game is full screen the desktop behind it holds still
+    IpcHandler {
+        target: "gaming"
+        function set(on: bool): void { Theme.gameStill = on; console.info("taylor-desktop: gaming mode " + (on ? "on: holding still" : "off")); }
+        function state(): string { return Theme.gameStill ? "on" : "off"; }
+    }
     IpcHandler {
         target: "notes"
         function waiting(): int { return root.notesWaiting; }

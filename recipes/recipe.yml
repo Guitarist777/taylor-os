@@ -85,6 +85,7 @@ modules:
     user:
       enabled:
         - taylor-apps-setup.service
+        - taylor-gamewatch.service # gaming mode (her pick S4, 2026-11-22): a full-screen game holds back background work
 
   # A check that the TAYLOR look for her KDE backup session is in place (global theme, colours, Plasma theme, title
   # bars, sky). Her icons come from slot-icons.sh above (files/scripts/slot-dark-icons.sh, the KDE helper's copy of the

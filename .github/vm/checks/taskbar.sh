@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 25
+expect taskbar 28
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -116,3 +116,17 @@ $V type '\n'
 sleep 9
 vm taskbar-unlock \
   "$(ok 'her password opens it again after Lock' "[ \"\$($LH)\" = no ]")"
+
+# Gaming mode (her pick S4, 2026-11-22): a full-screen game (here a window that says it is Steam game 123) turns it on;
+# closing the game turns everything back
+GW='journalctl --user -u taylor-gamewatch --no-pager -o cat'
+vm taskbar-game-on \
+  "$(ok 'the gaming-mode watcher runs in her desktop' "systemctl --user is-active --quiet taylor-gamewatch.service")" \
+  "tuned-adm active; nohup kitty --class steam_app_123 --start-as fullscreen sleep 60 >/dev/null 2>&1 & sleep 8" \
+  "$(ok 'a full-screen game turns gaming mode on (the desktop holds still, the PC runs at full power)' "$GW | grep -q 'on for steam_app_123' && quickshell ipc call gaming state | grep -qx on && tuned-adm active | grep -q throughput-performance-bazzite")" \
+  "$GW | tail -3"
+shot taskbar-12-game
+vm taskbar-game-off \
+  "pkill -f 'kitty --class steam_app_123'; sleep 16" \
+  "$(ok 'closing the game turns everything back' "$GW | grep -q 'off (no game full screen)' && quickshell ipc call gaming state | grep -qx off && ! tuned-adm active | grep -q throughput-performance-bazzite")" \
+  "$GW | tail -3; tuned-adm active"
