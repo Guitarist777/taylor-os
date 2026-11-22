@@ -160,9 +160,13 @@ ShellRoot {
     }
     // the dial: her list while any are waiting, else her launcher. A click that has just shut the list (by clicking
     // away from it) does not open it again.
+    // Her dial opens TAYLOR's window (her ask, 2026-11-21: "her whole window, as on the Mac and Windows"): the TAYLOR app, or her page.
+    // Before, it opened the launcher (now Windows key + Space and the dock's dial) or, with some waiting, their list (now the count by
+    // the clock; and what waits is on her Home in that window too).
     function dialClicked() {
-        if (notesWaiting > 0) toggleList();
-        else { console.info("taylor-desktop: the dial opens her launcher"); launcherOpen = true; }
+        console.info("taylor-desktop: the dial opens TAYLOR's window");
+        listOpen = false; launcherOpen = false;
+        Quickshell.execDetached(["sh", "-c", "/usr/libexec/taylor-open-app 2>&1 | logger -t taylor-open-app"]);
     }
     function toggleList() {
         if (!listOpen && Date.now() - listShutAt < 400) return;

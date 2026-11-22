@@ -38,9 +38,15 @@ vm dial-2 \
   "$L | grep -E 'taylor-(loading|launcher|desktop)' | tail -12" \
   "pkill -x kitty; sleep 2; echo closed"
 
-# ---- a click on the dial opens it too; a folder's name finds the folder; any text adds Ask TAYLOR ----
-$V click $cx $cy "$sw" "$sh"; sleep 3
-vm dial-3 "$(ok 'a click on her dial opens the launcher' "hyprctl layers | grep -q taylor-launcher")"
+# ---- a click on the dial opens TAYLOR's window (her ask, 2026-11-21: the TAYLOR app, or here, with no app installed, her page in the
+# browser); then the launcher by its keys: a folder's name finds the folder; any text adds Ask TAYLOR ----
+$V click $cx $cy "$sw" "$sh"; sleep 6
+shot dial-3-window
+vm dial-3 \
+  "$(ok 'a click on her dial opens TAYLOR window' "$L | grep -q \"the dial opens TAYLOR's window\" && journalctl --user -t taylor-open-app --no-pager | grep -q 'taylor-open-app: her page in the browser'")" \
+  "journalctl --user -t taylor-open-app --no-pager | tail -3" \
+  "pkill -u tester -f -i firefox; sleep 3; echo browser-closed"
+$V key meta_l-spc; sleep 3
 $V type 'zebraf'; sleep 3
 shot dial-4-folder
 vm dial-4 \
