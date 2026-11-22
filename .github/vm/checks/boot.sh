@@ -4,7 +4,7 @@
 # goes to her desktop with no text on the way, and a disk password would still be asked on the boot screen.
 # Screenshots: out/boot-NNN.png (a restart, every ~0.7 s), out/boot-signin-NN.png, out/boot-still-*.png, out/boot-off-*.png.
 . .github/vm/checks/lib.sh
-expect boot 36
+expect boot 37
 pip install --quiet pillow >/dev/null 2>&1 || true
 gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 

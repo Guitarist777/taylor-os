@@ -1,5 +1,10 @@
-# TAYLOR OS boot screen: her dark (#0B0D0C) and nothing else, the colour her login screen's opening starts from.
-# A disk password, a question or a message (rare) is shown as plain words in the middle, in her light text colour.
+# TAYLOR OS boot screen: her dark (#0B0D0C), and (her pick B5, 2026-11-22) a few of her opening's sparks waiting in the
+# bottom-right corner, twinkling, while Linux starts. Her opening on the login screen pours its sparks in from exactly
+# that corner, so the boot screen leads into it instead of leaving the screen blank.
+# The sparks are her opening's own: her five greens, the same sizes for this screen (radius 0.9 to 2.5 x S, S = the
+# smaller of width / 680 and height / 380), each with the faint glow her opening draws around a spark.
+# A disk password, a question or a message (rare) is shown as plain words in the middle, in her light text colour; the
+# sparks step back while it is asked.
 
 Window.SetBackgroundTopColor(0.043, 0.051, 0.047);
 Window.SetBackgroundBottomColor(0.043, 0.051, 0.047);
@@ -7,6 +12,53 @@ Window.SetBackgroundBottomColor(0.043, 0.051, 0.047);
 global.prompt = Sprite();
 global.answer = Sprite();
 global.note = Sprite();
+global.asking = 0;
+
+W = Window.GetWidth();
+H = Window.GetHeight();
+X0 = Window.GetX();
+Y0 = Window.GetY();
+S = W / 680;
+if (H / 380 < S) S = H / 380;
+if (S < 0.5) S = 0.5;
+
+# the sparks: N of them, each somewhere up and to the left of the corner, drifting a little and twinkling
+N = 16;
+for (i = 0; i < N; i++) {
+    img = Image("spark-" + (i % 5) + ".png");
+    r = (0.9 + Math.Random() * 1.6) * S;
+    size = Math.Int(r * 3.2 + 1);
+    spark[i].sprite = Sprite(img.Scale(size, size));
+    spark[i].size = size;
+    spark[i].a = 3.1416 + 0.15 + Math.Random() * 1.27;          # up and to the left of the corner
+    spark[i].d = (14 + Math.Random() * 70) * S;                 # how far in from the corner
+    spark[i].ph = Math.Random() * 6.2832;
+    spark[i].sp = 0.25 + Math.Random() * 0.35;                  # drift speed
+    spark[i].tw = 0.8 + Math.Random() * 1.6;                    # twinkle speed
+    spark[i].delay = Math.Random() * 1.2;                       # they arrive one by one over the first second or so
+    spark[i].sprite.SetOpacity(0);
+    spark[i].sprite.SetZ(5);
+}
+
+global.t = 0;
+fun refresh_callback() {
+    global.t = global.t + 0.02;                                 # Plymouth calls this 50 times a second
+    for (i = 0; i < N; i++) {
+        a = spark[i].a + 0.06 * Math.Sin(global.t * spark[i].sp + spark[i].ph);
+        d = spark[i].d * (1 + 0.08 * Math.Sin(global.t * spark[i].sp * 1.3 + spark[i].ph));
+        x = X0 + W + Math.Cos(a) * d - spark[i].size / 2;
+        y = Y0 + H + Math.Sin(a) * d - spark[i].size / 2;
+        spark[i].sprite.SetX(x);
+        spark[i].sprite.SetY(y);
+        come = (global.t - spark[i].delay) / 0.8;
+        if (come < 0) come = 0;
+        if (come > 1) come = 1;
+        tw = 0.45 + 0.45 * (0.5 + 0.5 * Math.Sin(global.t * spark[i].tw + spark[i].ph));
+        if (global.asking) tw = 0;
+        spark[i].sprite.SetOpacity(come * tw);
+    }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
 
 fun place(sprite, image, y) {
     sprite.SetImage(image);
@@ -19,6 +71,7 @@ fun place(sprite, image, y) {
 fun hide_ask() {
     global.prompt.SetOpacity(0);
     global.answer.SetOpacity(0);
+    global.asking = 0;
 }
 
 fun normal_callback() {
@@ -26,6 +79,7 @@ fun normal_callback() {
 }
 
 fun password_callback(text, bullets) {
+    global.asking = 1;
     if (text == "") text = "Password";
     place(global.prompt, Image.Text(text, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.46);
     dots = "";
@@ -35,6 +89,7 @@ fun password_callback(text, bullets) {
 }
 
 fun question_callback(text, answer) {
+    global.asking = 1;
     place(global.prompt, Image.Text(text, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.46);
     if (answer == "") answer = " ";
     place(global.answer, Image.Text(answer, 0.93, 0.94, 0.93, 1, "Sans 14"), 0.52);

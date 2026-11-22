@@ -10,6 +10,7 @@ Each frame is one of:
     black    almost all pure black (#000000): the firmware, or the PC's own text screen
     off      the virtual PC's "Display output is not active" (the picture switched off for a moment; counts as black)
     dark     almost all her dark (#0B0D0C, or the #0F1010 her login fades to), nothing on it
+    sparks   her dark with a few of her green sparks only in the bottom-right corner (her boot screen, 2026-11-22)
     text     mostly black or dark, with grey/white on it (letters on a text screen; more than a mouse pointer)
     opening  her green sparks on her dark (the opening / login scene)
     other    anything else (a firmware logo, her desktop's sky, a window on her desktop, ...)
@@ -37,6 +38,15 @@ def window(im, px):
     return box < 0.2 * im.width * im.height and len(pts) > 0.3 * box
 
 
+def corner_only(im, px):
+    """Every green pixel sits in the bottom-right corner (right quarter, bottom third): her boot screen's sparks."""
+    for i, p in enumerate(px):
+        if p[1] > 80 and p[1] > p[0] + 25 and p[1] > p[2] + 10:
+            if i % im.width < 0.75 * im.width or i // im.width < 0.66 * im.height:
+                return False
+    return True
+
+
 def classify(path):
     im = Image.open(path).convert("RGB")
     im = im.resize((im.width // 2, im.height // 2), Image.NEAREST)
@@ -57,6 +67,8 @@ def classify(path):
         kind = "text" if grey > 150 else "dark"
     elif dark + black > 0.9 * n and grey > 150 and window(im, px):
         kind = "other"
+    elif dark + black > 0.97 * n and green >= 5 and grey < 150 and corner_only(im, px):
+        kind = "sparks"
     elif dark + black > 0.9 * n and green >= 5:
         # lines of start-up text (white, with green [ OK ]s) are text; her opening is green sparks with little white
         kind = "text" if grey > 3000 else "opening"
@@ -77,18 +89,25 @@ def main():
     seq = " ".join(kinds)
     print("SEQUENCE", seq)
     if mode == "boot":
-        if "dark" not in kinds:
+        bs = ("dark", "sparks")
+        if not any(k in bs for k in kinds):
             print("FAIL the boot screen shows her dark")
             return
         print("PASS the boot screen shows her dark")
-        # her boot screen: the first run of at least 3 frames of her dark (a single dark frame can be the old session ending)
-        first = next((i for i in range(len(kinds) - 2) if kinds[i:i + 3] == ["dark"] * 3), kinds.index("dark"))
+        # her boot screen: the first run of at least 3 frames of her dark (with or without her corner sparks; a single
+        # dark frame can be the old session ending)
+        first = next((i for i in range(len(kinds) - 2) if all(k in bs for k in kinds[i:i + 3])),
+                     next(i for i, k in enumerate(kinds) if k in bs))
         op = kinds.index("opening", first) if "opening" in kinds[first:] else -1
         if op < 0:
             print("FAIL her opening follows the boot screen")
             return
         print("PASS her opening follows the boot screen")
         between = kinds[first:op]
+        if "sparks" in between:
+            print("PASS her sparks wait in the corner of the boot screen")
+        else:
+            print("FAIL her sparks wait in the corner of the boot screen")
         if "black" in between or "off" in between:
             print("FAIL no black screen between the boot screen and her opening")
         else:
@@ -98,10 +117,10 @@ def main():
         else:
             print("PASS no text screen between the boot screen and her opening")
     elif mode == "dark":
-        if kinds and all(k == "dark" for k in kinds):
-            print("PASS her boot screen is her dark with nothing on it")
+        if kinds and all(k in ("dark", "sparks") for k in kinds):
+            print("PASS her boot screen is her dark with nothing on it but her corner sparks")
         else:
-            print("FAIL her boot screen is her dark with nothing on it")
+            print("FAIL her boot screen is her dark with nothing on it but her corner sparks")
     elif mode == "signin":
         # from her login to the first picture of her desktop (after it, her desktop's own windows are not this check's)
         start = kinds.index("dark") if "dark" in kinds else 0
