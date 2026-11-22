@@ -1,0 +1,31 @@
+#!/bin/sh
+# Her cursor (Settings > Appearance > Cursor; her design pack, 2026-11-22): taylor-cursor white|black
+# With no argument it reads her pick from ~/.config/taylor-os/settings.json ("cursor"; White when unset or unreadable).
+# It sets the cursor everywhere at once: Hyprland's own (right away), the apps that read the classic cursor theme
+# (GTK, KDE/Qt, XWayland games and Steam: their next start), at size 32.
+set -u
+pick=${1:-}
+if [ -z "$pick" ]; then
+    pick=$(python3 -c 'import json,os,sys; p=os.path.expanduser("~/.config/taylor-os/settings.json")
+try: print(json.load(open(p)).get("cursor","white"))
+except Exception: print("white")' 2>/dev/null)
+fi
+case "$pick" in black) theme=TAYLOR-Black ;; *) theme=TAYLOR-White ;; esac
+size=32
+[ -d "/usr/share/icons/$theme" ] || { echo "taylor-cursor: $theme is not in this image"; exit 1; }
+
+# Hyprland: now, and for the apps it starts from here on
+hyprctl setcursor "$theme" "$size" >/dev/null 2>&1 || true
+# GTK
+gsettings set org.gnome.desktop.interface cursor-theme "$theme" 2>/dev/null || true
+gsettings set org.gnome.desktop.interface cursor-size "$size" 2>/dev/null || true
+# KDE and Qt apps
+command -v kwriteconfig6 >/dev/null && {
+    kwriteconfig6 --file kcminputrc --group Mouse --key cursorTheme "$theme"
+    kwriteconfig6 --file kcminputrc --group Mouse --key cursorSize "$size"
+}
+# everything else that reads the classic "default" cursor theme (XWayland apps)
+d="${XDG_DATA_HOME:-$HOME/.local/share}/icons/default"
+mkdir -p "$d"
+printf '[Icon Theme]\nName=Default\nComment=her cursor, set by TAYLOR OS (taylor-cursor)\nInherits=%s\n' "$theme" > "$d/index.theme"
+echo "taylor-cursor: $theme at $size"

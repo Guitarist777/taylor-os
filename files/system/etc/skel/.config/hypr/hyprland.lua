@@ -18,9 +18,14 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("quickshell")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("hypridle -c /usr/share/taylor-os/hypridle.conf")   -- only locks before sleep; her timeout is the desktop's own
+    hl.exec_cmd("/usr/libexec/taylor-cursor")   -- her cursor pick (Settings > Appearance > Cursor), everywhere
 end)
 
-hl.env("XCURSOR_SIZE", "24")
+-- Her cursors (her design pack): White by default, size 32; taylor-cursor above switches to her pick
+hl.env("HYPRCURSOR_THEME", "TAYLOR-White")
+hl.env("HYPRCURSOR_SIZE", "32")
+hl.env("XCURSOR_THEME", "TAYLOR-White")
+hl.env("XCURSOR_SIZE", "32")
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
 
 hl.config({

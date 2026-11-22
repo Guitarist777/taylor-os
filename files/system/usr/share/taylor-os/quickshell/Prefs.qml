@@ -18,6 +18,7 @@ Singleton {
     property alias skyFollowsTime: a.skyFollowsTime
     property alias bootAnimation: a.bootAnimation
     property alias reduceMotion: a.reduceMotion
+    property alias cursor: a.cursor                 // white (Windows-style, the default) | black (Mac-style)
     // Lock and timeout (minutes)
     property alias idleMinutes: a.idleMinutes       // before the dimming starts (default 3)
     property alias waitMinutes: a.waitMinutes       // TAYLOR waits in the middle (default 2)
@@ -72,6 +73,7 @@ Singleton {
             property bool skyFollowsTime: true
             property bool bootAnimation: true
             property bool reduceMotion: false
+            property string cursor: "white"
             property real idleMinutes: 3
             property real waitMinutes: 2
             property bool stayAwakeForMedia: true

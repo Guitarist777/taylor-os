@@ -73,6 +73,12 @@ modules:
     scripts:
       - slot-icons.sh
 
+  # Her two cursor sets (her design pack, 2026-11-22: White, the default, and Black), built from her SVGs in
+  # /usr/share/taylor-os/cursors into the TAYLOR-White and TAYLOR-Black cursor themes (files/scripts/taylor-cursors.sh).
+  - type: script
+    scripts:
+      - taylor-cursors.sh
+
   # The taskbar's apps at her sign-in (2026-11-21): Edge, Chrome, Spotify (and Firefox if missing) from Flathub as her own
   # flatpaks, quietly, with a log; EA and Battle.net go through Lutris when she first picks them.
   - type: systemd

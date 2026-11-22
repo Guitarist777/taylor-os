@@ -13,6 +13,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/libexec/taylor-greeter-scene")
 end)
 
+-- her default cursor (White, size 32) on the login screen too
+hl.env("HYPRCURSOR_THEME", "TAYLOR-White")
+hl.env("HYPRCURSOR_SIZE", "32")
+hl.env("XCURSOR_THEME", "TAYLOR-White")
+hl.env("XCURSOR_SIZE", "32")
+
 hl.config({
     misc = {
         disable_hyprland_logo    = true,

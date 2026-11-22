@@ -327,6 +327,20 @@ FloatingWindow {
                         Switch { placeName: "skydeeper"; on: Prefs.skyDeeper; onFlip: { Prefs.skyDeeper = !Prefs.skyDeeper; console.info("taylor-settings: deeper sky " + Prefs.skyDeeper); } }
                     }
                     SRow {
+                        label: "Cursor"
+                        small: "White with a green outline, or black with a white outline"
+                        Choice {
+                            placePrefix: "cursor"
+                            opts: [{ k: "white", n: "White" }, { k: "black", n: "Black" }]
+                            value: Prefs.cursor
+                            onPick: (k) => {
+                                Prefs.cursor = k;
+                                console.info("taylor-settings: cursor " + k);
+                                Quickshell.execDetached(["/usr/libexec/taylor-cursor", k]);
+                            }
+                        }
+                    }
+                    SRow {
                         label: "Reduce motion"
                         small: "Swap animations for simple fades"
                         Switch { placeName: "still"; on: Prefs.reduceMotion; onFlip: { Prefs.reduceMotion = !Prefs.reduceMotion; console.info("taylor-settings: reduce motion " + Prefs.reduceMotion); } }
