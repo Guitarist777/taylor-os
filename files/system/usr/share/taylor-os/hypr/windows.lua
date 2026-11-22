@@ -466,10 +466,68 @@ hl.bind(mod .. " + right", function() T.key("right") end)
 hl.bind(mod .. " + up",    function() T.key("up") end)
 hl.bind(mod .. " + down",  function() T.key("down") end)
 hl.bind(mod .. " + V",     function() T.unsnap() end)
--- the tour's "Switch window": Alt + Tab brings the next window forward
-hl.bind("ALT + Tab", function()
-    hl.dispatch(hl.dsp.window.cycle_next())
-    hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top" }))
-end)
+-- Switching windows (her ask 2026-11-22, the Mac's Cmd + Tab): Windows key + Tab, or Alt + Tab, shows her open windows
+-- (the desktop's Switcher.qml); Tab moves along while the key is held, Shift + Tab goes back, letting go switches.
+local function sw(what) hl.dispatch(hl.dsp.exec_cmd("quickshell ipc call switcher " .. what)) end
+for _, m in ipairs({ "SUPER", "ALT" }) do
+    pcall(hl.unbind, m .. " + Tab")
+    hl.bind(m .. " + Tab",         function() sw("next") end)
+    hl.bind(m .. " + SHIFT + Tab", function() sw("prev") end)
+end
+-- letting go of the Windows key or Alt switches (only while the strip is open; otherwise the desktop ignores it)
+hl.bind("SUPER + Super_L", function() sw("commit") end, { release = true, non_consuming = true })
+hl.bind("ALT + Alt_L",     function() sw("commit") end, { release = true, non_consuming = true })
+
+-- Show desktop (her ask 2026-11-22, Windows key + D as on Windows: "i couldn't get out" of a full-screen game). The windows
+-- on the workspace she is on step aside to a hidden one (a game keeps running); Windows key + D again brings them all
+-- back where they were. Picking one in the window switcher, or from the dock, brings them back too.
+T.aside = T.aside or nil      -- { ws = id, addrs = { ... } } while her desktop is shown
+local function byAddress()
+    local m = {}
+    for _, w in ipairs(hl.get_windows() or {}) do if w.address then m[w.address] = w end end
+    return m
+end
+function T.unhide()
+    local a = T.aside
+    if not a then return "nothing aside" end
+    T.aside = nil
+    local all = byAddress()
+    local last
+    for _, addr in ipairs(a.addrs) do
+        local w = all[addr]
+        if w then dsp(hl.dsp.window.move({ window = w, workspace = a.ws, follow = false })); last = w end
+    end
+    if last then dsp(hl.dsp.focus({ window = last })) end
+    log("show desktop: " .. #a.addrs .. " windows back")
+    emit("desktop back")
+    T.dirty = true
+    return "back"
+end
+function T.showDesktop()
+    if T.aside then return T.unhide() end
+    local ws = hl.get_active_workspace()
+    if not ws then return "no workspace" end
+    local addrs = {}
+    local act = hl.get_active_window()
+    for _, w in ipairs(hl.get_windows() or {}) do
+        if w.workspace and w.workspace.id == ws.id and w.mapped and w.address and not (act and act.address == w.address) then
+            addrs[#addrs + 1] = w.address
+        end
+    end
+    if act and act.workspace and act.workspace.id == ws.id then addrs[#addrs + 1] = act.address end   -- the one in front comes back last, in front
+    if #addrs == 0 then return "nothing open" end
+    T.aside = { ws = ws.id, addrs = addrs }
+    local all = byAddress()
+    for _, addr in ipairs(addrs) do
+        local w = all[addr]
+        if w then dsp(hl.dsp.window.move({ window = w, workspace = "special:taylor-desktop", follow = false })) end
+    end
+    log("show desktop: " .. #addrs .. " windows aside")
+    emit("desktop shown")
+    T.dirty = true
+    return "aside " .. #addrs
+end
+pcall(hl.unbind, mod .. " + D")
+hl.bind(mod .. " + D", function() T.showDesktop() end)
 
 log("windows.lua loaded")

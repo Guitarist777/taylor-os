@@ -223,6 +223,8 @@ Scope {
         if (ts.length) {
             const w = ts[ts.length - 1];
             console.info("taylor-dock: " + id + " is running: bring it forward (" + (w.appId || "?") + ")");
+            // windows put aside by Windows key + D come back first (windows.lua)
+            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end"]);
             w.activate();
             return;
         }

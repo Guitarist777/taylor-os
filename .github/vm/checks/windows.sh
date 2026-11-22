@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 26
+expect windows 31
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -129,6 +129,31 @@ $V key meta_l-1; sleep 2
 shot windows-11-workspace-1
 vm windows-ws1 \
   "$(ok 'Windows key + 1 comes back to workspace 1' "hyprctl -j activeworkspace | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)[\"id\"] == 1 else 1)'")"
+
+# switching windows (her ask 2026-11-22, the Mac's Cmd + Tab) and Show desktop (Windows key + D)
+ACTIVE="hyprctl -j activewindow | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"class\",\"\"))'"
+ONWS1="hyprctl -j clients | python3 -c 'import json,sys; print(sum(1 for c in json.load(sys.stdin) if c[\"workspace\"][\"id\"] == 1))'"
+vm windows-sw-setup \
+  "hyprctl eval 'hl.exec_cmd(\"kitty --class sw_one\")'; sleep 4; hyprctl eval 'hl.exec_cmd(\"kitty --class sw_two\")'; sleep 4; $ACTIVE"
+$V key meta_l-tab; sleep 2
+shot windows-12-switched
+vm windows-sw \
+  "$(ok 'Windows key + Tab switches to the window she used before (like Cmd + Tab)' "[ \"\$($ACTIVE)\" = sw_one ]")" \
+  "$(ok 'the window switcher loaded with no QML errors' "! $QSLOG | grep -iE 'Switcher.qml' | grep -qiE 'error|TypeError|ReferenceError|not defined'")" \
+  "$QSLOG | grep taylor-switcher | tail -3"
+$V key alt_l-tab; sleep 2
+vm windows-alttab \
+  "$(ok 'Alt + Tab switches back the same way' "[ \"\$($ACTIVE)\" = sw_two ]")" \
+  "echo on workspace 1: \$($ONWS1)"
+$V key meta_l-d; sleep 2
+shot windows-13-show-desktop
+vm windows-desk \
+  "$(ok 'Windows key + D shows the desktop (her windows step aside)' "[ \"\$($ONWS1)\" = 0 ]")" \
+  "hyprctl repl 'taylor.tail()' | tail -3"
+$V key meta_l-d; sleep 2
+vm windows-desk-back \
+  "$(ok 'Windows key + D again brings her windows back' "[ \"\$($ONWS1)\" -ge 2 ]")" \
+  "pkill -f 'kitty --class sw_'; sleep 1"
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \

@@ -314,6 +314,11 @@ ShellRoot {
     }
 
     // one launcher, on the main screen
+    // Windows key + Tab / Alt + Tab: her open windows, most recent first (her ask, like the Mac's Cmd + Tab)
+    Switcher {
+        screen: root.mainScreen
+        theme: root.c
+    }
     Launcher {
         screen: root.mainScreen
         theme: root.c
