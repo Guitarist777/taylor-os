@@ -31,10 +31,6 @@ case "$n" in ''|*[!0-9]*) n=0 ;; esac
 
 if [ "$n" -ge 2 ]; then
     logger -t taylor-greeter -- "her login screen failed $n times; using the text sign-in" 2>/dev/null
-    # The boot screen leaves its picture up (plymouth quit --retain-splash), which keeps this console in picture
-    # mode: put it back in text mode (KDSETMODE, KD_TEXT) so the text sign-in can be seen.
-    python3 -c 'import fcntl; fcntl.ioctl(0, 0x4B3A, 0)' 2>/dev/null || true
-    [ -t 1 ] && printf '\033[2J\033[H\033[?25h'
     exec tuigreet --time --remember --asterisks \
         --greeting "TAYLOR OS" \
         --cmd "uwsm start -e -D Hyprland hyprland.desktop"
