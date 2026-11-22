@@ -4,7 +4,7 @@
 # goes to her desktop with no text on the way, and a disk password would still be asked on the boot screen.
 # Screenshots: out/boot-NNN.png (a restart, every ~0.7 s), out/boot-signin-NN.png, out/boot-still-*.png, out/boot-off-*.png.
 . .github/vm/checks/lib.sh
-expect boot 34
+expect boot 36
 pip install --quiet pillow >/dev/null 2>&1 || true
 gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 
@@ -17,6 +17,8 @@ vm boot-1 \
   "$(ok 'the motion file is root-owned and only readable by others' "[ \"\$(stat -c %U:%a /var/lib/taylor-os/greeter.json)\" = root:644 ]")" \
   "$(ok 'her settings are watched for the login screen' "systemctl list-units --no-legend --state=active 'taylor-greeter-prefs@*.path' | grep -q path")" \
   "$(ok 'the boot screen leaves its picture up for her login screen (no text console between)' "systemctl cat plymouth-quit.service | grep -qx 'ExecStart=-/usr/bin/plymouth quit --retain-splash'")" \
+  "$(ok 'the boot menu stays hidden (Shift shows it): TAYLOR OS put its setting in place' "echo taylortest | sudo -S head -1 /boot/grub2/custom.cfg 2>/dev/null | grep -q TAYLOR-OS-BOOT-MENU")" \
+  "$(ok 'GRUB has its settings file for the start-up bookkeeping (so a failed start still shows the menu)' "echo taylortest | sudo -S test -s /boot/grub2/grubenv")" \
   "cat /proc/cmdline; plymouth-set-default-theme; cat /sys/module/vt/parameters/default_red; cat /var/lib/taylor-os/greeter.json; systemctl status --no-pager taylor-console.service taylor-greeter-prefs.service 'taylor-greeter-prefs@*.path' 2>&1 | head -40" \
   "$(gsudo 'cat /tmp/taylor-greeter-scene.log; journalctl -b -u taylor-greeter-prefs --no-pager | tail -5')"
 

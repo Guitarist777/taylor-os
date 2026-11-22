@@ -92,6 +92,22 @@ if [ -f "$shell/shell.qml" ]; then
     done
 fi
 
+# 2d. The boot menu stays hidden (her pick B5, 2026-11-22): hold Shift while the PC starts to see it; after a start that
+#     did not finish it shows for 5 s. GRUB reads /boot/grub2/custom.cfg last (bootupd's static config). /boot is
+#     read-only, so it is opened for writing only inside this one command. A custom.cfg without TAYLOR's first line is
+#     someone's own and is never touched.
+want=/usr/share/taylor-os/boot/grub-custom.cfg
+have=/boot/grub2/custom.cfg
+if [ -f "$want" ] && [ -d /boot/grub2 ] && ! cmp -s "$want" "$have" 2>/dev/null; then
+    if [ ! -e "$have" ] || head -1 "$have" | grep -q TAYLOR-OS-BOOT-MENU; then
+        if unshare -m sh -c "mount -o remount,rw /boot && install -m 0644 '$want' '$have'"; then
+            log "the boot menu stays hidden (hold Shift to see it)"
+        else
+            log "could not write the hidden boot menu setting"
+        fi
+    fi
+fi
+
 # 3. Bazzite's welcome window ("Bazzite Portal") opens at every login until it is switched off, on top of her TAYLOR desktop
 #    (2026-11-18 virtual PC test). Keep it to KDE: add NotShowIn=Hyprland to Bazzite's own start-up file in each account.
 #    Only Bazzite's file is touched (it runs yafti_gtk.py), and only once (a file that already says NotShowIn is left alone).
