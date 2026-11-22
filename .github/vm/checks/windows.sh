@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 31
+expect windows 33
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -154,6 +154,18 @@ $V key meta_l-d; sleep 2
 vm windows-desk-back \
   "$(ok 'Windows key + D again brings her windows back' "[ \"\$($ONWS1)\" -ge 2 ]")" \
   "pkill -f 'kitty --class sw_'; sleep 1"
+
+# an app's own full-screen square (her ask 2026-11-22): a window that asks to be maximised (what its square button does)
+# fills the whole screen; asking again puts it back. The test window asks at 3 s and again at 10 s.
+MAXW="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"maxtest\"]; print(c[0][\"size\"][0] if c else 0)'"
+SCRW="hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(int(m[\"width\"]/m[\"scale\"]))'"
+vm windows-square \
+  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'GLib.timeout_add(3000, lambda: w.maximize() or False)' 'GLib.timeout_add(10000, lambda: w.maximize() or False)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
+  "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py\")'; sleep 6; echo width \$($MAXW) of \$($SCRW)" \
+  "$(ok 'an app clicking its full-screen square fills the whole screen' "[ \"\$($MAXW)\" = \"\$($SCRW)\" ]")" \
+  "sleep 6; echo width \$($MAXW)" \
+  "$(ok '...and clicking it again puts it back to its own size' "w=\$($MAXW); [ \"\$w\" -gt 0 ] && [ \"\$w\" -lt \"\$($SCRW)\" ]")" \
+  "hyprctl repl 'taylor.tail()' | grep square | tail -3"
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \

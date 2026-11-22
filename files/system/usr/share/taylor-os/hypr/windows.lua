@@ -144,8 +144,10 @@ hl.layer_rule({ name = "taylor-snap-instant", match = { namespace = "^taylor-sna
 
 -- ---------------------------------------------------------------- windows open floating
 hl.window_rule({ name = "taylor-float", match = { class = ".*" }, float = true, center = true })
--- only Settings and Files maximise (her brief); every other app's own maximise request is ignored
-hl.window_rule({ name = "taylor-no-maximize", match = { class = ".*" }, suppress_event = "maximize" })
+-- Settings and Files open maximised (her brief). Every other app's own full-screen square (its maximise button) makes
+-- it fill the whole screen as Windows key + Up does, and a second click puts it back (her ask 2026-11-22, her design
+-- pack: "the full screen square should make the thing full screen"): see T.maximizeAsked below.
+pcall(function() hl.window_rule({ name = "taylor-no-maximize", match = { class = "^$" }, suppress_event = "maximize" }) end)   -- the 2026-11-21 rule, emptied
 hl.window_rule({ name = "taylor-maximize-files",
     match = { class = [[^(org\.kde\.dolphin|dolphin|systemsettings|org\.kde\.systemsettings)$]] }, maximize = true })
 -- Her TaylorOS Settings is "one normal window (not full screen)" (her brief's Settings row and the tour): it floats at
@@ -227,6 +229,21 @@ function T.unsnap(w, at)
     T.dirty = true
     return "ok"
 end
+
+-- An app asked to be maximised (her click on its square): fill the whole screen (zone F, the dock and the clock step
+-- away), or, if it already does, go back to its own size. Settings and Files keep their plain maximise.
+local PLAIN_MAX = { ["org.kde.dolphin"] = true, dolphin = true, systemsettings = true, ["org.kde.systemsettings"] = true }
+function T.maximizeAsked(w)
+    if not w or (w.fullscreen or 0) ~= 1 or PLAIN_MAX[w.class or ""] then return end
+    if T.zoneOf(w) == "F" then
+        log("square: back to its own size " .. tostring(w.class))
+        T.unsnap(w)
+    else
+        log("square: whole screen " .. tostring(w.class))
+        T.snap("F", w)
+    end
+end
+hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w) end)
 
 -- Windows key + arrows, composed the way Windows does it
 local NEXT = {
