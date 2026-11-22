@@ -2,7 +2,7 @@
 # Her icon set (her build brief, "Icons"): Slot-Dark-Icons by L4ki, from github.com/L4ki/Slot-Plasma-Themes,
 # folder "Slot Icons Themes/Slot-Dark-Icons". Licence: GPL-3.0 (the repository's LICENSE, shipped beside the icons).
 # Fetched at build time from ONE pinned commit, checked against its sha256, so this public repo stays small and holds
-# none of the icons. Changes made: none to the icons themselves; only this one theme is taken from the repository, and
+# none of the icons. Changes made: kitty's icon is the set's own yakuake icon (her pick); otherwise none; only this one theme is taken from the repository, and
 # its icon lookup cache is rebuilt for this image. Written to /usr/share/icons/Slot-Dark-Icons/ with LICENSE and
 # TAYLOR-OS-NOTE.txt (where it came from, what was changed).
 set -euo pipefail
@@ -23,16 +23,22 @@ cat > "$DEST/TAYLOR-OS-NOTE.txt" <<NOTE
 Slot-Dark-Icons, by L4ki: https://github.com/L4ki/Slot-Plasma-Themes
 Taken from commit $COMMIT, folder "Slot Icons Themes/Slot-Dark-Icons" (also offered at https://store.kde.org/p/2234808).
 Licensed under the GNU General Public License, version 3 (LICENSE in this folder). The source is the repository above.
-Changes made for TAYLOR OS: none to the icons. Only this theme was taken from the repository, and its icon-theme.cache
+Changes made for TAYLOR OS: apps/48/kitty.svg is a copy of this set's own apps/48/yakuake.svg (the original kitty.svg is
+kept as kitty-cat.svg); nothing else. Only this theme was taken from the repository, and its icon-theme.cache
 was rebuilt with gtk-update-icon-cache when the TAYLOR OS image was built.
 NOTE
+# Her terminal icon (her pick D, 2026-11-22): the set's own yakuake icon (a small window with a blue title bar) stands in
+# for kitty's, so the dock, launcher, Alt+Tab and window bar all show it. The set's kitty.svg is kept as kitty-cat.svg.
+mv "$DEST/apps/48/kitty.svg" "$DEST/apps/48/kitty-cat.svg"
+cp "$DEST/apps/48/yakuake.svg" "$DEST/apps/48/kitty.svg"
 chmod -R u=rwX,go=rX "$DEST"
 if command -v gtk-update-icon-cache >/dev/null; then gtk-update-icon-cache -f -q "$DEST" || true; fi
 # the checks: the theme and the icons the desktop uses are there
 test -f "$DEST/index.theme" && test -f "$DEST/LICENSE"
 for f in apps/48/firefox.svg apps/48/microsoft-edge.svg apps/48/google-chrome.svg apps/48/steam.svg apps/48/Battle.net.svg \
-         apps/48/spotify.svg apps/48/kitty.svg apps/48/system-file-manager.svg apps/48/preferences-system.svg \
+         apps/48/spotify.svg apps/48/kitty.svg apps/48/kitty-cat.svg apps/48/system-file-manager.svg apps/48/preferences-system.svg \
          apps/48/multimedia-volume-control.svg status/22/network-wireless-signal-excellent.svg status/22/audio-volume-high.svg; do
     test -s "$DEST/$f" || { echo "missing from the icon set: $f"; exit 1; }
 done
+cmp -s "$DEST/apps/48/kitty.svg" "$DEST/apps/48/yakuake.svg" || { echo "the terminal icon is not her pick"; exit 1; }
 echo "Slot-Dark-Icons: $(find "$DEST" -type f | wc -l) files, $(du -sh "$DEST" | cut -f1)"
