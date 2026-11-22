@@ -196,7 +196,8 @@ jobs:
             "ls /run/user/1000/hypr/ 2>&1" \
             "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl -j configerrors 2>&1" \
             "HYPRLAND_INSTANCE_SIGNATURE=\$(ls /run/user/1000/hypr | head -1) hyprctl layers 2>&1 | head -60" \
-            "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1"
+            "tail -30 ~/.cache/hyprland/*.txt 2>/dev/null; ls ~/.cache/hyprland 2>&1" \
+            "echo taylortest | sudo -S sh -c 'cat /tmp/taylor-greeter-times.log; tail -25 /tmp/taylor-greeter-scene.log; journalctl -b -u greetd --no-pager | tail -40'"
           cat out/5-desktop-checks.txt
 
       - name: Open a window and close it with the window bar's X (her pick 2026-11-18)
