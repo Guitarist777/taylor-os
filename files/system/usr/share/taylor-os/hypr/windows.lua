@@ -233,14 +233,20 @@ end
 -- An app asked to be maximised (her click on its square): fill the whole screen (zone F, the dock and the clock step
 -- away), or, if it already does, go back to its own size. Settings and Files keep their plain maximise.
 local PLAIN_MAX = { ["org.kde.dolphin"] = true, dolphin = true, systemsettings = true, ["org.kde.systemsettings"] = true }
+-- (2026-11-22 test PC: the app stays "maximised" in its own eyes, so its next click on the square asks to un-maximise;
+-- that is when it goes back to its own size)
+T.squared = T.squared or {}
 function T.maximizeAsked(w)
-    if not w or (w.fullscreen or 0) ~= 1 or PLAIN_MAX[w.class or ""] then return end
-    if T.zoneOf(w) == "F" then
-        log("square: back to its own size " .. tostring(w.class))
-        T.unsnap(w)
-    else
+    if not w or not w.address or PLAIN_MAX[w.class or ""] then return end
+    local fs = w.fullscreen or 0
+    if fs == 1 and not T.squared[w.address] then
+        T.squared[w.address] = T.n or 0          -- when (in 40 ms ticks): the snap's own un-maximise right after is not her click
         log("square: whole screen " .. tostring(w.class))
         T.snap("F", w)
+    elseif fs == 0 and T.squared[w.address] and (T.n or 0) - T.squared[w.address] > 25 then
+        T.squared[w.address] = nil
+        log("square: back to its own size " .. tostring(w.class))
+        T.unsnap(w)
     end
 end
 hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w) end)
@@ -453,7 +459,7 @@ if T.timer then pcall(function() T.timer:set_enabled(false) end) end
 T.timer = hl.timer(tick, { timeout = 40, type = "repeat" })
 
 -- a closed window forgets its place
-hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; T.dirty = true end end)
+hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; T.dirty = true end end)
 
 function T.bind_buttons(on)
     if T.btn_binds then for _, bd in ipairs(T.btn_binds) do pcall(function() bd:remove() end) end end

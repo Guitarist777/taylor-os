@@ -135,13 +135,13 @@ ACTIVE="hyprctl -j activewindow | python3 -c 'import json,sys; print(json.load(s
 ONWS1="hyprctl -j clients | python3 -c 'import json,sys; print(sum(1 for c in json.load(sys.stdin) if (c.get(\"workspace\") or {}).get(\"id\") == 1))'"
 vm windows-sw-setup \
   "hyprctl eval 'hl.exec_cmd(\"kitty --class sw_one\")'; sleep 4; hyprctl eval 'hl.exec_cmd(\"kitty --class sw_two\")'; sleep 4; $ACTIVE"
-$V key meta_l-tab; sleep 2
+$V hold meta_l tab 1.2; sleep 1.5
 shot windows-12-switched
 vm windows-sw \
   "$(ok 'Windows key + Tab switches to the window she used before (like Cmd + Tab)' "[ \"\$($ACTIVE)\" = sw_one ]")" \
   "$(ok 'the window switcher loaded with no QML errors' "! $QSLOG | grep -iE 'Switcher.qml' | grep -qiE 'error|TypeError|ReferenceError|not defined'")" \
   "$QSLOG | grep taylor-switcher | tail -3"
-$V key alt_l-tab; sleep 2
+$V hold alt_l tab 1.2; sleep 1.5
 vm windows-alttab \
   "$(ok 'Alt + Tab switches back the same way' "[ \"\$($ACTIVE)\" = sw_two ]")" \
   "echo on workspace 1: \$($ONWS1)"
@@ -160,7 +160,7 @@ vm windows-desk-back \
 #MAXW="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"maxtest\"]; print(c[0][\"size\"][0] if c else 0)'"
 SCRW="hyprctl -j monitors | python3 -c 'import json,sys; m=json.load(sys.stdin)[0]; print(int(m[\"width\"]/m[\"scale\"]))'"
 vm windows-square \
-  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'def ask(): print(\"maxtest asks, maximized=\" + str(w.is_maximized()), flush=True); w.maximize(); return False' 'GLib.timeout_add(3000, ask)' 'GLib.timeout_add(10000, ask)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
+  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'def ask(): print(\"maxtest asks, maximized=\" + str(w.is_maximized()), flush=True); w.maximize(); return False' 'GLib.timeout_add(3000, ask)' 'def back(): print(\"maxtest square again, maximized=\" + str(w.is_maximized()), flush=True); w.unmaximize(); return False' 'GLib.timeout_add(10000, back)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
   "printf '%s\\n' 'import json,subprocess,sys' 'c=[c for c in json.loads(subprocess.run([\"hyprctl\",\"-j\",\"clients\"],capture_output=True,text=True).stdout) if c[\"class\"]==\"maxtest\"]' 'm=json.loads(subprocess.run([\"hyprctl\",\"-j\",\"monitors\"],capture_output=True,text=True).stdout)[0]' 'print(c[0][\"size\"][0] if c else 0, int(m[\"width\"]/m[\"scale\"]), c[0][\"fullscreen\"] if c else -1)' > /tmp/maxw.py" \
   "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py > /tmp/maxtest.log 2>&1\")'; for t in 2 4 6 8; do sleep 1; echo t\$t \$(python3 /tmp/maxw.py); sleep 1; done" \
   "$(ok 'an app clicking its full-screen square fills the whole screen' "python3 /tmp/maxw.py | awk '{exit !(\$1 == \$2)}'")" \

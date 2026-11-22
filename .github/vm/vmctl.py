@@ -134,6 +134,16 @@ def type_text(text):
         time.sleep(0.08)
 
 
+def hold(mod, key, seconds):
+    """Like a person: hold mod, tap key, keep holding for a moment, then let go of mod (e.g. hold meta_l tab 1.2)."""
+    def ev(k, down):
+        qmp("input-send-event", {"events": [{"type": "key", "data": {"down": down, "key": {"type": "qcode", "data": k}}}]})
+    ev(mod, True); time.sleep(0.15)
+    ev(key, True); time.sleep(0.08); ev(key, False)
+    time.sleep(seconds)
+    ev(mod, False)
+
+
 def key_combo(combo):
     """Press keys together, e.g. "meta_l-ret" (QEMU key names)."""
     qmp("send-key", {"keys": [{"type": "qcode", "data": k} for k in combo.split("-")]})
@@ -200,6 +210,8 @@ if __name__ == "__main__":
         type_text(a[1])
     elif a[0] == "key":
         key_combo(a[1])
+    elif a[0] == "hold":
+        hold(a[1], a[2], float(a[3]))
     elif a[0] == "click":
         click(int(a[1]), int(a[2]), int(a[3]), int(a[4]))
     elif a[0] == "move":
