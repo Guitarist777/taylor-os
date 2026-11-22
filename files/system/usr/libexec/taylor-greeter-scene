@@ -3,4 +3,7 @@
 # her desktop (after a good password) or show the login screen again (if the scene stopped for any other reason).
 quickshell -p /usr/share/taylor-os/greeter > /tmp/taylor-greeter-scene.log 2>&1
 echo "$(cut -d' ' -f1 /proc/uptime) login scene ended" >> /tmp/taylor-greeter-times.log
-hyprctl dispatch exit >/dev/null 2>&1
+# Hyprland 0.57 (Lua settings) takes its dispatchers as Lua: the old "hyprctl dispatch exit" is refused ("expected a
+# dispatcher"), so this screen never closed itself and greetd waited 5 s before ending it (found 2026-11-21: 5.007 s in
+# the virtual PC, 5.02 s on her PC). hl.dsp.exit() closed a test Hyprland in 0.16 s on her PC.
+hyprctl dispatch 'hl.dsp.exit()' >/dev/null 2>&1

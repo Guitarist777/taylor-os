@@ -167,12 +167,12 @@ ShellRoot {
         }
         function onAuthFailure(message) { root.bad("wrong password"); }
         function onReadyToLaunch() { root.good(); }
-        // greetd has her desktop's start in hand: close this login screen's Hyprland now. On her PC (NVIDIA) the
-        // scene's own teardown after "Quitting." took 5 s of black before Hyprland went (43.7 s -> 48.75 s,
-        // 2026-11-21); her desktop can only start once this screen is gone.
+        // greetd has her desktop's start in hand: close this login screen's Hyprland now; her desktop can only start
+        // once this screen is gone. Before 2026-11-21 nothing closed it (the old exit command is refused by Hyprland
+        // 0.57), so greetd waited its 5 s and ended it: 5 s of black after her password.
         function onLaunched() {
             root.mark("launched; closing the login screen");
-            Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
+            Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.exit()"]);   // Lua form (Hyprland 0.57)
         }
         function onError(error) {
             root.bad("greetd: " + error);
