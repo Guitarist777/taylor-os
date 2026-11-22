@@ -33,7 +33,11 @@ PanelWindow {
         return known.concat(all.filter((t) => known.indexOf(t) < 0));
     }
 
+    // a safety net: if letting go of the key is ever missed, the strip does not stay over her screen; 4 s with no key
+    // pressed switches to the one picked
+    Timer { id: idle; interval: 4000; onTriggered: { console.info("taylor-switcher: no key for 4 s, switching"); sw.commit(); } }
     function step(d) {
+        idle.restart();
         if (!open) {
             items = recent();
             if (items.length === 0) return;
@@ -45,6 +49,7 @@ PanelWindow {
         if (items.length) sel = (sel + d + items.length) % items.length;
     }
     function commit() {
+        idle.stop();
         if (!open) return;
         const t = items[sel];
         open = false;
@@ -59,7 +64,7 @@ PanelWindow {
     }
     property var pending: null
     Timer { id: later; interval: 150; onTriggered: { if (sw.pending) sw.pending.activate(); sw.pending = null; } }
-    function cancel() { if (open) { open = false; items = []; console.info("taylor-switcher: closed, nothing changed"); } }
+    function cancel() { idle.stop(); if (open) { open = false; items = []; console.info("taylor-switcher: closed, nothing changed"); } }
 
     IpcHandler {
         target: "switcher"

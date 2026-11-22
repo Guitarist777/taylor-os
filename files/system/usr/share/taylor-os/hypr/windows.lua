@@ -492,8 +492,11 @@ for _, m in ipairs({ "SUPER", "ALT" }) do
     hl.bind(m .. " + SHIFT + Tab", function() sw("prev") end)
 end
 -- letting go of the Windows key or Alt switches (only while the strip is open; otherwise the desktop ignores it)
-hl.bind("SUPER + Super_L", function() sw("commit") end, { release = true, non_consuming = true })
-hl.bind("ALT + Alt_L",     function() sw("commit") end, { release = true, non_consuming = true })
+-- (the Windows key is caught both with and without its own modifier still set: the 2026-11-22 test PC saw neither
+-- reach the desktop with only the first; Alt + Alt_L worked)
+for _, k in ipairs({ "SUPER + Super_L", "Super_L", "SUPER + Super_R", "Super_R", "ALT + Alt_L", "Alt_L" }) do
+    pcall(hl.bind, k, function() sw("commit") end, { release = true, non_consuming = true })
+end
 
 -- Show desktop (her ask 2026-11-22, Windows key + D as on Windows: "i couldn't get out" of a full-screen game). The windows
 -- on the workspace she is on step aside to a hidden one (a game keeps running); Windows key + D again brings them all

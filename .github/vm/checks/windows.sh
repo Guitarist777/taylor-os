@@ -132,7 +132,7 @@ vm windows-ws1 \
 
 # switching windows (her ask 2026-11-22, the Mac's Cmd + Tab) and Show desktop (Windows key + D)
 ACTIVE="hyprctl -j activewindow | python3 -c 'import json,sys; print(json.load(sys.stdin).get(\"class\",\"\"))'"
-ONWS1="hyprctl -j clients | python3 -c 'import json,sys; print(sum(1 for c in json.load(sys.stdin) if c[\"workspace\"][\"id\"] == 1))'"
+ONWS1="hyprctl -j clients | python3 -c 'import json,sys; print(sum(1 for c in json.load(sys.stdin) if (c.get(\"workspace\") or {}).get(\"id\") == 1))'"
 vm windows-sw-setup \
   "hyprctl eval 'hl.exec_cmd(\"kitty --class sw_one\")'; sleep 4; hyprctl eval 'hl.exec_cmd(\"kitty --class sw_two\")'; sleep 4; $ACTIVE"
 $V key meta_l-tab; sleep 2
