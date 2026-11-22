@@ -122,7 +122,7 @@ vm taskbar-unlock \
 GW='journalctl --user -u taylor-gamewatch --no-pager -o cat'
 vm taskbar-game-on \
   "$(ok 'the gaming-mode watcher runs in her desktop' "systemctl --user is-active --quiet taylor-gamewatch.service")" \
-  "tuned-adm active; nohup kitty --class steam_app_123 --start-as fullscreen sleep 60 >/dev/null 2>&1 & sleep 8" \
+  "tuned-adm active; hyprctl eval 'hl.exec_cmd(\"kitty --class steam_app_123 --start-as fullscreen sleep 60\")'; sleep 8; hyprctl clients | grep -E 'class:|fullscreen:' | tail -6" \
   "$(ok 'a full-screen game turns gaming mode on (the desktop holds still, the PC runs at full power)' "$GW | grep -q 'on for steam_app_123' && quickshell ipc call gaming state | grep -qx on && tuned-adm active | grep -q throughput-performance-bazzite")" \
   "$GW | tail -3"
 shot taskbar-12-game
