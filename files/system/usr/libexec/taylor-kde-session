@@ -4,7 +4,7 @@
 # that changes how Plasma starts is followed; startplasma-wayland is the fallback.
 f=/usr/share/wayland-sessions/plasma.desktop
 cmd=$(sed -n 's/^Exec=//p' "$f" 2>/dev/null | head -1)
-echo "taylor-kde-session: starting KDE Plasma" >&2
+logger -t taylor-kde-session -- "starting KDE Plasma" 2>/dev/null   # journal, not the screen
 if [ -n "$cmd" ]; then
     exec sh -c "exec $cmd"
 fi

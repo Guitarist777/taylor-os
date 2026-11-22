@@ -10,7 +10,9 @@
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 log="/tmp/taylor-session-wait-$(id -u).log"
-say() { echo "taylor-session-wait: $*" >&2; echo "$(date +%T) $*" >> "$log" 2>/dev/null; }
+# To the journal and the file, never the screen (2026-11-22): stderr here is the text screen, and her sign-in showed
+# "taylor-session-wait: starting uwsm ..." for a moment between her login and her desktop (virtual PC run 44975015386).
+say() { logger -t taylor-session-wait -- "$*" 2>/dev/null; echo "$(date +%T) $*" >> "$log" 2>/dev/null; }
 state() { systemctl --user show -p ActiveState --value graphical-session.target graphical-session-pre.target 2>/dev/null | tr '\n' ' '; }
 up() { for s in $(state); do case "$s" in inactive|failed) ;; *) return 0 ;; esac; done; return 1; }
 desktop_running() { pgrep -u "$(id -u)" -x 'Hyprland|kwin_wayland|plasmashell|gnome-shell' >/dev/null 2>&1; }
