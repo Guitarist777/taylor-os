@@ -51,7 +51,8 @@ vm windows-quarters \
   "$(ok 'the dock steps away when snapped windows reach the top' "python3 /tmp/w.py layer taylor-dock absent")" \
   "$(ok 'the window bar steps away with the dock' "python3 /tmp/w.py layer taylor-windowbar absent")" \
   "hyprctl repl 'taylor.state()'" \
-  "\$Q call windows state"
+  "\$Q call windows state" \
+  "hyprctl repl 'taylor.tail()' | tail -25" "hyprctl -j activewindow | head -12" "hyprctl layers | grep -iE 'switch|lock|keyboard' ; true"
 
 # true full screen (Windows key + F) on the last one
 $V key meta_l-f; sleep 2
