@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 33
+expect windows 35
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -165,8 +165,10 @@ vm windows-square \
   "printf '%s\\n' 'import json,subprocess,sys' 'c=[c for c in json.loads(subprocess.run([\"hyprctl\",\"-j\",\"clients\"],capture_output=True,text=True).stdout) if c[\"class\"]==\"maxtest\"]' 'm=json.loads(subprocess.run([\"hyprctl\",\"-j\",\"monitors\"],capture_output=True,text=True).stdout)[0]' 'print(c[0][\"size\"][0] if c else 0, int(m[\"width\"]/m[\"scale\"]), c[0][\"fullscreen\"] if c else -1)' > /tmp/maxw.py" \
   "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py > /tmp/maxtest.log 2>&1\")'; for t in 2 4 6 8; do sleep 1; echo t\$t \$(python3 /tmp/maxw.py); sleep 1; done" \
   "$(ok 'an app clicking its full-screen square fills the whole screen' "python3 /tmp/maxw.py | awk '{exit !(\$1 == \$2)}'")" \
+  "$(ok 'the dock and the clock step away over it' "python3 /tmp/w.py layer taylor-dock absent")" \
   "for t in 10 12 14; do sleep 2; echo t\$t \$(python3 /tmp/maxw.py); done; cat /tmp/maxtest.log" \
   "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2 * 0.8)}'")" \
+  "$(ok 'while it fills the screen the app knows it is maximised (its square shows the put-it-back picture)' "grep -q 'square again, maximized=True' /tmp/maxtest.log")" \
   "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
 
 # less motion and her scheme reach Hyprland without a reload

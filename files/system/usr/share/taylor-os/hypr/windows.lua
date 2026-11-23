@@ -230,41 +230,30 @@ function T.unsnap(w, at)
     return "ok"
 end
 
--- An app asked to be maximised (her click on its square): fill the whole screen (zone F, the dock and the clock step
--- away), or, if it already does, go back to its own size. Settings and Files keep their plain maximise.
+-- An app asked to be maximised (her click on its square): it fills the whole screen (the dock and the clock step away,
+-- as for any full-screen window), while the app itself is told only "maximised". So its own square shows the "put it
+-- back" picture, and her next click on it asks to un-maximise, which puts it back where it was. Hyprland keeps the two
+-- apart: what it shows (internal) and what it tells the app (client). Settings and Files keep their plain maximise.
+-- (2026-11-23, her PC: the first way, snapping to the whole screen and taking the maximise away, left the app thinking
+-- it was still maximised: the wrong picture on its square, and the next click did nothing or the window came back.)
 local PLAIN_MAX = { ["org.kde.dolphin"] = true, dolphin = true, systemsettings = true, ["org.kde.systemsettings"] = true }
--- (2026-11-22 test PC: the app stays "maximised" in its own eyes, so its next click on the square asks to un-maximise;
--- that is when it goes back to its own size)
 T.squared = T.squared or {}
 function T.maximizeAsked(w)
     if not w or not w.address or PLAIN_MAX[w.class or ""] then return end
-    local fs = w.fullscreen or 0
-    if fs == 1 and not T.squared[w.address] then
-        T.squared[w.address] = T.n or 0          -- when (in 40 ms ticks): the snap's own un-maximise right after is not her click
+    local fs, fc = w.fullscreen or 0, w.fullscreen_client or 0
+    if fs == 1 and fc == 1 then
+        T.squared[w.address] = true
         log("square: whole screen " .. tostring(w.class))
-        T.snap("F", w)
-    elseif fs == 1 and T.squared[w.address] and T.zoneOf(w) ~= "none" and T.zoneOf(w) ~= "F" then
-        -- the app asked again while she has it in a half or a quarter (kitty does after a resize, still thinking it is
-        -- maximised): keep her half or quarter. A few times at most, so an app that keeps asking is not fought forever.
-        T.again = T.again or {}
-        local a = T.again[w.address]
-        if not a or (T.n or 0) - a.t > 50 then a = { t = T.n or 0, k = 0 } end
-        a.k = a.k + 1; T.again[w.address] = a
-        if a.k <= 3 then
-            T.squared[w.address] = T.n or 0      -- its un-maximise from the snap below is not her click either
-            log("square: asked again, kept " .. T.zoneOf(w) .. " " .. tostring(w.class))
-            T.snap(T.zoneOf(w), w)
-        end
-    elseif fs == 0 and T.squared[w.address] and (T.n or 0) - T.squared[w.address] > 25 then
+        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 2, client = 1 }))
+    elseif T.squared[w.address] and fc == 0 and fs ~= 0 then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
-        -- Hyprland puts it back where it was before the maximise; only TAYLOR's own snap marks are taken off (its saved
-        -- floating size was taken while it was already maximised, so it is not used)
-        local s = T.snaps[w.address]
-        if s then s.zone = nil end
-        props(w, false, nil)
-        T.dirty = true
+        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 0, client = 0 }))
+    elseif T.squared[w.address] and fs == 0 then
+        T.squared[w.address] = nil
+        log("square: back to its own size " .. tostring(w.class))
     end
+    T.dirty = true
 end
 hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w) end)
 
@@ -282,7 +271,7 @@ function T.key(dir)
         dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })); T.dirty = true; return
     end
     local z = T.zoneOf(w)
-    if (w.fullscreen or 0) == 1 and not T.squared[w.address] then z = "none" end     -- a maximised Settings or Files
+    if (w.fullscreen or 0) == 1 then z = "none" end     -- a maximised Settings or Files
     local nz = NEXT[dir][z] or "none"
     if nz == "none" then
         if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })) end
@@ -476,7 +465,7 @@ if T.timer then pcall(function() T.timer:set_enabled(false) end) end
 T.timer = hl.timer(tick, { timeout = 40, type = "repeat" })
 
 -- a closed window forgets its place
-hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; if T.again then T.again[w.address] = nil end; T.dirty = true end end)
+hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; T.dirty = true end end)
 
 function T.bind_buttons(on)
     if T.btn_binds then for _, bd in ipairs(T.btn_binds) do pcall(function() bd:remove() end) end end
