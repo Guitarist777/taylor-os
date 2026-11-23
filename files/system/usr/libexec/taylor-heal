@@ -67,20 +67,6 @@ done
     log "$name: her desktop settings file brought up to this version of TAYLOR OS (old file kept)"
 done
 
-# 2e. Her terminal is Ghostty (2026-11-23). An account made before then has no Ghostty settings: it gets this image's
-#     small file, which reads TAYLOR OS's own (copy and paste like Windows, her colours). A file she has is never touched.
-gskel=/etc/skel/.config/ghostty/config
-[ -f "$gskel" ] && getent passwd | while IFS=: read -r name _ uid gid _ home _; do
-    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
-    [ -d "$home" ] || continue
-    g="$home/.config/ghostty/config"
-    [ -e "$g" ] && continue
-    [ -d "$home/.config" ] || continue
-    [ -d "$home/.config/ghostty" ] || install -d -m 0755 -o "$uid" -g "$gid" "$home/.config/ghostty"
-    install -m 0644 -o "$uid" -g "$gid" "$gskel" "$g"
-    log "$name: her terminal's settings added (Ghostty)"
-done
-
 # 2b. The desktop itself (Quickshell: dock, window bar, clock, mixer, sky). It lives in the system
 #     (/usr/share/taylor-os/quickshell) so every update brings the new version. Each account's ~/.config/quickshell
 #     points there. A copy TAYLOR OS made earlier (its shell.qml says "TAYLOR OS desktop") is kept beside the pointer;

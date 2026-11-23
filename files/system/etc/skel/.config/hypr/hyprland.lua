@@ -113,7 +113,7 @@ hl.animation({ leaf = "layers",     enabled = true, speed = 4, bezier = "calm", 
 -- Keys. SUPER is the Windows key.
 local mod = "SUPER"
 
-hl.bind(mod .. " + Return", hl.dsp.exec_cmd("ghostty"))   -- her terminal (Ghostty, 2026-11-23)
+hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
 hl.bind(mod .. " + Space",  hl.dsp.exec_cmd("quickshell ipc call launcher toggle"))   -- her launcher (TAYLOR's dial)
 hl.bind(mod .. " + E",      hl.dsp.exec_cmd("dolphin"))
 hl.bind(mod .. " + B",      hl.dsp.exec_cmd("xdg-open https://"))
