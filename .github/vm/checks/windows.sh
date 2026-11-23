@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 38
+expect windows 41
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -170,17 +170,30 @@ vm windows-square \
   "$(ok 'while it fills the screen the app knows it is maximised (its square shows the put-it-back picture)' "grep -q 'square again, maximized=True' /tmp/maxtest.log")" \
   "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
 
-# buttons on every window (her pick 2026-11-23): Qt apps draw their own title bar, the window bar is gone, and an app's
-# minimise button hides its window; the dock (or the switcher) brings it back
+# buttons on every window (her pick 2026-11-23): Hyprland's own title bar (hyprbars) on each window with minimise, full
+# screen and close, clicked with the mouse as she would; the window bar at the top right is gone
+BTN="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"bartest\"]; x,y=c[0][\"at\"]; w,h=c[0][\"size\"]; print(\"BTN\", x+w-10-8, x+w-10-16-8-8, x+w-10-32-16-8, y+15)' 2>/dev/null"
+WSOF="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"bartest\"]; print(c[0][\"workspace\"][\"name\"] if c else \"none\", c[0][\"fullscreen\"] if c else -1)'"
 vm windows-buttons \
   "$(ok 'the window bar at the top right is gone' "! hyprctl layers | grep -q taylor-windowbar")" \
-  "$(ok 'Qt apps are told to draw their own title bar (minimise, full screen, close)' "grep -qa 'QT_WAYLAND_DISABLED_INTERFACES=zxdg_decoration_manager_v1' /proc/\$(pgrep -u tester -x quickshell | head -1)/environ")" \
-  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"mintest\")' 'w = Gtk.Window(title=\"mintest\")' 'w.set_default_size(400, 300)' 'w.show_all()' 'def mn(): print(\"mintest minimises\", flush=True); w.iconify(); return False' 'GLib.timeout_add(3000, mn)' 'GLib.timeout_add(30000, Gtk.main_quit)' 'Gtk.main()' > /tmp/mintest.py" \
-  "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/mintest.py > /tmp/mintest.log 2>&1\")'; sleep 6" \
-  "$(ok 'an app clicking its minimise button hides its window' "hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"mintest\"]; sys.exit(0 if c and c[0][\"workspace\"][\"name\"]==\"special:taylor-minimized\" else 1)'")" \
-  "hyprctl repl 'taylor.unminimize(\"mintest\")'; sleep 2" \
-  "$(ok 'the dock brings a minimised window back where it was' "hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"mintest\"]; sys.exit(0 if c and c[0][\"workspace\"][\"id\"]==1 else 1)'")" \
-  "hyprctl -j clients | grep -A6 mintest | head -8; cat /tmp/mintest.log; hyprctl repl 'taylor.tail()' | grep -i minim | tail -3; pkill -f mintest.py; true"
+  "$(ok 'the title bar plugin is loaded' "hyprctl repl '#hl.get_loaded_plugins()' | grep -qx 1")" "hyprctl plugin list 2>&1 | head -5" \
+  "hyprctl -j configerrors; hyprctl eval 'hl.exec_cmd(\"kitty --class bartest\")'; sleep 4; $BTN"
+shot windows-14-title-bar
+read CX SX MX BY < <(tr -d '\r' < out/windows-buttons.txt | grep -oE 'BTN [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+echo "buttons close $CX square $SX minimise $MX at y $BY"
+$V click "$MX" "$BY" "$W" "$HH"; sleep 2
+vm windows-btn-min \
+  "$(ok 'her click on the minimise button of a window hides it' "$WSOF | grep -q '^special:taylor-minimized'")" "$WSOF" \
+  "hyprctl repl 'taylor.unminimize(\"bartest\")'; sleep 2" \
+  "$(ok 'the dock brings a minimised window back where it was' "$WSOF | grep -qE '^1 '")" "$WSOF; $BTN"
+$V click "$SX" "$BY" "$W" "$HH"; sleep 2
+shot windows-15-bar-square
+vm windows-btn-full "$(ok 'the full-screen button fills the whole screen' "$WSOF | grep -qE '^1 2'")" "$WSOF"
+$V key meta_l-down; sleep 2
+vm windows-btn-back "$(ok '...and it comes back to its own size' "$WSOF | grep -qE '^1 0'")" "$WSOF; $BTN"
+read CX SX MX BY < <(tr -d '\r' < out/windows-btn-back.txt | grep -oE 'BTN [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+$V click "$CX" "$BY" "$W" "$HH"; sleep 2
+vm windows-btn-close "$(ok 'the close button closes the window' "$WSOF | grep -q '^none'")" "$WSOF; hyprctl repl 'taylor.tail()' | grep -iE 'minim|square|bar' | tail -6"
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \

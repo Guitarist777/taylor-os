@@ -602,6 +602,25 @@ function T.unminimize(key)
     T.dirty = true
     return pick
 end
+-- the title bar's other two buttons (hyprbars): close asks the app politely (it can still say "save changes?"), the
+-- square fills the whole screen and a second click puts it back (as the app's own square does, T.maximizeAsked)
+function T.closeActive()
+    local w = hl.get_active_window(); if not w then return "no window" end
+    dsp(hl.dsp.window.close({ window = w })); return "ok"
+end
+function T.squareActive()
+    local w = hl.get_active_window(); if not w then return "no window" end
+    if (w.fullscreen or 0) ~= 0 then
+        T.squared[w.address] = nil
+        dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
+        log("square (bar): back to its own size " .. tostring(w.class))
+    else
+        T.squared[w.address] = true
+        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 2, client = 1 }))
+        log("square (bar): whole screen " .. tostring(w.class))
+    end
+    T.dirty = true; return "ok"
+end
 hl.on("window.minimize", function(w, on) if on ~= false and on ~= 0 then pcall(T.minimize, w) end end)
 hl.on("window.destroy", function(w) if w and w.address and T.minimized then T.minimized[w.address] = nil end end)
 

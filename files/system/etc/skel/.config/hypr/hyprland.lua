@@ -27,10 +27,6 @@ hl.env("HYPRCURSOR_SIZE", "32")
 hl.env("XCURSOR_THEME", "TAYLOR-White")
 hl.env("XCURSOR_SIZE", "32")
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
--- Buttons on every window (her pick 2026-11-23, "on the window for each window"): Hyprland draws no title bars, and it
--- tells Qt apps (Files, KDE apps, her Settings) that it does, so they drew none. Hiding that from them makes each one draw
--- its own bar with minimise, full screen and close. (GTK apps such as Firefox and Steam draw theirs already.)
-hl.env("QT_WAYLAND_DISABLED_INTERFACES", "zxdg_decoration_manager_v1")
 
 hl.config({
     general = {
@@ -165,3 +161,27 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("quickshell ipc call brightness
 taylor_fresh_binds = true   -- this file binds no arrow keys itself
 local taylorOk, taylorErr = pcall(dofile, "/usr/share/taylor-os/hypr/windows.lua")
 if not taylorOk then taylor_windows_error = tostring(taylorErr) end
+
+-- Buttons on every window (her pick 2026-11-23, "on the window for each window"). Hyprland draws no title bars, and it
+-- ignores an app's own minimise button (tested on her PC: no event at all). So Hyprland's own title bar plugin (hyprbars)
+-- draws a slim bar on each window with minimise, full screen and close, and those three call TAYLOR's own (windows.lua):
+-- minimise hides the window until the dock or the window switcher brings it back. Apps that draw their own bar
+-- (browsers, Steam) get none, so there are never two.
+pcall(function()
+    hl.plugin.load("/usr/lib64/hyprland/libhyprbars.so")
+    hl.config({ plugin = { hyprbars = {
+        bar_height = 30, bar_padding = 10, bar_button_padding = 8, bar_buttons_alignment = "right",
+        bar_color = "rgba(141917ff)", ["col.text"] = "rgba(c8cccaff)", bar_text_size = 11, bar_text_font = "Manrope",
+        bar_text_align = "left", bar_part_of_window = true, bar_precedence_over_border = true,
+    } } })
+    local hb = hl.plugin.hyprbars
+    -- right to left: close, full screen, minimise
+    hb.add_button({ bg_color = "rgba(2a302dff)", fg_color = "rgba(edefeeff)", size = 16, icon = "×",
+        action = [[hyprctl eval 'if taylor and taylor.closeActive then taylor.closeActive() end']] })
+    hb.add_button({ bg_color = "rgba(2a302dff)", fg_color = "rgba(edefeeff)", size = 16, icon = "□",
+        action = [[hyprctl eval 'if taylor and taylor.squareActive then taylor.squareActive() end']] })
+    hb.add_button({ bg_color = "rgba(2a302dff)", fg_color = "rgba(edefeeff)", size = 16, icon = "–",
+        action = [[hyprctl eval 'if taylor and taylor.minimize then taylor.minimize(hl.get_active_window()) end']] })
+    hl.window_rule({ name = "taylor-own-bars", match = { class = [[^(firefox|org\.mozilla\.firefox|google-chrome|chromium.*|microsoft-edge.*|steam|Spotify|spotify|com\.spotify\.Client|com\.mitchellh\.ghostty)$]] }, ["hyprbars:no_bar"] = true })
+end)
+

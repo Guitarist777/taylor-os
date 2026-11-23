@@ -49,6 +49,7 @@ modules:
         - tuigreet # the plain text sign-in, only if her login screen fails twice (never locked out)
         - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)
         - hyprsunset # Settings > Display, "Warmer colors at night" (Hyprland's own night-light; ddcutil and skopeo, used by Settings too, are already in Bazzite)
+        - hyprland-plugin-hyprbars # a slim title bar with minimise, full screen and close on every window (her pick 2026-11-23)
         - plymouth-plugin-script # draws her boot screen (2026-11-21): her dark with nothing on it (themes/taylor)
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
