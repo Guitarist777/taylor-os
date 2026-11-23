@@ -414,7 +414,7 @@ jobs:
         run: |
           # a result can follow the prompt on the same line: take every "PASS ..." / "FAIL ..." wherever it starts
           # (lines starting "$ " are the typed commands, which contain both words: skip them)
-          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt out/11-kde.txt out/12-0b.txt out/12-picked.txt out/12-kde.txt out/12-back.txt out/12-reset.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          cat out/0-update.txt out/0b-after-update.txt out/2-checks.txt out/5-desktop-checks.txt out/6-window.txt out/7-closed.txt out/7b-dial.txt out/7e-launcher.txt out/7e2-keys.txt out/7h-launched.txt out/10a-notes.txt out/10b-list.txt out/10c-dismissed.txt out/10d-away.txt out/10e-dial.txt out/10f-five.txt out/9-opening.txt out/11-kde.txt out/12-0b.txt out/12-picked.txt out/12-kde.txt out/12-back.txt out/12-reset.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z.][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
           want=41; [ -n "$UPDATE_TO" ] && want=43
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge $want
           ! grep -q '^FAIL ' out/verdict.txt

@@ -148,7 +148,7 @@ jobs:
 
       - name: The verdict (fails on any FAIL)
         run: |
-          cat out/*.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          cat out/*.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | grep -oE '(PASS|FAIL) [A-Za-z.][^_]*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
           want=$(cat out/*-expect.txt 2>/dev/null | grep -oE 'EXPECT [0-9]+' | awk '{s+=$2} END {print s+0}')
           got=$(grep -c '^PASS ' out/verdict.txt || true)
           echo "PASS lines: $got of $want expected"
