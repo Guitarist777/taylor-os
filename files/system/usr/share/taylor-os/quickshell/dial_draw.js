@@ -50,10 +50,11 @@ function words(x, px, py, k, al, font, str) {
     if (al <= 0) return;
     str = str || 'ALL CLEAR.';
     var gap = 3 * k, w = 0, i;
-    x.font = font; x.fillStyle = WORDS; x.globalAlpha = 0.85 * al; x.textBaseline = 'middle';
+    // the letters as a path, not fillText: fillText leaves holes in Manrope's joins (her photo, 2026-11-23)
+    x.font = font; var fsz = parseFloat((/([0-9.]+)px/.exec(String(font)) || [0, 12])[1]); x.fillStyle = WORDS; x.globalAlpha = 0.85 * al; x.textBaseline = 'middle';
     for (i = 0; i < str.length; i++) w += x.measureText(str[i]).width + gap;
     w -= gap;
     var sx = px - w / 2; x.textAlign = 'left';
-    for (i = 0; i < str.length; i++) { x.fillText(str[i], sx, py); sx += x.measureText(str[i]).width + gap; }
+    for (i = 0; i < str.length; i++) { x.textBaseline = 'alphabetic'; x.beginPath(); x.text(str[i], sx, py + 0.235 * fsz); x.fill(); x.textBaseline = 'middle'; sx += x.measureText(str[i]).width + gap; }
     x.textAlign = 'center'; x.globalAlpha = 1;
 }
