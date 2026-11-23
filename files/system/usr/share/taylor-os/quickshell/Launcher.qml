@@ -211,60 +211,106 @@ PanelWindow {
     Timer { id: renderLater; interval: 700; onTriggered: win.render() }
 
     // ---- the drawing: the dim, the bar growing, the dial on its way ----
+    // (2026-11-23, her "it's laggy" at 240 Hz: this was one canvas the size of the screen, drawn again on the processor
+    // every frame and sent to the graphics card; at 2560x1440 that cannot keep up. Now the dim and the bar are plain
+    // shapes the graphics card draws, the dial's words are drawn once and fade, and only the dial itself is drawn each
+    // frame, on a small canvas that moves with it.)
+    readonly property real ease: sm(o)
+    readonly property var spotNow: Dial.spot(width, height)
+    readonly property real iconX: bx + 23 * u
+    readonly property real iconY: by + 22 * u
+    readonly property bool still: theme ? theme.still : false
+    // where the travelling dial is now (centre, radius, tick scale) and how far it has become the bar's icon
+    readonly property real dX: still ? spotNow.x : spotNow.x + (iconX - spotNow.x) * ease
+    readonly property real dY: still ? spotNow.y : spotNow.y + (iconY - spotNow.y) * ease
+    readonly property real dR: still ? spotNow.r : spotNow.r + (12 * u - spotNow.r) * ease
+    readonly property real dK: still ? spotNow.k : spotNow.k + (u - spotNow.k) * ease
+
+    Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.34 * win.ease; visible: win.ease > 0 }
+    Rectangle {
+        x: win.bx; y: win.by
+        width: Math.max(46 * win.u, win.bw * win.ease); height: 44 * win.u
+        radius: 12 * win.u
+        color: win.theme.panel
+        border.width: 1; border.color: win.theme.alpha(win.theme.text, 0.16 * 0.6 / 0.97)
+        opacity: 0.97 * Math.min(1, win.ease * 1.6)
+        visible: win.ease > 0
+    }
+
+    function drawDial(x, px, py, R, ks, d, al) {      // d: how far it has become the icon (0 the dial .. 1 the icon)
+        const k = R / 30, T = Date.now() / 1000;
+        x.lineCap = "round"; x.strokeStyle = win.theme.accent;
+        x.globalAlpha = (0.12 * (1 - d) + 0.05) * al; x.lineWidth = 7 * k; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
+        x.globalAlpha = 0.95 * al; x.lineWidth = 1.5 * ks; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
+        if (d < 1) {
+            x.globalAlpha = 0.35 * (1 - d) * al; x.lineWidth = ks; x.beginPath(); x.arc(px, py, R * 0.62, 0, 6.2832, false); x.stroke();
+            x.strokeStyle = win.theme.text;
+            for (let t2 = 0; t2 < 48; t2++) {
+                const an = -1.5708 + t2 / 48 * 6.2832, big = t2 % 4 === 0;
+                x.globalAlpha = (big ? 0.5 : 0.25) * (1 - d) * al;
+                x.beginPath(); x.moveTo(px + Math.cos(an) * (R + 6 * k), py + Math.sin(an) * (R + 6 * k));
+                x.lineTo(px + Math.cos(an) * (R + (big ? 12 : 9) * k), py + Math.sin(an) * (R + (big ? 12 : 9) * k)); x.stroke();
+            }
+            x.strokeStyle = win.theme.accent; x.lineWidth = 2.5 * ks;
+            const rot = win.still ? 0 : Dial.arcAngle();
+            for (let j = 0; j < 3; j++) {
+                const st = rot + j * 2.0944;
+                x.globalAlpha = 0.8 * (1 - d) * al * (win.still ? 1 : 0.85 + 0.15 * Math.sin(T * 0.8));
+                x.beginPath(); x.arc(px, py, R + 18 * k, st, st + 0.9, false); x.stroke();
+            }
+        }
+        if (d > 0.2) { x.globalAlpha = d * al; x.fillStyle = win.theme.accent; x.beginPath(); x.arc(px, py, 2.2 * win.u, 0, 6.2832, false); x.fill(); }
+        x.globalAlpha = 1;
+    }
+
+    // the travelling dial (or, with less motion, the dial fading at its spot): a canvas just big enough for it at its
+    // largest, moved with it; only this is drawn each frame (its arcs turn)
     Canvas {
         id: art
-        anchors.fill: parent
+        readonly property real half: Math.ceil(win.spotNow.r + 22 * win.spotNow.k + 4)
+        width: 2 * half; height: 2 * half
+        x: Math.round(win.dX) - half; y: Math.round(win.dY) - half
+        visible: win.dialShown && win.ease > 0 && (win.still ? win.ease < 1 : true)
         renderStrategy: Canvas.Cooperative
-        function rr(x, px, py, w, h, r) {
-            x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r);
-            x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath();
-        }
         onPaint: {
             const x = getContext("2d");
             x.reset();
-            const e = win.sm(win.o), U = win.u, T = Date.now() / 1000;
-            if (e <= 0) return;
-            const sp = Dial.spot(width, height);
-            x.globalAlpha = 0.34 * e; x.fillStyle = "#000000"; x.fillRect(0, 0, width, height);
-            const bwid = Math.max(46 * U, win.bw * e);
-            x.globalAlpha = 0.97 * Math.min(1, e * 1.6); x.fillStyle = win.theme.panel; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.fill();
-            x.globalAlpha = 0.6 * e; x.strokeStyle = win.theme.alpha(win.theme.text, 0.16); x.lineWidth = 1; rr(x, win.bx, win.by, bwid, 44 * U, 12 * U); x.stroke();
-            // the dial: from her spot to the bar's icon, shrinking; its ticks, arcs and line fade on the way.
-            // Reduced motion: no travel, the dial fades out at her spot while the icon fades in on the bar.
-            // Without TAYLOR on the desktop (her setting) the icon simply fades in.
-            const still = win.theme.still, ix = win.bx + 23 * U, iy = win.by + 22 * U;
-            function dial(px, py, R, ks, d, al) {      // d: how far it has become the icon (0 the dial .. 1 the icon)
-                const k = R / 30;
-                x.lineCap = "round"; x.strokeStyle = win.theme.accent;
-                x.globalAlpha = (0.12 * (1 - d) + 0.05) * al; x.lineWidth = 7 * k; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
-                x.globalAlpha = 0.95 * al; x.lineWidth = 1.5 * ks; x.beginPath(); x.arc(px, py, R, 0, 6.2832, false); x.stroke();
-                if (d < 1) {
-                    x.globalAlpha = 0.35 * (1 - d) * al; x.lineWidth = ks; x.beginPath(); x.arc(px, py, R * 0.62, 0, 6.2832, false); x.stroke();
-                    x.strokeStyle = win.theme.text;
-                    for (let t2 = 0; t2 < 48; t2++) {
-                        const an = -1.5708 + t2 / 48 * 6.2832, big = t2 % 4 === 0;
-                        x.globalAlpha = (big ? 0.5 : 0.25) * (1 - d) * al;
-                        x.beginPath(); x.moveTo(px + Math.cos(an) * (R + 6 * k), py + Math.sin(an) * (R + 6 * k));
-                        x.lineTo(px + Math.cos(an) * (R + (big ? 12 : 9) * k), py + Math.sin(an) * (R + (big ? 12 : 9) * k)); x.stroke();
-                    }
-                    x.strokeStyle = win.theme.accent; x.lineWidth = 2.5 * ks;
-                    const rot = still ? 0 : Dial.arcAngle();
-                    for (let j = 0; j < 3; j++) {
-                        const st = rot + j * 2.0944;
-                        x.globalAlpha = 0.8 * (1 - d) * al * (still ? 1 : 0.85 + 0.15 * Math.sin(T * 0.8));
-                        x.beginPath(); x.arc(px, py, R + 18 * k, st, st + 0.9, false); x.stroke();
-                    }
-                    Dial.words(x, sp.x, sp.y + 118 * sp.k, sp.k, (1 - d) * al, Math.round(11 * sp.k) + "px " + win.theme.sans, win.status);
-                }
-                if (d > 0.2) { x.globalAlpha = d * al; x.fillStyle = win.theme.accent; x.beginPath(); x.arc(px, py, 2.2 * U, 0, 6.2832, false); x.fill(); }
-            }
-            if (!win.dialShown) dial(ix, iy, 12 * U, U, 1, e);
-            else if (still) { dial(sp.x, sp.y, sp.r, sp.k, 0, 1 - e); dial(ix, iy, 12 * U, U, 1, e); }
-            else dial(sp.x + (ix - sp.x) * e, sp.y + (iy - sp.y) * e, sp.r + (12 * U - sp.r) * e, sp.k + (U - sp.k) * e, e, 1);
-            x.globalAlpha = 1;
+            const e = win.ease;
+            if (e <= 0 || !win.dialShown) return;
+            const cx = win.dX - art.x, cy = win.dY - art.y;
+            if (win.still) win.drawDial(x, cx, cy, win.spotNow.r, win.spotNow.k, 0, 1 - e);
+            else win.drawDial(x, cx, cy, win.dR, win.dK, e, 1);
         }
     }
-    FrameAnimation { running: win.visible; onTriggered: art.requestPaint() }
+    // the bar's icon: with less motion it fades in at the bar while the dial fades at its spot; without TAYLOR on the
+    // desktop (her setting) it simply fades in
+    Canvas {
+        id: icon
+        width: Math.ceil(30 * win.u); height: width
+        x: Math.round(win.iconX) - width / 2; y: Math.round(win.iconY) - height / 2
+        visible: (win.still || !win.dialShown) && win.ease > 0
+        renderStrategy: Canvas.Cooperative
+        onPaint: { const x = getContext("2d"); x.reset(); win.drawDial(x, width / 2, height / 2, 12 * win.u, win.u, 1, 1); }
+        opacity: win.ease
+        Component.onCompleted: requestPaint()
+    }
+    // the dial's words under its spot: drawn once, they fade as the dial leaves
+    Canvas {
+        id: words
+        readonly property real k: win.spotNow.k
+        width: Math.ceil(260 * k); height: Math.ceil(40 * k)
+        x: Math.round(win.spotNow.x - width / 2); y: Math.round(win.spotNow.y + 118 * k - height / 2)
+        visible: win.dialShown && win.ease > 0 && win.ease < 1
+        opacity: 1 - win.ease
+        renderStrategy: Canvas.Cooperative
+        onPaint: {
+            const x = getContext("2d"); x.reset();
+            Dial.words(x, width / 2, height / 2, k, 1, Math.round(11 * k) + "px " + win.theme.sans, win.status);
+        }
+        onWidthChanged: requestPaint()
+        Connections { target: win; function onStatusChanged() { words.requestPaint(); } function onVisibleChanged() { if (win.visible) words.requestPaint(); } }
+    }
+    FrameAnimation { running: win.visible && art.visible; onTriggered: art.requestPaint() }
 
     // a click anywhere outside the bar and the list closes it
     MouseArea { anchors.fill: parent; enabled: win.open; onClicked: win.closeMe() }
