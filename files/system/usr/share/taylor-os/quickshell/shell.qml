@@ -263,6 +263,7 @@ ShellRoot {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU
         hiddenForFullscreen: root.dockHidden
         onOpenLauncher: root.launcherOpen = true
+        onOpenTaylor: root.dialClicked()
         onOpenMixer: mixerWindow.toggle()
         onSay: (line) => { root.dialStatus = line; root.dialBusy = true; statusBack.restart(); }
     }

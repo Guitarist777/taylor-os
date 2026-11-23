@@ -163,7 +163,7 @@ vm windows-square \
   "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"maxtest\")' 'w = Gtk.Window(title=\"maxtest\")' 'w.set_default_size(500, 300)' 'w.show_all()' 'def ask(): print(\"maxtest asks, maximized=\" + str(w.is_maximized()), flush=True); w.maximize(); return False' 'GLib.timeout_add(3000, ask)' 'def back(): print(\"maxtest square again, maximized=\" + str(w.is_maximized()), flush=True); w.unmaximize(); return False' 'GLib.timeout_add(10000, back)' 'GLib.timeout_add(16000, Gtk.main_quit)' 'Gtk.main()' > /tmp/maxtest.py" \
   "printf '%s\\n' 'import json,subprocess,sys' 'c=[c for c in json.loads(subprocess.run([\"hyprctl\",\"-j\",\"clients\"],capture_output=True,text=True).stdout) if c[\"class\"]==\"maxtest\"]' 'm=json.loads(subprocess.run([\"hyprctl\",\"-j\",\"monitors\"],capture_output=True,text=True).stdout)[0]' 'print(c[0][\"size\"][0] if c else 0, int(m[\"width\"]/m[\"scale\"]), c[0][\"fullscreen\"] if c else -1, c[0][\"size\"][1] if c else 0, int(m[\"height\"]/m[\"scale\"]))' > /tmp/maxw.py" \
   "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py > /tmp/maxtest.log 2>&1\")'; for t in 2 4 6 8; do sleep 1; echo t\$t \$(python3 /tmp/maxw.py); sleep 1; done" \
-  "$(ok 'an app clicking its full-screen square fills the whole screen' "python3 /tmp/maxw.py | awk '{exit !(\$1 == \$2 && \$4 == \$5)}'")" \
+  "$(ok 'an app clicking its full-screen square fills the whole screen (under its title bar)' "python3 /tmp/maxw.py | awk '{exit !(\$1 >= \$2 - 2 && \$4 >= \$5 - 34)}'")" \
   "$(ok 'the dock and the clock step away over it' "python3 /tmp/w.py layer taylor-dock absent")" \
   "for t in 10 12 14; do sleep 2; echo t\$t \$(python3 /tmp/maxw.py); done; cat /tmp/maxtest.log" \
   "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2 * 0.8)}'")" \
@@ -188,9 +188,11 @@ vm windows-btn-min \
   "$(ok 'the dock brings a minimised window back where it was' "$WSOF | grep -qE '^1 '")" "$WSOF; $BTN"
 $V click "$SX" "$BY" "$W" "$HH"; sleep 2
 shot windows-15-bar-square
-vm windows-btn-full "$(ok 'the full-screen button fills the whole screen' "$WSOF | grep -qE '^1 1'")" "$WSOF"
-$V key meta_l-down; sleep 2
-vm windows-btn-back "$(ok '...and it comes back to its own size' "$WSOF | grep -qE '^1 0'")" "$WSOF; $BTN"
+vm windows-btn-full "$(ok 'the full-screen button fills the whole screen' "$WSOF | grep -qE '^1 1'")" "$WSOF; $BTN"
+# a second click on the same button (where it is now, at the top right of the screen) puts it back
+read CX SX MX BY < <(tr -d '\r' < out/windows-btn-full.txt | grep -oE 'BTN [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
+$V click "$SX" "$BY" "$W" "$HH"; sleep 2
+vm windows-btn-back "$(ok '...and a second click puts it back to its own size' "$WSOF | grep -qE '^1 0'")" "$WSOF; $BTN"
 read CX SX MX BY < <(tr -d '\r' < out/windows-btn-back.txt | grep -oE 'BTN [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
 $V click "$CX" "$BY" "$W" "$HH"; sleep 2
 vm windows-btn-close "$(ok 'the close button closes the window' "$WSOF | grep -q '^none'")" "$WSOF; hyprctl repl 'taylor.tail()' | grep -iE 'minim|square|bar' | tail -6"

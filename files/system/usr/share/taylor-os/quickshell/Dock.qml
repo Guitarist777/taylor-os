@@ -1,5 +1,5 @@
 // The taskbar (her build brief, "Taskbar"; her design tour, part 14): the floating rounded bar at the top middle.
-// TAYLOR's dial at the left end opens her launcher; then the pinned slots Files, Browser, Terminal, Games, Spotify,
+// TAYLOR's dial at the left end opens TAYLOR's window (her launcher is Windows key + Space); then the pinned slots Files, Browser, Terminal, Games, Spotify,
 // Messages, Mixer, Settings. A small green dot under an icon: the app is running; the app she is in gets a wider green
 // dash. The app's name shows under the bar while the pointer is on it.
 //
@@ -36,6 +36,7 @@ Scope {
     property real arrive: 1               // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     property bool hiddenForFullscreen: false   // true full screen: the bar goes up out of sight (the windows piece sets it)
     signal openLauncher()
+    signal openTaylor()
     signal openMixer()
     signal say(string line)               // a line for her status under the dial ("OPENING FIREFOX.")
 
@@ -250,7 +251,9 @@ Scope {
     }
 
     function slotClicked(i) {
-        if (i === 0) { console.info("taylor-dock: the dial opens her launcher"); fold(); dock.openLauncher(); return; }
+        // the dock's dial opens TAYLOR's window, as the big dial does (her ask 2026-11-23: "when i click the dial in my bar,
+        // it should open taylor"); her launcher stays on Windows key + Space
+        if (i === 0) { console.info("taylor-dock: the dial opens TAYLOR's window"); fold(); dock.openTaylor(); return; }
         const sl = slots[i - 1];
         if (sl.group) { if (openGroup === sl.group && fanOn) fold(); else splay(sl.group, i); return; }
         fold();

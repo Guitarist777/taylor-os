@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 28
+expect taskbar 29
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -116,6 +116,13 @@ $V type '\n'
 sleep 9
 vm taskbar-unlock \
   "$(ok 'her password opens it again after Lock' "[ \"\$($LH)\" = no ]")"
+
+# the dock's dial opens TAYLOR's window, as the big dial does (her ask 2026-11-23); the launcher is Windows key + Space
+$V click "${XS[0]}" "$DY" "$SW" "$SH"; sleep 4
+vm taskbar-dial \
+  "$(ok 'the dial on the dock opens the TAYLOR window (not the launcher)' "$QL | grep -q \"taylor-dock: the dial opens TAYLOR's window\" && journalctl --user -t taylor-open-app --no-pager | grep -q 'taylor-open-app:'")" \
+  "$QL | grep -E 'the dial opens' | tail -2; journalctl --user -t taylor-open-app --no-pager | tail -2" \
+  "pkill -u tester -f -i firefox; true"
 
 # Gaming mode (her pick S4, 2026-11-22): a full-screen game (here a window that says it is Steam game 123) turns it on;
 # closing the game turns everything back
