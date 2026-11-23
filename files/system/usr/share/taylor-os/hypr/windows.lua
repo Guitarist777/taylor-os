@@ -246,7 +246,12 @@ function T.maximizeAsked(w)
     elseif fs == 0 and T.squared[w.address] and (T.n or 0) - T.squared[w.address] > 25 then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
-        T.unsnap(w)
+        -- Hyprland puts it back where it was before the maximise; only TAYLOR's own snap marks are taken off (its saved
+        -- floating size was taken while it was already maximised, so it is not used)
+        local s = T.snaps[w.address]
+        if s then s.zone = nil end
+        props(w, false, nil)
+        T.dirty = true
     end
 end
 hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w) end)

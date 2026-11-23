@@ -141,7 +141,7 @@ vm windows-sw \
   "$(ok 'Windows key + Tab switches to the window she used before (like Cmd + Tab)' "[ \"\$($ACTIVE)\" = sw_one ]")" \
   "$(ok 'the window switcher loaded with no QML errors' "! $QSLOG | grep -iE 'Switcher.qml' | grep -qiE 'error|TypeError|ReferenceError|not defined'")" \
   "$QSLOG | grep taylor-switcher | tail -3"
-$V hold alt_l tab 1.2; sleep 1.5
+$V hold alt tab 1.2; sleep 1.5
 vm windows-alttab \
   "$(ok 'Alt + Tab switches back the same way' "[ \"\$($ACTIVE)\" = sw_two ]")" \
   "echo on workspace 1: \$($ONWS1)"
@@ -165,7 +165,7 @@ vm windows-square \
   "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/maxtest.py > /tmp/maxtest.log 2>&1\")'; for t in 2 4 6 8; do sleep 1; echo t\$t \$(python3 /tmp/maxw.py); sleep 1; done" \
   "$(ok 'an app clicking its full-screen square fills the whole screen' "python3 /tmp/maxw.py | awk '{exit !(\$1 == \$2)}'")" \
   "for t in 10 12 14; do sleep 2; echo t\$t \$(python3 /tmp/maxw.py); done; cat /tmp/maxtest.log" \
-  "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2)}'")" \
+  "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2 * 0.8)}'")" \
   "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
 
 # less motion and her scheme reach Hyprland without a reload
