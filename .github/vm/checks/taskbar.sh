@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 28
+expect taskbar 29
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -61,18 +61,20 @@ vm taskbar-pick \
   "$QL | grep -E 'taylor-dock: (picked|launch|fold|windows)' | tail -6" \
   "hyprctl clients | grep -E 'class:|title:' | head -10"
 
-# Terminal: kitty opens and its running dot follows
+# Terminal: Ghostty opens (her pick 2026-11-23: the terminal with buttons) and its running dot follows
 $V click "$TX" "$DY" "$SW" "$SH"
 sleep 8
 shot taskbar-7-terminal
 vm taskbar-term \
-  "$(ok 'the Terminal slot opens kitty' "pgrep -u tester -x kitty >/dev/null")" \
+  "$(ok 'the Terminal slot opens her terminal (Ghostty)' "pgrep -u tester -x ghostty >/dev/null")" \
   "$(ok 'while an app opens its dock icon breathes (no loading dots)' "$QL | grep -q 'terminal opening: its icon breathes' && ! grep -q 'id: dots' /usr/share/taylor-os/quickshell/Dock.qml")" \
-  "$(ok 'the terminal copies and pastes like Windows (Ctrl+C/V, select copies)' "grep -q '^map ctrl+v paste_from_clipboard' /etc/xdg/kitty/kitty.conf && kitty +runpy 'from kitty.cli import create_default_opts; print(create_default_opts().copy_on_select)' 2>/dev/null | grep -q clipboard")" \
-  "$(ok 'the terminal has her icon (D: the small window with a blue title bar)' "cmp -s /usr/share/icons/Slot-Dark-Icons/apps/48/kitty.svg /usr/share/icons/Slot-Dark-Icons/apps/48/yakuake.svg")" \
+  "$(ok 'the terminal copies and pastes like Windows (Ctrl+C copies a selection, Ctrl+V, select copies)' "grep -qx 'keybind = performable:ctrl+c=copy_to_clipboard' /usr/share/taylor-os/ghostty/config && grep -qx 'keybind = ctrl+v=paste_from_clipboard' /usr/share/taylor-os/ghostty/config && grep -qx 'config-file = /usr/share/taylor-os/ghostty/config' ~/.config/ghostty/config && ghostty +validate-config --config-file=/usr/share/taylor-os/ghostty/config")" \
+  "ghostty +validate-config --config-file=/usr/share/taylor-os/ghostty/config; ghostty +show-config 2>/dev/null | grep -E '^(keybind = (performable:)?ctrl\+[cv]|copy-on-select|right-click-action)' | head; true" \
+  "$(ok 'the terminal has its own minimise, full screen and close buttons (it draws its own title bar)' "ghostty +show-config 2>/dev/null | grep -qx 'gtk-titlebar = true'")" \
+  "$(ok 'the terminal has her icon (D: the small window with a blue title bar)' "cmp -s /usr/share/icons/Slot-Dark-Icons/apps/48/kitty.svg /usr/share/icons/Slot-Dark-Icons/apps/48/yakuake.svg && cmp -s /usr/share/icons/Slot-Dark-Icons/apps/48/com.mitchellh.ghostty.svg /usr/share/icons/Slot-Dark-Icons/apps/48/yakuake.svg")" \
   "$(ok 'her two cursor sets are in the image (White and Black, both formats)' "test -f /usr/share/icons/TAYLOR-White/manifest.hl && test -e /usr/share/icons/TAYLOR-White/cursors/left_ptr && test -e /usr/share/icons/TAYLOR-White/cursors/nesw-resize && test -f /usr/share/icons/TAYLOR-Black/manifest.hl && test -e /usr/share/icons/TAYLOR-Black/cursors/left_ptr")" \
   "$(ok 'her cursor pick switches everywhere (Black, then White again)' "/usr/libexec/taylor-cursor black && grep -qx Inherits=TAYLOR-Black ~/.local/share/icons/default/index.theme && /usr/libexec/taylor-cursor white && grep -qx Inherits=TAYLOR-White ~/.local/share/icons/default/index.theme && gsettings get org.gnome.desktop.interface cursor-theme | grep -q TAYLOR-White")" \
-  "$(ok 'the dock sees kitty running and in front' "$QL | grep -E 'taylor-dock: windows' | tail -1 | grep -q 'terminal\*'")" \
+  "$(ok 'the dock sees the terminal running and in front' "$QL | grep -E 'taylor-dock: windows' | tail -1 | grep -q 'terminal\*'")" \
   "$(ok 'the dock and its log stay clean' "! $QL | grep -iE 'Dock.qml' | grep -qiE 'error|TypeError|ReferenceError'")" \
   "$(ok 'the taskbar apps setup ran at sign in' "test -s ~/.local/state/taylor-os/apps-setup.log")" \
   "$QL | grep -E 'taylor-dock: (launch|windows)' | tail -4" \

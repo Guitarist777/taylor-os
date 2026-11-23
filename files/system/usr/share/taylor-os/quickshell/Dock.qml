@@ -66,7 +66,8 @@ Scope {
         edge:      { name: "Edge", icons: ["microsoft-edge", "com.microsoft.Edge"], desktop: "com.microsoft.Edge", flatpak: "com.microsoft.Edge", match: /^(microsoft-edge|com\.microsoft\.edge|msedge)$/i },
         firefox:   { name: "Firefox", icons: ["firefox", "org.mozilla.firefox"], desktop: "org.mozilla.firefox", flatpak: "org.mozilla.firefox", match: /^(firefox|org\.mozilla\.firefox)$/i },
         chrome:    { name: "Chrome", icons: ["google-chrome", "com.google.Chrome"], desktop: "com.google.Chrome", flatpak: "com.google.Chrome", match: /^(google-chrome|com\.google\.chrome)$/i },
-        terminal:  { name: "Terminal", icons: ["kitty", "utilities-terminal"], desktop: "kitty", run: ["kitty"], match: /^kitty$/i },
+        // the terminal is Ghostty (her pick 2026-11-23: it has buttons on its window); her icon D stays (kitty.svg)
+        terminal:  { name: "Terminal", icons: ["kitty", "utilities-terminal"], desktop: "com.mitchellh.ghostty", run: ["ghostty"], match: /^(com\.mitchellh\.ghostty|ghostty|kitty)$/i },
         steam:     { name: "Steam", icons: ["steam"], desktop: "steam", run: ["steam"], need: true, match: /^steam$/i },
         ea:        { name: "EA", icons: ["ea-app", "lutris_ea-app", "9AD6_Origin"], lutris: "ea-app", need: true, match: /^(eadesktop|ealauncher|origin)(\.exe)?$/i },
         battlenet: { name: "Battle.net", icons: ["Battle.net", "lutris_battlenet"], lutris: "battlenet", need: true, match: /^battle\.net(\.exe)?$/i },

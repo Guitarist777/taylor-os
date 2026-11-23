@@ -21,6 +21,8 @@ modules:
       - "dnf5 -y swap terra-xorg-x11-server-Xwayland xorg-x11-server-Xwayland"
       - "rpm -q xorg-x11-server-Xwayland plasma-workspace plasma-desktop kwin plasma-login-manager"
       - "rpm -q terra-gamescope || rpm -q gamescope"
+      # her terminal (2026-11-23: "the terminal with buttons"): Ghostty, from Terra; kitty stays for the checks
+      - "dnf5 -y install --enablerepo=terra ghostty && rpm -q ghostty"
 
   # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
   - type: dnf

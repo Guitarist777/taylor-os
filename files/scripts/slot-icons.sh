@@ -23,7 +23,7 @@ cat > "$DEST/TAYLOR-OS-NOTE.txt" <<NOTE
 Slot-Dark-Icons, by L4ki: https://github.com/L4ki/Slot-Plasma-Themes
 Taken from commit $COMMIT, folder "Slot Icons Themes/Slot-Dark-Icons" (also offered at https://store.kde.org/p/2234808).
 Licensed under the GNU General Public License, version 3 (LICENSE in this folder). The source is the repository above.
-Changes made for TAYLOR OS: apps/48/kitty.svg is a copy of this set's own apps/48/yakuake.svg (the original kitty.svg is
+Changes made for TAYLOR OS: apps/48/kitty.svg and apps/48/com.mitchellh.ghostty.svg are copies of this set's own apps/48/yakuake.svg (the original kitty.svg is
 kept as kitty-cat.svg); nothing else. Only this theme was taken from the repository, and its icon-theme.cache
 was rebuilt with gtk-update-icon-cache when the TAYLOR OS image was built.
 NOTE
@@ -31,6 +31,7 @@ NOTE
 # for kitty's, so the dock, launcher, Alt+Tab and window bar all show it. The set's kitty.svg is kept as kitty-cat.svg.
 mv "$DEST/apps/48/kitty.svg" "$DEST/apps/48/kitty-cat.svg"
 cp "$DEST/apps/48/yakuake.svg" "$DEST/apps/48/kitty.svg"
+cp "$DEST/apps/48/yakuake.svg" "$DEST/apps/48/com.mitchellh.ghostty.svg"   # her terminal is Ghostty now (2026-11-23): same icon
 chmod -R u=rwX,go=rX "$DEST"
 if command -v gtk-update-icon-cache >/dev/null; then gtk-update-icon-cache -f -q "$DEST" || true; fi
 # the checks: the theme and the icons the desktop uses are there
