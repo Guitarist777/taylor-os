@@ -4,7 +4,7 @@
 # goes to her desktop with no text on the way, and a disk password would still be asked on the boot screen.
 # Screenshots: out/boot-NNN.png (a restart, every ~0.7 s), out/boot-signin-NN.png, out/boot-still-*.png, out/boot-off-*.png.
 . .github/vm/checks/lib.sh
-expect boot 36
+expect boot 37
 pip install --quiet pillow >/dev/null 2>&1 || true
 gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 
@@ -54,6 +54,7 @@ sleep 20
 vm boot-3 \
   "$(ok 'her login screen is up after the restart' "pgrep -u greetd -f '^(/usr/bin/)?quickshell -p /usr/share/taylor-os/greeter' >/dev/null && ! pgrep -u greetd tuigreet >/dev/null")" \
   "$(ok 'the login screen account has its home folder (no error line on the screen at start-up)' "test -d /var/lib/greetd && ! journalctl -b -u greetd --no-pager 2>/dev/null | grep -q 'unable to set working directory'")" \
+  "$(ok 'the login screen starts with no error lines from the shell' "! journalctl -b --no-pager 2>/dev/null | grep -q 'brew.sh.*Permission denied'")" \
   "$(ok 'her opening played in full' "$(gsudo 'grep -q "opening full" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the lost dot is fetched by its friend' "$(gsudo 'grep -q "the friend goes to fetch the lost dot" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the lost dot hops and the friend hops lower' "$(gsudo 'grep -q "the lost dot hops, the friend hops lower" /tmp/taylor-greeter-scene.log')")" \
