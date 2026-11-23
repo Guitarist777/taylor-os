@@ -171,8 +171,8 @@ vm windows-square \
   "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
 
 # buttons on every window (her pick 2026-11-23): Hyprland's own title bar (hyprbars) on each window with minimise, full
-# screen and close, clicked with the mouse as she would; the window bar at the top right is gone
-BTN="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"bartest\"]; x,y=c[0][\"at\"]; w,h=c[0][\"size\"]; print(\"BTN\", x+w-10-8, x+w-10-16-8-8, x+w-10-32-16-8, y+15)' 2>/dev/null"
+# screen and close, clicked with the mouse as she would (the bar sits just above the window's own top); the window bar at the top right is gone
+BTN="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"bartest\"]; x,y=c[0][\"at\"]; w,h=c[0][\"size\"]; print(\"BTN\", x+w-10-8, x+w-10-16-8-8, x+w-10-32-16-8, y-15)' 2>/dev/null"
 WSOF="hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"bartest\"]; print(c[0][\"workspace\"][\"name\"] if c else \"none\", c[0][\"fullscreen\"] if c else -1)'"
 vm windows-buttons \
   "$(ok 'the window bar at the top right is gone' "! hyprctl layers | grep -q taylor-windowbar")" \

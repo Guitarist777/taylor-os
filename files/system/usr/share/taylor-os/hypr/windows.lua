@@ -253,7 +253,11 @@ function T.maximizeAsked(w)
         T.later = T.later or {}
         T.later[#T.later + 1] = { at = (T.n or 0) + 3, fn = function()
             for _, x in ipairs(hl.get_windows() or {}) do
-                if x.address == w.address and (x.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen_state({ window = x, internal = 0, client = 0 })) end
+                if x.address == w.address and (x.fullscreen or 0) ~= 0 then
+                    log("square: put back again " .. tostring(x.class) .. " (" .. tostring(x.fullscreen) .. "/" .. tostring(x.fullscreen_client) .. ")")
+                    dsp(hl.dsp.focus({ window = x }))
+                    dsp(hl.dsp.window.fullscreen({ window = x, action = "unset" }))
+                end
             end
         end }
     elseif T.squared[w.address] and fs == 0 then
