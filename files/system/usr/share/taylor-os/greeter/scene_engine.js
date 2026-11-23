@@ -24,7 +24,21 @@ var skipCover = 0;        // a key or click during the opening jumps to the logi
 var FONT = 'Manrope';
 // Qt's canvas takes a font line only as "<size>px <family>" (with normal/bold): a number weight such as 500 makes it
 // throw the whole line away and draw at its tiny default size (2026-11-19 VM test).
-function fontAt(px) { return Math.round(px) + 'px ' + FONT; }
+// Qt's canvas fillText leaves small holes where a letter's strokes join (Manrope, at her clock's size: her photo of
+// 2026-11-23, "pixels missing"); the same letters drawn as a path and filled are whole. Same place as fillText:
+// textAlign left/center/right and textBaseline alphabetic/middle (0.235 of the size, measured on Manrope).
+function ftext(x, s, px, py) {
+    s = String(s);
+    var sz = fontPx;     // the size fontAt last gave (Qt's x.font does not read back as it was set)
+    var al = x.textAlign, bl = x.textBaseline, w = x.measureText(s).width;
+    var ox = al === 'center' ? -w / 2 : (al === 'right' || al === 'end') ? -w : 0;
+    var oy = bl === 'middle' ? 0.235 * sz : bl === 'top' || bl === 'hanging' ? 0.94 * sz : bl === 'bottom' ? -0.26 * sz : 0;
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic';     // text() reads these too: the offsets above are the whole move
+    x.beginPath(); x.text(s, px + ox, py + oy); x.fill();
+    x.textAlign = al; x.textBaseline = bl;
+}
+var fontPx = 16;
+function fontAt(px) { fontPx = Math.round(px); return fontPx + 'px ' + FONT; }
 var name = '';
 
 // C, the login
@@ -408,9 +422,9 @@ function drawLogin(x, dt) {
         var d0 = new Date(), h = d0.getHours() % 12 || 12;
         x.globalAlpha = L * 0.95 * (1 - A); x.fillStyle = '#EDEFEE';
         x.font = fontAt(Math.min(68 * k, W * 0.11));
-        x.fillText(h + ':' + pad(d0.getMinutes()), cx, (104 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
+        ftext(x, h + ':' + pad(d0.getMinutes()), cx, (104 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
         x.globalAlpha = L * 0.85 * (1 - A); x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
-        x.fillText(DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
+        ftext(x, DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
     }
 
     if (D > 0 && da > 0) {
@@ -490,9 +504,9 @@ function drawLogin(x, dt) {
 
     if (N > 0) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
-        x.fillText(name, cx, 298 * k);
+        ftext(x, name, cx, 298 * k);
         x.globalAlpha = N * 0.8 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
-        x.fillText(kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
+        ftext(x, kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
             : kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
     x.globalAlpha = 1;
