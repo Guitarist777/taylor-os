@@ -243,6 +243,18 @@ function T.maximizeAsked(w)
         T.squared[w.address] = T.n or 0          -- when (in 40 ms ticks): the snap's own un-maximise right after is not her click
         log("square: whole screen " .. tostring(w.class))
         T.snap("F", w)
+    elseif fs == 1 and T.squared[w.address] and T.zoneOf(w) ~= "none" and T.zoneOf(w) ~= "F" then
+        -- the app asked again while she has it in a half or a quarter (kitty does after a resize, still thinking it is
+        -- maximised): keep her half or quarter. A few times at most, so an app that keeps asking is not fought forever.
+        T.again = T.again or {}
+        local a = T.again[w.address]
+        if not a or (T.n or 0) - a.t > 50 then a = { t = T.n or 0, k = 0 } end
+        a.k = a.k + 1; T.again[w.address] = a
+        if a.k <= 3 then
+            T.squared[w.address] = T.n or 0      -- its un-maximise from the snap below is not her click either
+            log("square: asked again, kept " .. T.zoneOf(w) .. " " .. tostring(w.class))
+            T.snap(T.zoneOf(w), w)
+        end
     elseif fs == 0 and T.squared[w.address] and (T.n or 0) - T.squared[w.address] > 25 then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
@@ -270,7 +282,7 @@ function T.key(dir)
         dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })); T.dirty = true; return
     end
     local z = T.zoneOf(w)
-    if (w.fullscreen or 0) == 1 then z = "none" end     -- a maximised Settings or Files
+    if (w.fullscreen or 0) == 1 and not T.squared[w.address] then z = "none" end     -- a maximised Settings or Files
     local nz = NEXT[dir][z] or "none"
     if nz == "none" then
         if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })) end
@@ -464,7 +476,7 @@ if T.timer then pcall(function() T.timer:set_enabled(false) end) end
 T.timer = hl.timer(tick, { timeout = 40, type = "repeat" })
 
 -- a closed window forgets its place
-hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; T.dirty = true end end)
+hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; if T.again then T.again[w.address] = nil end; T.dirty = true end end)
 
 function T.bind_buttons(on)
     if T.btn_binds then for _, bd in ipairs(T.btn_binds) do pcall(function() bd:remove() end) end end
