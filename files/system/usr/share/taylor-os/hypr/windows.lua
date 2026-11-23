@@ -186,6 +186,16 @@ function T.zoneOf(w)
     return s.zone
 end
 
+-- out of full screen or a maximise, whichever it is in: Hyprland's plain "unset" only ends a true full screen, so a
+-- maximised window (her square, the title bar's button) needs its own mode named (2026-11-23 test PC: Windows key + Down
+-- and the bar's second click did nothing on a maximised window)
+function T.unfull(w)
+    if not w then return end
+    local fs = w.fullscreen or 0
+    if fs == 0 then return end
+    dsp(hl.dsp.window.fullscreen({ window = w, mode = (fs == 1) and "maximized" or "fullscreen", action = "unset" }))
+end
+
 function T.snap(zone, w)
     w = w or hl.get_active_window()
     if not w then return "no window" end
@@ -193,7 +203,7 @@ function T.snap(zone, w)
     local m = w.monitor or hl.get_active_monitor()
     local r = T.rect(zone, m)
     if not r then return "no such zone" end
-    if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })) end
+    if (w.fullscreen or 0) ~= 0 then T.unfull(w) end
     if not w.floating then dsp(hl.dsp.window.float({ window = w, action = "enable" })) end
     local s = T.snaps[w.address]
     if not s or not s.zone then
@@ -213,7 +223,7 @@ end
 function T.unsnap(w, at)
     w = w or hl.get_active_window()
     if not w then return "no window" end
-    if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })) end
+    if (w.fullscreen or 0) ~= 0 then T.unfull(w) end
     local s = T.snaps[w.address]
     if not s or not s.zone then return "not snapped" end
     s.zone = nil
@@ -263,13 +273,13 @@ function T.key(dir)
     local w = hl.get_active_window()
     if not w then return end
     if (w.fullscreen or 0) >= 2 and dir == "down" then
-        dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })); T.dirty = true; return
+        T.unfull(w); T.dirty = true; return
     end
     local z = T.zoneOf(w)
     if (w.fullscreen or 0) == 1 then z = "none" end     -- a maximised Settings or Files
     local nz = NEXT[dir][z] or "none"
     if nz == "none" then
-        if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" })) end
+        if (w.fullscreen or 0) ~= 0 then T.unfull(w) end
         T.unsnap(w)
     else
         T.snap(nz, w)
@@ -594,7 +604,7 @@ function T.closeActive()
 end
 function T.squareActive()
     local w = hl.get_active_window(); if not w then return "no window" end
-    if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
+    if (w.fullscreen or 0) ~= 0 then T.unfull(w)
     else dsp(hl.dsp.window.fullscreen({ window = w, mode = "maximized", action = "set" })) end
     return "ok"
 end
