@@ -457,6 +457,18 @@ local function tick()
         local w = hl.get_active_window()
         dragTick(w, cur)
         T.n = (T.n or 0) + 1
+        -- a window her square filled the screen with: when its app un-maximises (her second click), Hyprland sometimes
+        -- sends no event (2026-11-23 test PC), so this looks each tick and puts it back
+        if T.squared and next(T.squared) then
+            for _, x in ipairs(hl.get_windows() or {}) do
+                if x.address and T.squared[x.address] and (x.fullscreen_client or 0) == 0 and (x.fullscreen or 0) ~= 0 then
+                    T.squared[x.address] = nil
+                    log("square: back to its own size " .. tostring(x.class) .. " (seen on the tick)")
+                    dsp(hl.dsp.window.fullscreen({ window = x, action = "unset" }))
+                    T.dirty = true
+                end
+            end
+        end
         if T.later and #T.later > 0 then           -- small jobs asked for a few ticks later (the square's put-back check)
             local keep = {}
             for _, j in ipairs(T.later) do if T.n >= j.at then pcall(j.fn) else keep[#keep + 1] = j end end
