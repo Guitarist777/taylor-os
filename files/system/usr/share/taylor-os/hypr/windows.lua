@@ -248,7 +248,14 @@ function T.maximizeAsked(w)
     elseif T.squared[w.address] and fc == 0 and fs ~= 0 then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
-        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 0, client = 0 }))
+        -- (fullscreen_state 0 0 here did nothing on the 2026-11-23 test PC; the plain unset, as Windows key + Down uses, does)
+        dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
+        T.later = T.later or {}
+        T.later[#T.later + 1] = { at = (T.n or 0) + 3, fn = function()
+            for _, x in ipairs(hl.get_windows() or {}) do
+                if x.address == w.address and (x.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen_state({ window = x, internal = 0, client = 0 })) end
+            end
+        end }
     elseif T.squared[w.address] and fs == 0 then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
@@ -446,6 +453,11 @@ local function tick()
         local w = hl.get_active_window()
         dragTick(w, cur)
         T.n = (T.n or 0) + 1
+        if T.later and #T.later > 0 then           -- small jobs asked for a few ticks later (the square's put-back check)
+            local keep = {}
+            for _, j in ipairs(T.later) do if T.n >= j.at then pcall(j.fn) else keep[#keep + 1] = j end end
+            T.later = keep
+        end
         if T.n % 50 == 0 then        -- every two seconds: her settings file, if it changed
             local txt = readText()
             if txt and txt ~= T.settingsText then
