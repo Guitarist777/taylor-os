@@ -2,7 +2,7 @@ pragma Singleton
 // Her windows (her build brief, "Windows"; her design tour, part 6), the desktop's half. Hyprland's side is
 // /usr/share/taylor-os/hypr/windows.lua: it watches the windows 25 times a second and tells the desktop, as
 // "custom>>taylorwin ..." events, two things:
-//   cover NAME top br rt rb   on monitor NAME a snapped or full-screen window covers the dock (top) / the clock and tray
+//   cover NAME top br rt rb max   on monitor NAME a snapped or full-screen window covers the dock (top) / the clock and tray
 //                             (br); the pointer at the top edge brought the dock back (rt) / at the bottom edge the clock (rb)
 //   zone Z x y w h            a window is being dragged into snap zone Z (her dotted outline); "zone none" when not
 // What the dock, the window bar, the workspace dots and the tray read from here:
@@ -24,6 +24,8 @@ Singleton {
     property var cover: ({})       // name -> {top, br, rt, rb}
     property int coverRev: 0
     readonly property var mine: { coverRev; return cover[mainName] || { top: false, br: false, rt: false, rb: false }; }
+    // an app her square maximised is in front: the dock's strip is let go so it fills the whole screen (DockReserve.qml)
+    readonly property bool wholeMax: mine.max === true
     readonly property bool dockWanted: !mine.top || mine.rt
     readonly property bool trayWanted: !mine.br || mine.rb
 
@@ -47,7 +49,7 @@ Singleton {
         if (!heard) { heard = true; console.info("taylor-windows: events from Hyprland"); }
         if (p[1] === "cover" && p.length >= 7) {
             const m = Object.assign({}, cover);
-            m[p[2]] = { top: p[3] === "1", br: p[4] === "1", rt: p[5] === "1", rb: p[6] === "1" };
+            m[p[2]] = { top: p[3] === "1", br: p[4] === "1", rt: p[5] === "1", rb: p[6] === "1", max: p[7] === "1" };
             cover = m; coverRev++;
         } else if (p[1] === "zone" && p.length >= 7) {
             if (p[2] === "none") zone = "";

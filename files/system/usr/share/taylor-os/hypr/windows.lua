@@ -230,37 +230,21 @@ function T.unsnap(w, at)
     return "ok"
 end
 
--- An app asked to be maximised (her click on its square): it fills the whole screen (the dock and the clock step away,
--- as for any full-screen window), while the app itself is told only "maximised". So its own square shows the "put it
--- back" picture, and her next click on it asks to un-maximise, which puts it back where it was. Hyprland keeps the two
--- apart: what it shows (internal) and what it tells the app (client). Settings and Files keep their plain maximise.
--- (2026-11-23, her PC: the first way, snapping to the whole screen and taking the maximise away, left the app thinking
--- it was still maximised: the wrong picture on its square, and the next click did nothing or the window came back.)
+-- An app asked to be maximised (her click on its square): Hyprland's own maximise, so the app and Hyprland always
+-- agree (its square shows the put-it-back picture, and her next click puts it back where it was, by Hyprland itself).
+-- To fill the whole screen, the dock and the clock step away while it is in front, and the dock's strip is let go
+-- (Covers.qml, DockReserve.qml: the "max" in the cover line). Settings and Files keep their plain maximise under the dock.
+-- (2026-11-23: two earlier ways, snapping to the whole screen and "shown full screen, told maximised", left the second
+-- click doing nothing: Hyprland ignores an un-maximise from an app it shows full screen, and sends no event.)
 local PLAIN_MAX = { ["org.kde.dolphin"] = true, dolphin = true, systemsettings = true, ["org.kde.systemsettings"] = true }
 T.squared = T.squared or {}
 function T.maximizeAsked(w)
     if not w or not w.address or PLAIN_MAX[w.class or ""] then return end
-    local fs, fc = w.fullscreen or 0, w.fullscreen_client or 0
-    if fs == 1 and fc == 1 then
+    local fs = w.fullscreen or 0
+    if fs == 1 and not T.squared[w.address] then
         T.squared[w.address] = true
         log("square: whole screen " .. tostring(w.class))
-        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 2, client = 1 }))
-    elseif T.squared[w.address] and fc == 0 and fs ~= 0 then
-        T.squared[w.address] = nil
-        log("square: back to its own size " .. tostring(w.class))
-        -- (fullscreen_state 0 0 here did nothing on the 2026-11-23 test PC; the plain unset, as Windows key + Down uses, does)
-        dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
-        T.later = T.later or {}
-        T.later[#T.later + 1] = { at = (T.n or 0) + 3, fn = function()
-            for _, x in ipairs(hl.get_windows() or {}) do
-                if x.address == w.address and (x.fullscreen or 0) ~= 0 then
-                    log("square: put back again " .. tostring(x.class) .. " (" .. tostring(x.fullscreen) .. "/" .. tostring(x.fullscreen_client) .. ")")
-                    dsp(hl.dsp.focus({ window = x }))
-                    dsp(hl.dsp.window.fullscreen({ window = x, action = "unset" }))
-                end
-            end
-        end }
-    elseif T.squared[w.address] and fs == 0 then
+    elseif fs ~= 1 and T.squared[w.address] then
         T.squared[w.address] = nil
         log("square: back to its own size " .. tostring(w.class))
     end
@@ -394,12 +378,13 @@ local function coverTick(cur)
     local all = hl.get_windows() or {}
     for _, m in ipairs(hl.get_monitors() or {}) do
         local ws = m.active_workspace
-        local top, br = false, false
+        local top, br, mx = false, false, false
         if ws then
             for _, w in ipairs(all) do
                 if w.workspace and w.workspace.id == ws.id and w.mapped and not w.hidden then
                     local fs = w.fullscreen or 0
                     if fs >= 2 then top = true; br = true
+                    elseif fs == 1 and T.squared[w.address] then top = true; br = true; mx = true
                     else
                         local s = T.snaps[w.address]
                         if s and s.zone then
@@ -427,9 +412,9 @@ local function coverTick(cur)
         if not br or dragging or not here then rb = false
         elseif py >= H - 2 then rb = true
         elseif py < H - REVEAL_OUT then rb = false end
-        if T.dirty or c.top ~= top or c.br ~= br or c.rt ~= rt or c.rb ~= rb then
-            T.cover[m.name] = { top = top, br = br, rt = rt, rb = rb }
-            emit(string.format("cover %s %d %d %d %d", m.name, top and 1 or 0, br and 1 or 0, rt and 1 or 0, rb and 1 or 0))
+        if T.dirty or c.top ~= top or c.br ~= br or c.rt ~= rt or c.rb ~= rb or c.mx ~= mx then
+            T.cover[m.name] = { top = top, br = br, rt = rt, rb = rb, mx = mx }
+            emit(string.format("cover %s %d %d %d %d %d", m.name, top and 1 or 0, br and 1 or 0, rt and 1 or 0, rb and 1 or 0, mx and 1 or 0))
         end
     end
     T.dirty = false
@@ -457,23 +442,6 @@ local function tick()
         local w = hl.get_active_window()
         dragTick(w, cur)
         T.n = (T.n or 0) + 1
-        -- a window her square filled the screen with: when its app un-maximises (her second click), Hyprland sometimes
-        -- sends no event (2026-11-23 test PC), so this looks each tick and puts it back
-        if T.squared and next(T.squared) then
-            for _, x in ipairs(hl.get_windows() or {}) do
-                if x.address and T.squared[x.address] and (x.fullscreen_client or 0) == 0 and (x.fullscreen or 0) ~= 0 then
-                    T.squared[x.address] = nil
-                    log("square: back to its own size " .. tostring(x.class) .. " (seen on the tick)")
-                    dsp(hl.dsp.window.fullscreen({ window = x, action = "unset" }))
-                    T.dirty = true
-                end
-            end
-        end
-        if T.later and #T.later > 0 then           -- small jobs asked for a few ticks later (the square's put-back check)
-            local keep = {}
-            for _, j in ipairs(T.later) do if T.n >= j.at then pcall(j.fn) else keep[#keep + 1] = j end end
-            T.later = keep
-        end
         if T.n % 50 == 0 then        -- every two seconds: her settings file, if it changed
             local txt = readText()
             if txt and txt ~= T.settingsText then
@@ -626,16 +594,9 @@ function T.closeActive()
 end
 function T.squareActive()
     local w = hl.get_active_window(); if not w then return "no window" end
-    if (w.fullscreen or 0) ~= 0 then
-        T.squared[w.address] = nil
-        dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
-        log("square (bar): back to its own size " .. tostring(w.class))
-    else
-        T.squared[w.address] = true
-        dsp(hl.dsp.window.fullscreen_state({ window = w, internal = 2, client = 1 }))
-        log("square (bar): whole screen " .. tostring(w.class))
-    end
-    T.dirty = true; return "ok"
+    if (w.fullscreen or 0) ~= 0 then dsp(hl.dsp.window.fullscreen({ window = w, action = "unset" }))
+    else dsp(hl.dsp.window.fullscreen({ window = w, mode = "maximized", action = "set" })) end
+    return "ok"
 end
 hl.on("window.minimize", function(w, on) if on ~= false and on ~= 0 then pcall(T.minimize, w) end end)
 hl.on("window.destroy", function(w) if w and w.address and T.minimized then T.minimized[w.address] = nil end end)

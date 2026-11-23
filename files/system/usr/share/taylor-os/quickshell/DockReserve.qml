@@ -11,7 +11,8 @@ PanelWindow {
     anchors { top: true; left: true; right: true }
     implicitHeight: 1
     color: "transparent"
-    exclusiveZone: 84
+    // let go while an app her square maximised is in front (Covers.wholeMax), so it fills the whole screen
+    exclusiveZone: Covers.wholeMax ? 0 : 84
     WlrLayershell.layer: WlrLayer.Bottom
     WlrLayershell.namespace: "taylor-reserve"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
