@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 35
+expect windows 38
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -49,7 +49,6 @@ vm windows-quarters \
   "python3 /tmp/w.py info" \
   "$(ok 'four windows tile the screen exactly, edge to edge with no gaps' "python3 /tmp/w.py quarters")" \
   "$(ok 'the dock steps away when snapped windows reach the top' "python3 /tmp/w.py layer taylor-dock absent")" \
-  "$(ok 'the window bar steps away with the dock' "python3 /tmp/w.py layer taylor-windowbar absent")" \
   "hyprctl repl 'taylor.state()'" \
   "\$Q call windows state" \
   "hyprctl repl 'taylor.tail()' | tail -25" "hyprctl -j activewindow | head -12" "hyprctl layers | grep -iE 'switch|lock|keyboard' ; true"
@@ -170,6 +169,18 @@ vm windows-square \
   "$(ok '...and clicking it again puts it back to its own size' "python3 /tmp/maxw.py | awk '{exit !(\$1 > 0 && \$1 < \$2 * 0.8)}'")" \
   "$(ok 'while it fills the screen the app knows it is maximised (its square shows the put-it-back picture)' "grep -q 'square again, maximized=True' /tmp/maxtest.log")" \
   "hyprctl repl 'taylor.tail()' | grep -E 'square|snap' | tail -5"
+
+# buttons on every window (her pick 2026-11-23): Qt apps draw their own title bar, the window bar is gone, and an app's
+# minimise button hides its window; the dock (or the switcher) brings it back
+vm windows-buttons \
+  "$(ok 'the window bar at the top right is gone' "! hyprctl layers | grep -q taylor-windowbar")" \
+  "$(ok 'Qt apps are told to draw their own title bar (minimise, full screen, close)' "grep -qa 'QT_WAYLAND_DISABLED_INTERFACES=zxdg_decoration_manager_v1' /proc/\$(pgrep -u tester -x quickshell | head -1)/environ")" \
+  "printf '%s\\n' 'import gi' 'gi.require_version(\"Gtk\", \"3.0\")' 'from gi.repository import Gtk, GLib' 'GLib.set_prgname(\"mintest\")' 'w = Gtk.Window(title=\"mintest\")' 'w.set_default_size(400, 300)' 'w.show_all()' 'def mn(): print(\"mintest minimises\", flush=True); w.iconify(); return False' 'GLib.timeout_add(3000, mn)' 'GLib.timeout_add(30000, Gtk.main_quit)' 'Gtk.main()' > /tmp/mintest.py" \
+  "hyprctl eval 'hl.exec_cmd(\"python3 /tmp/mintest.py > /tmp/mintest.log 2>&1\")'; sleep 6" \
+  "$(ok 'an app clicking its minimise button hides its window' "hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"mintest\"]; sys.exit(0 if c and c[0][\"workspace\"][\"name\"]==\"special:taylor-minimized\" else 1)'")" \
+  "hyprctl repl 'taylor.unminimize(\"mintest\")'; sleep 2" \
+  "$(ok 'the dock brings a minimised window back where it was' "hyprctl -j clients | python3 -c 'import json,sys; c=[c for c in json.load(sys.stdin) if c[\"class\"]==\"mintest\"]; sys.exit(0 if c and c[0][\"workspace\"][\"id\"]==1 else 1)'")" \
+  "hyprctl -j clients | grep -A6 mintest | head -8; cat /tmp/mintest.log; hyprctl repl 'taylor.tail()' | grep -i minim | tail -3; pkill -f mintest.py; true"
 
 # less motion and her scheme reach Hyprland without a reload
 vm windows-look \

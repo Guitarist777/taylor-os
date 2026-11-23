@@ -559,6 +559,40 @@ function T.showDesktop()
     T.dirty = true
     return "aside " .. #addrs
 end
+-- Minimise (her pick 2026-11-23: buttons on every window). A window whose minimise button she clicks goes to a hidden
+-- workspace (an app keeps running); clicking its app on the dock, or picking it in the window switcher, brings it back
+-- where it was, in front.
+T.minimized = T.minimized or {}     -- address -> { ws = id, class = class }
+function T.minimize(w)
+    if not w or not w.address or not w.workspace then return "no window" end
+    if (w.workspace.name or ""):match("^special:") then return "hidden already" end
+    T.minimized[w.address] = { ws = w.workspace.id, class = w.class or "" }
+    dsp(hl.dsp.window.move({ window = w, workspace = "special:taylor-minimized", follow = false }))
+    log("minimise " .. tostring(w.class))
+    emit("minimised")
+    T.dirty = true
+    return "ok"
+end
+-- bring back the last one of this app (or the one at this address); returns its address, or "" when none was hidden
+function T.unminimize(key)
+    local all = byAddress()
+    local pick
+    for addr, m in pairs(T.minimized) do
+        if not all[addr] then T.minimized[addr] = nil
+        elseif addr == key or (key and m.class:lower() == tostring(key):lower()) then pick = addr end
+    end
+    if not pick then return "" end
+    local m, w = T.minimized[pick], all[pick]
+    T.minimized[pick] = nil
+    dsp(hl.dsp.window.move({ window = w, workspace = m.ws, follow = false }))
+    dsp(hl.dsp.focus({ window = w }))
+    log("minimise: back " .. tostring(w.class))
+    T.dirty = true
+    return pick
+end
+hl.on("window.minimize", function(w, on) if on ~= false and on ~= 0 then pcall(T.minimize, w) end end)
+hl.on("window.destroy", function(w) if w and w.address and T.minimized then T.minimized[w.address] = nil end end)
+
 pcall(hl.unbind, mod .. " + D")
 hl.bind(mod .. " + D", function() T.showDesktop() end)
 

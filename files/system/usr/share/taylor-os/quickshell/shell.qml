@@ -274,7 +274,7 @@ ShellRoot {
     }
     Progress { screen: root.mainScreen; theme: root.c; id: progress; trayWidth: tray.implicitWidth }
     Loading { screen: root.mainScreen; theme: root.c; id: loading }
-    WindowBar { screen: root.mainScreen; theme: root.c }
+    // (the window bar, top right, is gone: her call 2026-11-23; every window has its own buttons now)
     // her Settings window, the volume and brightness ring (on the main screen; it shows over a full-screen window),
     // and warmer colours at night (Settings.qml, Osd.qml, Warm.qml)
     Settings {}

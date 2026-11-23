@@ -89,6 +89,9 @@ Scope {
     ]
 
     // what is on the PC (the flatpaks, Steam, the Lutris games, the Messages icon): taylor-dock-apps prints one id a line
+    // the window the dock is bringing forward, activated a moment after windows.lua has brought it back (minimised)
+    property var pendingBring: null
+    Timer { id: bringLater; interval: 150; onTriggered: { if (dock.pendingBring) dock.pendingBring.activate(); dock.pendingBring = null; } }
     property var have: ({})
     property bool scanned: false
     function present(id) {
@@ -224,8 +227,10 @@ Scope {
             const w = ts[ts.length - 1];
             console.info("taylor-dock: " + id + " is running: bring it forward (" + (w.appId || "?") + ")");
             // windows put aside by Windows key + D come back first (windows.lua)
-            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end"]);
-            w.activate();
+            // and a window she minimised comes back from its hidden place (windows.lua); activate after, so the
+            // hidden place itself is not opened
+            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end; if taylor and taylor.unminimize then taylor.unminimize('" + String(w.appId || "").replace(/'/g, "") + "') end"]);
+            dock.pendingBring = w; bringLater.restart();
             return;
         }
         const e = a.desktop ? DesktopEntries.byId(a.desktop) : null;

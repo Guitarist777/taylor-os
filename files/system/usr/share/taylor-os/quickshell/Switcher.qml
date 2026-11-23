@@ -56,7 +56,7 @@ PanelWindow {
         if (t) {
             console.info("taylor-switcher: switch to " + (t.appId || "?"));
             // windows put aside by Windows key + D come back first (windows.lua), then this one comes forward
-            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end"]);
+            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end; if taylor and taylor.unminimize then taylor.unminimize('" + String(t.appId || "").replace(/'/g, "") + "') end"]);
             pending = t;
             later.restart();
         }

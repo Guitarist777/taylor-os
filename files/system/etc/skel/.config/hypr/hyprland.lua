@@ -27,6 +27,10 @@ hl.env("HYPRCURSOR_SIZE", "32")
 hl.env("XCURSOR_THEME", "TAYLOR-White")
 hl.env("XCURSOR_SIZE", "32")
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
+-- Buttons on every window (her pick 2026-11-23, "on the window for each window"): Hyprland draws no title bars, and it
+-- tells Qt apps (Files, KDE apps, her Settings) that it does, so they drew none. Hiding that from them makes each one draw
+-- its own bar with minimise, full screen and close. (GTK apps such as Firefox and Steam draw theirs already.)
+hl.env("QT_WAYLAND_DISABLED_INTERFACES", "zxdg_decoration_manager_v1")
 
 hl.config({
     general = {
