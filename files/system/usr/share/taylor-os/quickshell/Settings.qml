@@ -23,6 +23,8 @@ FloatingWindow {
     implicitHeight: 560
     color: Theme.window
 
+    // "Open the mixer" in Sound: shell.qml opens the Mixer window (the same one the dock's Mixer slot opens)
+    signal openMixer()
     property string page: "Appearance"
     readonly property var pages: ["Appearance", "Lock and timeout", "TAYLOR", "Sound", "Display", "Network", "About"]
     function show(p) {
@@ -480,6 +482,21 @@ FloatingWindow {
                                 if (t) { Pipewire.preferredDefaultAudioSink = t; console.info("taylor-settings: output " + k); }
                             }
                         }
+                    }
+                    // her ask 2026-11-23: the mixer lives in Settings too, and its quick view on the desktop turns on and off here
+                    SRow {
+                        label: "Mixer"
+                        small: "Every app's sound in one place."
+                        Link {
+                            placeName: "openmixer"
+                            text: "Open the mixer"
+                            onHit: { console.info("taylor-settings: open the mixer"); win.openMixer(); }
+                        }
+                    }
+                    SRow {
+                        label: "Mixer on the desktop"
+                        small: "The quick view on the left of the desktop."
+                        Switch { placeName: "mixerwidget"; on: Prefs.mixerWidget; onFlip: { Prefs.mixerWidget = !Prefs.mixerWidget; console.info("taylor-settings: mixer on the desktop " + Prefs.mixerWidget); } }
                     }
                     Repeater {
                         model: sound.chans
