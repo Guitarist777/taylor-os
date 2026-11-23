@@ -254,7 +254,7 @@ ShellRoot {
     }
     ClockCard { screen: root.mainScreen; theme: root.c; arrive: root.arriveU }
     // her mixer: the quick view on the desktop and the Mixer window (ipc target "mixer": open / toggle)
-    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown; arrive: root.arriveU; onOpenMixer: mixerWindow.open = true }
+    Mixer { screen: root.mainScreen; theme: root.c; visible: root.mixerShown && Prefs.mixerWidget; arrive: root.arriveU; onOpenMixer: mixerWindow.open = true }
     MixerWindow { id: mixerWindow }
     // the taskbar (Dock.qml): its dial opens the launcher, its Mixer slot the Mixer window, its lines go to her status
     property bool dockHidden: false          // true full screen (the windows piece sets it)
@@ -277,7 +277,7 @@ ShellRoot {
     WindowBar { screen: root.mainScreen; theme: root.c }
     // her Settings window, the volume and brightness ring (on the main screen; it shows over a full-screen window),
     // and warmer colours at night (Settings.qml, Osd.qml, Warm.qml)
-    Settings {}
+    Settings { onOpenMixer: mixerWindow.open = true }
     Osd { screen: root.mainScreen; theme: root.c }
     Warm {}
     // her windows and workspaces (Covers.qml, with Hyprland's windows.lua): the dock's strip, the workspace dots under the

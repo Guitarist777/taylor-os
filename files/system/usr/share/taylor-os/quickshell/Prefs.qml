@@ -28,6 +28,8 @@ Singleton {
     property alias showTaylor: a.showTaylor
     property alias statusLine: a.statusLine
     property alias askTaylor: a.askTaylor
+    // Sound: the mixer's quick view on the desktop (her ask 2026-11-23: turn it on and off in Settings)
+    property alias mixerWidget: a.mixerWidget
     // Display
     property alias brightness: a.brightness
     property alias warmNight: a.warmNight           // warmer colours at night (hyprsunset, Warm.qml)
@@ -81,6 +83,7 @@ Singleton {
             property bool showTaylor: true
             property bool statusLine: true
             property bool askTaylor: true
+            property bool mixerWidget: true
             property real brightness: 80
             property bool warmNight: false
             property string updateState: ""

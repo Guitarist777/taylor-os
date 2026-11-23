@@ -1,7 +1,7 @@
 # Her Settings window and the volume and brightness ring (2026-11-21). Real clicks on the real window: where each control
 # is comes from Settings' own log ("taylor-settings: place NAME x y", window pixels) plus where Hyprland put the window.
 . .github/vm/checks/lib.sh
-expect settings 31
+expect settings 35
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 AT="hyprctl -j clients | python3 -c 'import json,sys; c=[w for w in json.load(sys.stdin) if w[\"title\"]==\"Settings\"]; print(\"SETAT\", *(c[0][\"at\"] + c[0][\"size\"] + [int(c[0][\"floating\"])]) if c else (\"none\",))'"
 PLACES="$L | grep -oE 'place [^ ]+ [0-9]+ [0-9]+' | tail -60"
@@ -126,6 +126,23 @@ shot taylor-status-off
 vm status-off \
   "$(ok 'the status line switch writes her setting' "grep -q '\"statusLine\": *false' ~/.config/taylor-os/settings.json")"
 tap warm-off statusline; sleep 2
+# 8. The mixer in Settings (her ask 2026-11-23): its quick view on the desktop turns off and on (real clicks), and
+#    "Open the mixer" opens the Mixer window
+vm sound-open "\$Q call settings section Sound; sleep 3" "$AT" "$PLACES"
+shot settings-sound-mixer
+tap sound-open mixerwidget; sleep 3
+vm mixerwidget-off \
+  "$(ok 'switching the mixer on the desktop off writes her setting' "grep -q '\"mixerWidget\": *false' ~/.config/taylor-os/settings.json")" \
+  "$(ok 'with it off the mixer is not on the desktop' "! hyprctl layers | grep -q taylor-mixer")"
+tap sound-open mixerwidget; sleep 3
+vm mixerwidget-on \
+  "$(ok 'switching it back on brings the mixer back to the desktop' "grep -q '\"mixerWidget\": *true' ~/.config/taylor-os/settings.json && hyprctl layers | grep -q taylor-mixer")"
+tap sound-open openmixer; sleep 3
+shot settings-open-mixer
+vm mixer-from-settings \
+  "$(ok 'Open the mixer in Settings opens the Mixer window' "hyprctl clients | grep -q 'title: Mixer' && $L | grep -q 'taylor-settings: open the mixer'")" \
+  "\$Q call mixer close; sleep 1"
+
 vm settings-end \
   "$(ok 'the status line comes back on' "grep -q '\"statusLine\": *true' ~/.config/taylor-os/settings.json")" \
   "$(ok 'the shell is still running after all of it' "pgrep -u tester -x quickshell >/dev/null")" \
