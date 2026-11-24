@@ -15,7 +15,9 @@ hl.monitor({
 -- What starts with the desktop
 hl.on("hyprland.start", function()
     hl.exec_cmd("hyprpaper")
-    hl.exec_cmd("quickshell")
+    -- Qt's threaded render loop: with Qt's default one on her NVIDIA card the whole shell drew at 60 frames a second;
+    -- the Windows key + Space dial measured 63 frames a second before, 250 after (2026-11-23, her 240 Hz screen)
+    hl.exec_cmd("env QSG_RENDER_LOOP=threaded quickshell")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("hypridle -c /usr/share/taylor-os/hypridle.conf")   -- only locks before sleep; her timeout is the desktop's own
     hl.exec_cmd("/usr/libexec/taylor-cursor")   -- her cursor pick (Settings > Appearance > Cursor), everywhere

@@ -358,6 +358,16 @@ function dot(x, px, py, r, al, col) {
     x.globalAlpha = cl(al); x.fillStyle = col; x.beginPath(); x.arc(px, py, Math.max(0.3, r), 0, 6.2832, false); x.fill();
 }
 
+// The login words are drawn a little see-through, so a star behind a letter showed through as a grey speck (her
+// "missing pixels", photo 2026-11-23). Each word first paints the bare sky in its own letter shapes, then itself.
+function skyText(x, gr, K, s, px, py) {
+    var ga = x.globalAlpha, fs = x.fillStyle, b = Math.min(1, ga * 1.25);   // fades with the word, so no star-gap outlives it
+    x.globalAlpha = b; x.fillStyle = '#0B0D0C'; ftext(x, s, px, py);
+    if (gr && K > 0) { x.globalAlpha = b * K; x.fillStyle = gr; ftext(x, s, px, py); }
+    x.globalAlpha = ga; x.fillStyle = fs;
+    ftext(x, s, px, py);
+}
+
 function drawLogin(x, dt) {
     var u0 = still ? 99 : tb;
     var K = sm((u0 - 1.3) / 2.8), L = sm((u0 - 3.7) / 1.5), D = sm((u0 - 4.3) / Dd), B = sm((u0 - (4.3 + Dd * 0.62)) / 1.1), N = sm((u0 - (4.3 + Dd * 0.8)) / 1.1);
@@ -368,8 +378,9 @@ function drawLogin(x, dt) {
     var tt = mode === 'ok' ? e - 0.7 : -1, A = tt >= 0 ? sm((tt - 0.4) / 0.8) : 0, da = tt >= 0 ? 1 - sm((tt - 0.9) / 0.6) : 1;
 
     x.globalAlpha = 1; x.fillStyle = '#0B0D0C'; x.fillRect(0, 0, W, H);
+    var gr = null;
     if (K > 0) {
-        var gr = x.createLinearGradient(0, 0, 0, H);
+        gr = x.createLinearGradient(0, 0, 0, H);
         gr.addColorStop(0, '#090B0E'); gr.addColorStop(0.7, '#0E1716'); gr.addColorStop(1, '#14261F');
         x.globalAlpha = K; x.fillStyle = gr; x.fillRect(0, 0, W, H);
         var mx = W * 0.17, my = 70 * k;
@@ -422,9 +433,9 @@ function drawLogin(x, dt) {
         var d0 = new Date(), h = d0.getHours() % 12 || 12;
         x.globalAlpha = L * 0.95 * (1 - A); x.fillStyle = '#EDEFEE';
         x.font = fontAt(Math.min(68 * k, W * 0.11));
-        ftext(x, h + ':' + pad(d0.getMinutes()), cx, (104 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
+        skyText(x, gr, K, h + ':' + pad(d0.getMinutes()), cx, (104 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
         x.globalAlpha = L * 0.85 * (1 - A); x.fillStyle = '#9AA19D'; x.font = fontAt(15 * k);
-        ftext(x, DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
+        skyText(x, gr, K, DAYS[d0.getDay()] + ', ' + MONS[d0.getMonth()] + ' ' + d0.getDate(), cx, (152 - (still ? 0 : (1 - L) * 8 + A * 10)) * k);
     }
 
     if (D > 0 && da > 0) {
@@ -504,9 +515,9 @@ function drawLogin(x, dt) {
 
     if (N > 0) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
-        ftext(x, name, cx, 298 * k);
+        skyText(x, gr, K, name, cx, 298 * k);
         x.globalAlpha = N * 0.8 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
-        ftext(x, kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
+        skyText(x, gr, K, kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
             : kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
     x.globalAlpha = 1;

@@ -99,7 +99,7 @@ PanelWindow {
     Canvas {
         id: art
         anchors.fill: parent
-        renderStrategy: Canvas.Cooperative
+        renderStrategy: Canvas.Threaded   // her opening at 120 frames a second, not 21 (see taylor-greeter-scene)
         onPaint: {
             if (!win.started) return;
             const ctx = getContext("2d");
