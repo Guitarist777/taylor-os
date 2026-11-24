@@ -266,6 +266,7 @@ Scope {
     property int openSlot: 0
     property bool fanOn: false            // the tour's fan "on": out and visible
     property bool fanShown: false         // its window is up (while out and while folding back)
+    Binding { target: Covers; property: "dockHeld"; value: dock.fanOn }   // the dock stays while its fan is out
     function splay(g, i) {
         foldDone.stop();
         fanOn = false;

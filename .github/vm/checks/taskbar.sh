@@ -4,7 +4,7 @@
 # moves the slot: her call 2026-11-21, the two follow each other); the Terminal slot opens kitty and its running dot follows.
 # Every click is a real pointer click at the slot's place on the screen (the dock logs where its slots are).
 . .github/vm/checks/lib.sh
-expect taskbar 29
+expect taskbar 32
 QL='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 
 vm taskbar-1 \
@@ -137,3 +137,21 @@ vm taskbar-game-off \
   "pkill -f 'kitty --class steam_app_123'; sleep 16" \
   "$(ok 'closing the game turns everything back' "$GW | grep -q 'off (no game full screen)' && \$Q call gaming state | grep -qx off && ! tuned-adm active | grep -q throughput-performance-bazzite")" \
   "$GW | tail -3; tuned-adm active"
+
+# Over a full-screen window (her report 2026-11-24): the dock comes back at the top edge, Power fans out, and the fan stays
+# while the pointer goes down to it (before, the dock went away as soon as the pointer left the top strip); a click
+# elsewhere folds it and the dock steps away again
+vm taskbar-fs-open "hyprctl eval 'hl.exec_cmd(\"kitty --class fs_test --start-as fullscreen sleep 90\")'; sleep 6; hyprctl clients | grep -E 'class: fs_test|fullscreen:' | tail -3"
+$V move $((SW / 2)) 0 "$SW" "$SH"; sleep 1.5
+$V click "$PX" "$DY" "$SW" "$SH"; sleep 1.2
+$V move "$PX" "$(python3 -c "print(round($DY + 160 * $S))")" "$SW" "$SH"; sleep 1.5
+shot taskbar-13-fs-fan
+vm taskbar-fs-fan \
+  "$(ok 'over a full-screen window the Power fan stays while the pointer goes down to it' "hyprctl layers | grep -q taylor-dock-splay && hyprctl layers | grep -qE 'namespace: taylor-dock(,|\$)'")" \
+  "hyprctl layers | grep -E 'taylor-dock'; $QL | grep -E 'taylor-windows: dock|splay power' | tail -4"
+$V click $((SW / 2)) $((SH / 2)) "$SW" "$SH"; sleep 2
+vm taskbar-fs-away \
+  "$(ok 'a click elsewhere folds the fan' "! hyprctl layers | grep -q taylor-dock-splay")" \
+  "$(ok 'then the dock steps away from the full-screen window again' "$QL | grep 'taylor-windows: dock' | tail -1 | grep -q away")" \
+  "hyprctl layers | grep -E 'taylor-dock'; $QL | grep -E 'taylor-windows: dock' | tail -3; pkill -f 'kitty --class fs_test'"
+

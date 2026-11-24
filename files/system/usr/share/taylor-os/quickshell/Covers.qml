@@ -26,7 +26,10 @@ Singleton {
     readonly property var mine: { coverRev; return cover[mainName] || { top: false, br: false, rt: false, rb: false }; }
     // an app her square maximised is in front: the dock's strip is let go so it fills the whole screen (DockReserve.qml)
     readonly property bool wholeMax: mine.max === true
-    readonly property bool dockWanted: !mine.top || mine.rt
+    // the dock's fan (Browser, Games, Power) is open: it hangs below the top edge, so the pointer going down to it must not
+    // send the dock away over a full-screen window (her report 2026-11-24: it vanished as soon as she reached for it)
+    property bool dockHeld: false
+    readonly property bool dockWanted: !mine.top || mine.rt || dockHeld
     readonly property bool trayWanted: !mine.br || mine.rb
 
     property real dockShown: 1

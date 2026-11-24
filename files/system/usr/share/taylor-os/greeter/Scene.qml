@@ -105,6 +105,7 @@ PanelWindow {
             if (!win.started) return;
             const ctx = getContext("2d");
             Eng.draw(ctx);
+            win.paints++;
             if (win.fade > 0) Eng.fadeOut(ctx, win.fade);
         }
     }
@@ -138,6 +139,20 @@ PanelWindow {
             if (win.marks <= 1 && st >= 10.7 && !Eng.inLogin() && !win.still) { win.marks = 2; console.info("taylor-greeter: the lost dot hops, the friend hops lower (" + st.toFixed(1) + " s)"); }
             if (win.marks <= 2 && Eng.inLogin()) { win.marks = 3; console.info("taylor-greeter: the hand-off begins at " + st.toFixed(1) + " s of the opening, " + ((Date.now() - win.startedMs) / 1000).toFixed(1) + " s after the screen first drew"); }
             art.requestPaint();
+            win.ticks++;
+        }
+    }
+    // frames a second, for the log (her report 2026-11-24: "still 60" on her 240 Hz screen): how often the screen asked
+    // for a frame (ticks) and how many the drawing finished (drawn), every 2 s for the first 30 s
+    property int ticks: 0
+    property int paints: 0
+    Timer {
+        interval: 2000; repeat: true
+        running: win.started && win.primary
+        onTriggered: {
+            if (Date.now() - win.startedMs > 30000) { stop(); return; }
+            console.info("taylor-greeter: frames a second: screen " + Math.round(win.ticks / 2) + ", drawn " + Math.round(win.paints / 2));
+            win.ticks = 0; win.paints = 0;
         }
     }
 
