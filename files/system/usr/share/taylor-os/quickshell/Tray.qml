@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
+import Quickshell.Io
 import QtQuick
 
 PanelWindow {
@@ -11,6 +12,30 @@ PanelWindow {
     property real arrive: 1           // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     property int waiting: 0           // her notifications waiting (her design tour, part 5): the green count
     signal countClicked()
+
+    // How she is connected (2026-11-23: the icon was always Wi-Fi, but her PC is on a cable): a cable wins over Wi-Fi,
+    // Wi-Fi shows its signal in four steps, nothing connected shows offline. NetworkManager is asked every 5 seconds.
+    property string netIcon: "network-wired-activated"
+    Process {
+        id: netRead
+        command: ["sh", "-c", "nmcli -t -f TYPE,STATE device 2>/dev/null; echo ---; nmcli -t -f IN-USE,SIGNAL device wifi list --rescan no 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = this.text.split("---"), devs = parts[0].split("\n");
+                let wired = false, wifi = false, sig = -1;
+                for (const l of devs) {
+                    if (/^ethernet:connected$/.test(l.trim())) wired = true;
+                    if (/^wifi:connected$/.test(l.trim())) wifi = true;
+                }
+                for (const l of (parts[1] || "").split("\n")) { const m = l.trim().match(/^\*:(\d+)$/); if (m) sig = parseInt(m[1]); }
+                win.netIcon = wired ? "network-wired-activated"
+                    : wifi ? (sig >= 75 ? "network-wireless-signal-excellent" : sig >= 50 ? "network-wireless-signal-good"
+                              : sig >= 25 ? "network-wireless-signal-ok" : "network-wireless-signal-weak")
+                    : "network-offline";
+            }
+        }
+    }
+    Timer { interval: 5000; repeat: true; running: true; triggeredOnStart: true; onTriggered: netRead.running = true }
     anchors { bottom: true; right: true }
     margins { bottom: 14; right: 14 }
     implicitWidth: pill.width + (waiting > 0 ? count.width + 10 : 0)
@@ -67,7 +92,7 @@ PanelWindow {
             Image {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 18; height: 18; sourceSize: Qt.size(36, 36)
-                source: Quickshell.iconPath("network-wireless-signal-excellent", "network-wireless")   // her icon set
+                source: Quickshell.iconPath(win.netIcon, "network-wired")   // her icon set; follows how she is connected (netRead)
                 MouseArea { anchors.fill: parent; onClicked: Quickshell.execDetached(["systemsettings", "kcm_networkmanagement"]) }
             }
             Image {
