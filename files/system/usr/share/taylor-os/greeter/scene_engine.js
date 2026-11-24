@@ -45,6 +45,8 @@ var name = '';
 var kdeNext = false;   // F2 on her login screen: this sign-in opens the KDE backup instead of her TAYLOR desktop
 var kdeWhy = '';       // set when her login screen picked KDE itself (her TAYLOR desktop failed to start 5 times)
 function setKde(on) { kdeNext = on; if (!on) kdeWhy = ''; }
+var note = '';       // her login screen started again after greetd lost track of a sign-in: one line asks for the password again
+function setNote(s) { note = s; }
 function autoKde(n) { kdeNext = true; kdeWhy = 'Your TAYLOR desktop didn\u2019t start ' + n + ' times, so KDE is next  \u00b7  F2 for TAYLOR'; }
 var SL = 24, dots = [], free = [], mode = 'idle', tm = 0, fillDur = 0, hint = 'Type your password', hintT = 0, rot = 0;
 var stars = [];           // the sparks that became stars (B), with their resting places
@@ -518,6 +520,7 @@ function drawLogin(x, dt) {
         skyText(x, gr, K, name, cx, 298 * k);
         x.globalAlpha = N * 0.8 * (1 - A); x.fillStyle = mode === 'ok' ? '#A8E3C6' : '#9AA19D'; x.font = fontAt(12 * k);
         skyText(x, gr, K, kdeNext && kdeWhy && mode === 'idle' && hint === 'Type your password' ? kdeWhy
+            : note && !kdeNext && mode === 'idle' && hint === 'Type your password' ? note
             : kdeNext && (mode === 'idle' || mode === 'wait') && hint !== 'Not quite. Try again.' ? (hint ? hint + '  \u00b7  KDE next' : 'KDE next') : hint, cx, 318 * k);
     }
     x.globalAlpha = 1;

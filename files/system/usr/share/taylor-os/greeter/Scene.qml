@@ -83,6 +83,7 @@ PanelWindow {
     function skip() { Eng.skipToLogin(); }
     function setKde(on) { Eng.skipToLogin(); Eng.setKde(on); }
     function autoKde(n) { Eng.autoKde(n); }
+    function setNote(t) { Eng.setNote(t); }
     function welcomeFor() { return Eng.welcomeFor(); }
 
     // Manrope from its own file: the greeter account's font list did not have it on the 2026-11-19 VM test, and the

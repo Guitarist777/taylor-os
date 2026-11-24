@@ -76,7 +76,10 @@ ShellRoot {
         } catch (e) {}
         return o;
     }
-    Component.onCompleted: console.info("taylor-greeter: motion from " + motion.from + ": opening " + (motion.full ? "full" : "off") + ", reduce motion " + (motion.still ? "on" : "off"))
+    Component.onCompleted: {
+        console.info("taylor-greeter: motion from " + motion.from + ": opening " + (motion.full ? "full" : "off") + ", reduce motion " + (motion.still ? "on" : "off"));
+        if (reconnected) console.info("taylor-greeter: a fresh login scene after a lost sign-in; asking for her password once more");
+    }
 
     signal sTyped()
     signal sErase(int left)
@@ -138,23 +141,32 @@ ShellRoot {
         answerWatch.restart();
         Greetd.createSession(user);
     }
-    // greetd sometimes never answers a sign-in (virtual PC runs 44998803379 and 45008051770, 2026-11-22: her ring spun
-    // for minutes after her password and no key did anything, so the only way out was a restart). After 12 s with no
-    // answer the session is cancelled and asked again once with the same password; a second silence gives her the
-    // password back to type, so she is never stuck on the spinning ring.
+    // greetd sometimes never answers a sign-in (virtual PC runs 44998803379 and 45008051770, 2026-11-22; 45332474835 and
+    // 45341496537, 2026-11-24). The cause is on this side: Quickshell's greetd reader takes an answer before all of it has
+    // arrived ("unexpected greetd response" in the scene log), and from then on every answer on that connection is read
+    // out of step, so asking again on it never works (both tries failed in 45341496537, the test PC stayed at its login
+    // screen). After 8 s with no answer this login scene ends and taylor-greeter-scene starts a fresh one in the same
+    // screen, with a new connection to greetd: it skips the opening and asks for her password once more. Her password is
+    // never kept for it.
+    readonly property bool reconnected: Quickshell.env("TAYLOR_GREETER_RECONNECT") === "1"
     Timer {
         id: answerWatch
-        interval: 12000
+        interval: 8000
         property int tries: 0
         onTriggered: {
             if (!root.busy) return;
             tries += 1;
-            console.info("taylor-greeter: greetd did not answer in 12 s (try " + tries + "); state " + Greetd.state);
-            root.mark("greetd did not answer (try " + tries + ")");
+            console.info("taylor-greeter: greetd did not answer in 8 s; state " + Greetd.state + "; starting a fresh login scene");
+            root.mark("greetd did not answer; fresh login scene");
             if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
-            if (tries < 2) { Greetd.createSession(root.user); restart(); }
-            else root.bad("greetd did not answer");
+            root.pw = "";
+            reconnectFile.running = true;
         }
+    }
+    Process {
+        id: reconnectFile
+        command: ["touch", "/tmp/taylor-greeter-reconnect"]
+        onExited: Qt.quit()
     }
     // times, for /tmp/taylor-greeter-times.log (seconds since boot; nothing private): where the wait after her
     // password goes. taylor-greeter adds "login screen starting"; her desktop's start is logind's (the session's
@@ -258,14 +270,17 @@ ShellRoot {
                 who: root.who
                 fade: root.fade
                 still: root.motion.still
-                full: root.motion.full
+                full: root.motion.full && !root.reconnected   // a fresh scene after a lost sign-in starts at the hand-off
                 onKeyTyped: (text) => root.typed(text)
                 onKeyErase: root.erase()
                 onKeyEnter: root.submit()
                 onKeyEscape: root.clear()
                 onSkipped: root.sSkip()
                 onKeyKde: root.toggleKde()
-                Component.onCompleted: if (root.desktopFails >= root.kdeAfter && root.kde) autoKde(root.desktopFails)
+                Component.onCompleted: {
+                    if (root.desktopFails >= root.kdeAfter && root.kde) autoKde(root.desktopFails);
+                    if (root.reconnected) setNote("Sorry, that didn\u2019t go through. Type your password once more");
+                }
                 Connections {
                     target: root
                     function onSTyped() { sc.letter(); }

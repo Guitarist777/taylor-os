@@ -3,7 +3,16 @@
 # her desktop (after a good password) or show the login screen again (if the scene stopped for any other reason).
 # Qt's threaded render loop (2026-11-23, measured on her PC, 2560x1440 at 240 Hz): the opening ran at 21 frames a
 # second with Qt's default loop on NVIDIA, 120 with this one plus the scene's Canvas drawing on its own thread.
+rm -f /tmp/taylor-greeter-reconnect
 QSG_RENDER_LOOP=threaded quickshell -p /usr/share/taylor-os/greeter > /tmp/taylor-greeter-scene.log 2>&1
+# A scene that lost track of a sign-in leaves /tmp/taylor-greeter-reconnect and ends (see answerWatch in shell.qml):
+# a fresh one starts here with a new connection to greetd, at most 3 times; each keeps its log beside the first.
+r=0
+while [ -e /tmp/taylor-greeter-reconnect ] && [ "$r" -lt 3 ]; do
+    r=$((r + 1)); rm -f /tmp/taylor-greeter-reconnect
+    echo "$(cut -d' ' -f1 /proc/uptime) fresh login scene $r (greetd lost the sign-in)" >> /tmp/taylor-greeter-times.log
+    TAYLOR_GREETER_RECONNECT=1 QSG_RENDER_LOOP=threaded quickshell -p /usr/share/taylor-os/greeter > /tmp/taylor-greeter-scene-$r.log 2>&1
+done
 echo "$(cut -d' ' -f1 /proc/uptime) login scene ended" >> /tmp/taylor-greeter-times.log
 # Hyprland 0.57 (Lua settings) takes its dispatchers as Lua: the old "hyprctl dispatch exit" is refused ("expected a
 # dispatcher"), so this screen never closed itself and greetd waited 5 s before ending it (found 2026-11-21: 5.007 s in

@@ -4,7 +4,7 @@
 # goes to her desktop with no text on the way, and a disk password would still be asked on the boot screen.
 # Screenshots: out/boot-NNN.png (a restart, every ~0.7 s), out/boot-signin-NN.png, out/boot-still-*.png, out/boot-off-*.png.
 . .github/vm/checks/lib.sh
-expect boot 37
+expect boot 40
 pip install --quiet pillow >/dev/null 2>&1 || true
 gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 
@@ -95,6 +95,14 @@ vm boot-8 \
   "$(ok 'with the boot animation off her login screen starts at the hand-off' "$(gsudo 'grep -q "opening skipped, from the hand-off" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'with the boot animation off her login screen comes up' "pgrep -u greetd -f '^(/usr/bin/)?quickshell -p /usr/share/taylor-os/greeter' >/dev/null && ! pgrep -u greetd tuigreet >/dev/null")" \
   "$(gsudo 'cat /tmp/taylor-greeter-scene.log')"
+# ---- a sign-in greetd lost (2026-11-24): the scene leaves its mark and ends, as answerWatch does; a fresh one takes over
+vm boot-8b "echo taylortest | sudo -S sh -c 'sudo -u greetd touch /tmp/taylor-greeter-reconnect; pkill -u greetd -f \"^(/usr/bin/)?quickshell -p /usr/share/taylor-os/greeter\"'; sleep 8"
+shot boot-reconnected
+vm boot-8c \
+  "$(ok 'a lost sign-in brings a fresh login scene that asks again' "$(gsudo 'grep -q "a fresh login scene after a lost sign-in" /tmp/taylor-greeter-scene-1.log && grep -q "fresh login scene 1" /tmp/taylor-greeter-times.log')")" \
+  "$(ok 'the fresh login scene starts at the hand-off' "$(gsudo 'grep -q "opening skipped, from the hand-off" /tmp/taylor-greeter-scene-1.log')")" \
+  "$(ok 'the fresh login scene has no QML errors' "$(gsudo '! grep -qiE "ReferenceError|TypeError|is not defined|Cannot assign" /tmp/taylor-greeter-scene-1.log')")" \
+  "$(gsudo 'cat /tmp/taylor-greeter-scene-1.log; tail -5 /tmp/taylor-greeter-times.log')"
 $V type 'taylortest'; sleep 1; $V type '\n'; sleep 60
 vm boot-9 \
   "$(ok 'signing in still works after both choices' "pgrep -x -u tester Hyprland >/dev/null")" \
