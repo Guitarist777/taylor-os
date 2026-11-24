@@ -208,6 +208,19 @@ Scope {
             Quickshell.execDetached(["sh", "-c", "quickshell ipc call settings toggle || systemsettings"]);
             return;
         }
+        // running already: bring its window forward. This comes before the installed check: Battle.net runs while
+        // Lutris still waits on its installer, and a click must show that window, not set it up again (2026-11-24)
+        const ts = ToplevelManager.toplevels.values.filter((t) => matches(a, t));
+        if (ts.length) {
+            const w = ts[ts.length - 1];
+            console.info("taylor-dock: " + id + " is running: bring it forward (" + (w.appId || "?") + ")");
+            // windows put aside by Windows key + D come back first (windows.lua)
+            // and a window she minimised comes back from its hidden place (windows.lua); activate after, so the
+            // hidden place itself is not opened
+            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end; if taylor and taylor.unminimize then taylor.unminimize('" + String(w.appId || "").replace(/'/g, "") + "') end"]);
+            dock.pendingBring = w; bringLater.restart();
+            return;
+        }
         if (!present(id)) {
             if (a.lutris) {
                 // EA and Battle.net install through Lutris: its own installer for that launcher opens
@@ -220,18 +233,6 @@ Scope {
                 Quickshell.execDetached(["systemctl", "--user", "start", "--no-block", "taylor-apps-setup.service"]);
                 dock.say(a.name.toUpperCase() + " IS BEING SET UP.");
             }
-            return;
-        }
-        // running already: bring its window forward
-        const ts = ToplevelManager.toplevels.values.filter((t) => matches(a, t));
-        if (ts.length) {
-            const w = ts[ts.length - 1];
-            console.info("taylor-dock: " + id + " is running: bring it forward (" + (w.appId || "?") + ")");
-            // windows put aside by Windows key + D come back first (windows.lua)
-            // and a window she minimised comes back from its hidden place (windows.lua); activate after, so the
-            // hidden place itself is not opened
-            Quickshell.execDetached(["hyprctl", "eval", "if taylor and taylor.unhide then taylor.unhide() end; if taylor and taylor.unminimize then taylor.unminimize('" + String(w.appId || "").replace(/'/g, "") + "') end"]);
-            dock.pendingBring = w; bringLater.restart();
             return;
         }
         const e = a.desktop ? DesktopEntries.byId(a.desktop) : null;
