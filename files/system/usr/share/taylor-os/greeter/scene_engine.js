@@ -173,6 +173,7 @@ function step(p, dt, T, t) {
 }
 
 function waves(x, al) {
+    if (x.gpu) { x.waves(al, vT(), S); return; }   // waves.frag draws the same lines on the graphics card
     x.lineWidth = Math.max(1, S * 0.8);
     for (var j = 0; j < 9; j++) {
         x.globalAlpha = al;
@@ -219,7 +220,7 @@ function drawOpening(x, t) {
     bigDial(x, t, T);
     var reach = Math.sqrt(W * W + H * H) / 2 + 80 * S, band = 46 * S;
     var wave = t > 14.0 ? ((t - 14.0) * 150 * S) % (reach + 200 * S) : -99999;
-    var inStory = t > 6.0 && t < 13.7, grow = sm((t - 6.2) / 0.8) * (1 - sm((t - 13.1) / 0.6));
+    var inStory = t > 6.0 && t < 13.7, grow = sm((t - 6.2) / 0.8) * (1 - sm((t - 13.1) / 0.6)), gpu = !!x.gpu;
     x.lineCap = 'round';
     for (var i = 0; i < P.length; i++) {
         var p = P[i];
@@ -231,8 +232,11 @@ function drawOpening(x, t) {
         var hero = p.role && inStory;
         if (p.role) rad = rad * (1 + 0.45 * grow);
         if (sp2 > 60 * S && !hero) {
-            x.strokeStyle = p.col; x.globalAlpha = 0.3; x.lineWidth = p.r * 1.3;
-            x.beginPath(); x.moveTo(px - p.vx * 0.03, py - p.vy * 0.03); x.lineTo(px, py); x.stroke();
+            if (gpu) x.seg(px - p.vx * 0.03, py - p.vy * 0.03, px, py, p.r * 0.65, 0.3, p.cc || (p.cc = x.col(p.col)));
+            else {
+                x.strokeStyle = p.col; x.globalAlpha = 0.3; x.lineWidth = p.r * 1.3;
+                x.beginPath(); x.moveTo(px - p.vx * 0.03, py - p.vy * 0.03); x.lineTo(px, py); x.stroke();
+            }
         }
         var dx = px - W / 2, dy = py - H / 2, r = Math.sqrt(dx * dx + dy * dy) + 0.01, q = wave - r;
         if (q > 0 && q < band) {
@@ -240,6 +244,7 @@ function drawOpening(x, t) {
             px += dx / r * b * 3.5 * S; py += dy / r * b * 3.5 * S; al = Math.min(1, al + b * 0.4); rad = rad * (1 + b * 0.5);
         }
         if (p.t && !hero && m > 0.99 && sp2 < 20 * S) { px += Math.sin(vT() * 1.7 + p.ph) * 0.5 * S; py += Math.cos(vT() * 1.3 + p.ph) * 0.5 * S; }
+        if (gpu) { x.dot(px, py, Math.max(0.4, rad), cl(al), p.cc || (p.cc = x.col(p.col))); continue; }
         x.globalAlpha = al; x.fillStyle = p.col;
         x.beginPath(); x.arc(px, py, Math.max(0.4, rad), 0, 6.2832, false); x.fill();
         x.globalAlpha = 1;
@@ -274,6 +279,7 @@ function inLogin() { return tb >= 0; }
 function sceneT() { return t; }
 
 function hills(x, al) {
+    if (x.gpu) { x.hills(al); return; }             // hills.frag; the shapes after this are drawn over them
     x.globalAlpha = al;
     x.fillStyle = '#0E1512'; x.beginPath(); x.moveTo(0, H);
     for (var u = 0; u <= W + 10 * k; u += 10 * k) { var uu = u / k; x.lineTo(u, (338 + Math.sin(uu * 0.008 + 1.2) * 14 + Math.sin(uu * 0.021) * 6) * k); }
@@ -320,8 +326,9 @@ function waiting() { if (mode === 'idle') { mode = 'wait'; tm = T; hint = ''; } 
 // A good password: the rest of the dots fly in, then the ring spins and a pulse goes out.
 function accepted() {
     var n = 0;
-    while (free.length) { var q = Math.floor(Math.random() * free.length), slot = free.splice(q, 1)[0]; land(slot, T + 0.15 + n * 0.045); n++; }
-    fillDur = 0.15 + n * 0.045 + 0.55;
+    // quicker than her mockup's 0.045 s a dot and 0.55 s after (her ruling 2026-11-24: a short welcome)
+    while (free.length) { var q = Math.floor(Math.random() * free.length), slot = free.splice(q, 1)[0]; land(slot, T + 0.1 + n * 0.02); n++; }
+    fillDur = 0.1 + n * 0.02 + 0.35;
     mode = 'fill'; tm = T; hint = '';
 }
 
@@ -355,14 +362,17 @@ function makeAfter(cx, cy, Rd, sp) {
             born: 1.7 + Math.random() * 1.3, r: (0.7 + Math.random() * 0.6) * k });
     }
 }
+var STARC = null;   // '#E4EEE8' for the graphics card, once
 function dot(x, px, py, r, al, col) {
     if (al <= 0) return;
+    if (x.gpu) { x.dot(px, py, Math.max(0.3, r), cl(al), x.col(col)); return; }
     x.globalAlpha = cl(al); x.fillStyle = col; x.beginPath(); x.arc(px, py, Math.max(0.3, r), 0, 6.2832, false); x.fill();
 }
 
 // The login words are drawn a little see-through, so a star behind a letter showed through as a grey speck (her
 // "missing pixels", photo 2026-11-23). Each word first paints the bare sky in its own letter shapes, then itself.
 function skyText(x, gr, K, s, px, py) {
+    if (x.gpu) { x.label(s, px, py, fontPx, x.globalAlpha, x.fillStyle, Math.min(1, x.globalAlpha * 1.25), skyAt(K, py)); return; }
     var ga = x.globalAlpha, fs = x.fillStyle, b = Math.min(1, ga * 1.25);   // fades with the word, so no star-gap outlives it
     x.globalAlpha = b; x.fillStyle = '#0B0D0C'; ftext(x, s, px, py);
     if (gr && K > 0) { x.globalAlpha = b * K; x.fillStyle = gr; ftext(x, s, px, py); }
@@ -393,7 +403,7 @@ function drawLogin(x, dt) {
     if (K < 1) waves(x, 1 - K);
 
     // the sparks: stars rise to their places, the rest drift up and fade
-    var wave = rippleAt(), band = 46 * S, reach = Math.sqrt(W * W + H * H) / 2 + 80 * S;
+    var wave = rippleAt(), band = 46 * S, reach = Math.sqrt(W * W + H * H) / 2 + 80 * S, gpu = !!x.gpu;
     if (wave > reach) wave = -1;
     for (var i = 0; i < P.length; i++) {
         var p = P[i], u2 = sm((u0 - 1.2 - p.dl) / 2.7), px, py, rad, a0 = baseAl(p), bump = 1;
@@ -414,6 +424,11 @@ function drawLogin(x, dt) {
             var twk = 0.55 + 0.4 * Math.sin(vT() * p.tw + p.ph);
             // a star a letter took is gone, and comes back after a while (her login)
             var backK = p.gone ? (T < p.gone ? 1 : sm((T - p.gone - 1.5) / 2)) : 1;
+            if (gpu) {
+                if (u2 < 1) x.dot(px, py, rad, a0 * (1 - u2), p.cc || (p.cc = x.col(p.col)));
+                if (u2 > 0) x.dot(px, py, rad, u2 * twk * backK * (1 - 0.5 * L * (1 - A) * Math.exp(-((px - cx) * (px - cx)) / (2 * 150 * k * 150 * k))), STARC || (STARC = x.col('#E4EEE8')));
+                continue;
+            }
             if (u2 < 1) { x.globalAlpha = a0 * (1 - u2); x.fillStyle = p.col; x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill(); }
             if (u2 > 0) {
                 x.globalAlpha = u2 * twk * backK * (1 - 0.5 * L * (1 - A) * Math.exp(-((px - cx) * (px - cx)) / (2 * 150 * k * 150 * k)));
@@ -423,12 +438,13 @@ function drawLogin(x, dt) {
             if (u2 >= 1) continue;
             px = hx + p.dr * u2; py = hy - p.up * u2 * u2;
             rad = p.hr * bump * (1 - 0.5 * u2);
+            if (gpu) { x.dot(px, py, rad, a0 * (1 - u2) * (1 - u2), p.cc || (p.cc = x.col(p.col))); continue; }
             x.globalAlpha = a0 * (1 - u2) * (1 - u2); x.fillStyle = p.col;
             x.beginPath(); x.arc(px, py, rad, 0, 6.2832, false); x.fill();
         }
     }
     x.globalAlpha = 1;
-    if (K > 0) hills(x, K);
+    if (K > 0 || x.gpu) hills(x, K);
 
     x.textAlign = 'center'; x.textBaseline = 'middle';
     if (L > 0) {
@@ -515,6 +531,7 @@ function drawLogin(x, dt) {
     if (mode === 'idle' && hint === 'Not quite. Try again.' && e > 3.2) hint = 'Type your password';
     if (hint === 'Type a password first' && T - hintT > 2.2) hint = 'Type your password';
 
+    if (x.gpu) x.toTop();   // her name and the hint are over the dial and its pulse
     if (N > 0) {
         x.globalAlpha = N * 0.95 * (1 - A); x.fillStyle = '#EDEFEE'; x.font = fontAt(15 * k);
         skyText(x, gr, K, name, cx, 298 * k);
@@ -550,6 +567,25 @@ function draw(x) {
     x.reset();
     if (tb < 0) drawOpening(x, t); else drawLogin(x, lastDt);
     if (skipCover > 0) { x.globalAlpha = skipCover; x.fillStyle = '#0B0D0C'; x.fillRect(0, 0, W, H); x.globalAlpha = 1; }
+}
+
+// The same picture for the graphics card (gpu_draw.js): the shapes, and what the shaders and the words need.
+function drawGpu(x) {
+    if (tb < 0) drawOpening(x, t); else drawLogin(x, lastDt);
+}
+// the dark over a skipped opening (0..1), as draw() lays it over the picture
+function coverAmt() { return skipCover; }
+// the bare sky behind a word on the login (her gradient, at the word's height, as far in as the sky is)
+var SKY0 = [11, 13, 12], SKYG = [[0, 9, 11, 14], [0.7, 14, 23, 22], [1, 20, 38, 31]];
+function skyAt(K, py) {
+    var f = cl(py / H), a = SKYG[0], b = SKYG[1];
+    if (f > 0.7) { a = SKYG[1]; b = SKYG[2]; }
+    var u = (f - a[0]) / (b[0] - a[0]), out = '#';
+    for (var c = 1; c <= 3; c++) {
+        var g = a[c] + (b[c] - a[c]) * u, v = Math.round(SKY0[c - 1] + (g - SKY0[c - 1]) * K);
+        out += (v < 16 ? '0' : '') + v.toString(16);
+    }
+    return out;
 }
 
 // Reduced motion: the still word, drawn once into the cover that fades off the login (Scene.qml).

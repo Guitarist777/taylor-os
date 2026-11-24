@@ -240,8 +240,12 @@ ShellRoot {
         property real faded: -1
         onTriggered: {
             const w = sceneList.count > 0 ? sceneList.objectAt(0).welcomeFor() : 2;
-            if (w < 4.6) return;   // her unlock plays to the end: the desktop dial drawn, the last faint star in
-            root.fade = Math.min(1, (w - 4.6) / 0.4);
+            // her ruling 2026-11-24: "Welcome back" short, about 2 s from Enter to the fade, not 6.5 (her sign-in log: the
+            // password took 0.13 s, the welcome 6.5 s). The ring fills, spins and sends its pulse; the screen fades 0.9 s
+            // after "Welcome back", over 0.4 s. Her unlock picture (stars rising, the desktop dial drawn) is left out:
+            // her desktop plays its own arrival.
+            if (w < 0.9) return;
+            root.fade = Math.min(1, (w - 0.9) / 0.4);
             if (root.fade >= 1) {
                 stop();
                 if (Greetd.available) {

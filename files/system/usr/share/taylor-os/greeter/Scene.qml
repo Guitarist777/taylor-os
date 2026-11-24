@@ -1,9 +1,11 @@
-// One screen of her login scene. The drawing is scene_engine.js (her three pieces); this window only runs its clock,
-// repaints it, and passes on what shell.qml tells it (a letter typed, Enter, the answer).
+// One screen of her login scene. The drawing is scene_engine.js (her three pieces), put on the screen by the graphics card
+// (gpu_draw.js and shaders/); this window runs its clock, hands each frame over, and passes on what shell.qml tells it
+// (a letter typed, Enter, the answer).
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
 import "scene_engine.js" as Eng
+import "gpu_draw.js" as Gpu
 
 PanelWindow {
     id: win
@@ -56,13 +58,13 @@ PanelWindow {
         startedMs = Date.now();
         marks = 0;
         Eng.setSize(width, height);
-        if (manrope.status === FontLoader.Ready) Eng.setFont(manrope.name);
+        if (manrope.status === FontLoader.Ready) { Eng.setFont(manrope.name); fontName = manrope.name; }
         Eng.setName(who);
         Eng.setMotion(still, full);
         Eng.spawn();
         console.info("taylor-greeter: opening " + (still ? "still (reduced motion)" : full ? "full" : "skipped, from the hand-off") + ", " + width + " x " + height);
         if (startFrom > 0) Eng.settleTo(startFrom);
-        art.requestPaint();
+        dataC.requestPaint();
     }
     onWidthChanged: begin()
     onHeightChanged: begin()
@@ -92,22 +94,121 @@ PanelWindow {
         id: manrope
         source: "file:///usr/share/fonts/taylor/Manrope-Variable.ttf"
         onStatusChanged: {
-            if (status === FontLoader.Ready) { Eng.setFont(name); console.log("taylor-greeter: font " + name); }
+            if (status === FontLoader.Ready) { Eng.setFont(name); win.fontName = name; console.log("taylor-greeter: font " + name); }
             else if (status === FontLoader.Error) console.log("taylor-greeter: Manrope did not load");
         }
     }
 
-    Canvas {
-        id: art
+    // ---- her scene, drawn by the graphics card (gpu_draw.js; 2026-11-24, her report "still 60" on her 240 Hz screen) ----
+    // Back to front, as scene_engine.js draws it: the login sky, her waves, the shapes under the hills (the sparks, the
+    // moon, the opening's dial), the hills, the clock and date, the shapes over them (the login dial, its dots, the
+    // desktop dial), her name and the hint, the dark of a skipped opening, the dark before her desktop.
+    readonly property int dataCols: 384
+    readonly property int dataRows: 96          // 384 x 96 texels: 6144 shapes; a frame uses about 1,000
+    property var rec: null
+    property string fontName: "Manrope"
+    ShaderEffect {
+        id: sky
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded   // her opening at 120 frames a second, not 21 (see taylor-greeter-scene)
+        property real kk: 0
+        visible: kk > 0
+        fragmentShader: "shaders/sky.frag.qsb"
+    }
+    ShaderEffect {
+        id: wavesFx
+        anchors.fill: parent
+        property real al: 0
+        property real vt: 0
+        property real sc: 1
+        property size size: Qt.size(width, height)
+        visible: al > 0
+        fragmentShader: "shaders/waves.frag.qsb"
+    }
+    component Shapes: ShaderEffect {
+        anchors.fill: parent
+        property var prims: dataC
+        property real first: 0
+        property real count: 0
+        property real cols: win.dataCols
+        property real cells: 4 * win.dataCols * win.dataRows / 6 - 1
+        visible: count > 0
+        mesh: GridMesh { resolution: Qt.size(4 * win.dataCols * win.dataRows / 6 - 1, 1) }
+        vertexShader: "shaders/prims.vert.qsb"
+        fragmentShader: "shaders/prims.frag.qsb"
+    }
+    Shapes { id: under }
+    ShaderEffect {
+        id: hillsFx
+        anchors.fill: parent
+        property real kk: 0
+        property real k: 1
+        property size size: Qt.size(width, height)
+        visible: kk > 0
+        fragmentShader: "shaders/hills.frag.qsb"
+    }
+    // a word on the login: first the bare sky in its letter shapes (no star shows through it), then the word
+    component Word: Item {
+        id: wd
+        property string s: ""
+        property real px: 0
+        property real py: 0
+        property real size: 12
+        property color col: "#EDEFEE"
+        property real al: 0
+        property color skyCol: "#0B0D0C"
+        property real skyAl: 0
+        anchors.fill: parent
+        Text {
+            text: wd.s; font.family: win.fontName; font.pixelSize: Math.max(1, wd.size); color: wd.skyCol; opacity: wd.skyAl
+            x: Math.round(wd.px - width / 2); y: Math.round(wd.py + 0.235 * wd.size - baselineOffset)
+        }
+        Text {
+            text: wd.s; font.family: win.fontName; font.pixelSize: Math.max(1, wd.size); color: wd.col; opacity: wd.al
+            x: Math.round(wd.px - width / 2); y: Math.round(wd.py + 0.235 * wd.size - baselineOffset)
+        }
+    }
+    Word { id: w0 }
+    Word { id: w1 }
+    Shapes { id: over }
+    Word { id: w2 }
+    Word { id: w3 }
+    Rectangle { id: skipDark; anchors.fill: parent; color: "#0B0D0C"; opacity: 0; visible: opacity > 0 }
+    Rectangle { anchors.fill: parent; color: "#0F1010"; opacity: win.fade; visible: opacity > 0 }   // fadeOut()
+
+    // the shapes of each frame, as 6 texels each (gpu_draw.js); the shaders above read it as their texture
+    Canvas {
+        id: dataC
+        x: -win.dataCols - 16; y: 0        // off the screen: only the shaders read it
+        width: win.dataCols; height: win.dataRows
+        canvasSize: Qt.size(win.dataCols, win.dataRows)
+        renderStrategy: Canvas.Cooperative
         onPaint: {
             if (!win.started) return;
             const ctx = getContext("2d");
-            Eng.draw(ctx);
+            if (!win.rec) win.rec = Gpu.make(win.dataCols, win.dataRows);
+            const r = win.rec;
+            r.begin(ctx);
+            Eng.drawGpu(r);
+            r.end();
+            under.count = r.split;
+            over.first = r.split; over.count = r.n - r.split;
+            sky.kk = r.skyK;
+            hillsFx.kk = r.hillsK; hillsFx.k = win.height / 380;
+            wavesFx.al = r.wavesAl; wavesFx.vt = r.wavesT; wavesFx.sc = r.wavesS;
+            const lo = [], hi = [];
+            for (let i = 0; i < r.labels.length; i++) (r.labels[i].top ? hi : lo).push(r.labels[i]);
+            win.word(w0, lo[0]); win.word(w1, lo[1]); win.word(w2, hi[0]); win.word(w3, hi[1]);
+            skipDark.opacity = Eng.coverAmt();
+            if (r.dropped && !win.droppedSaid) { win.droppedSaid = true; console.info("taylor-greeter: more shapes than the data texture holds (" + r.dropped + " left out)"); }
             win.paints++;
-            if (win.fade > 0) Eng.fadeOut(ctx, win.fade);
+            if (!win.gpuSaid) { win.gpuSaid = true; console.info("taylor-greeter: drawn by the graphics card (" + r.n + " shapes in the first frame)"); }
         }
+    }
+    property bool droppedSaid: false
+    property bool gpuSaid: false
+    function word(w, l) {
+        if (!l) { w.al = 0; w.skyAl = 0; w.s = ""; return; }
+        w.s = l.s; w.px = l.x; w.py = l.y; w.size = l.size; w.col = l.col; w.al = l.al; w.skyCol = l.skyCol; w.skyAl = l.skyAl;
     }
 
     // Reduced motion: the still word, drawn once, fading off the login over her one second.
@@ -138,7 +239,7 @@ PanelWindow {
             if (win.marks === 0 && st >= 9.3 && !Eng.inLogin() && !win.still) { win.marks = 1; console.info("taylor-greeter: the friend goes to fetch the lost dot (" + st.toFixed(1) + " s)"); }
             if (win.marks <= 1 && st >= 10.7 && !Eng.inLogin() && !win.still) { win.marks = 2; console.info("taylor-greeter: the lost dot hops, the friend hops lower (" + st.toFixed(1) + " s)"); }
             if (win.marks <= 2 && Eng.inLogin()) { win.marks = 3; console.info("taylor-greeter: the hand-off begins at " + st.toFixed(1) + " s of the opening, " + ((Date.now() - win.startedMs) / 1000).toFixed(1) + " s after the screen first drew"); }
-            art.requestPaint();
+            dataC.requestPaint();
             win.ticks++;
         }
     }

@@ -4,7 +4,7 @@
 # goes to her desktop with no text on the way, and a disk password would still be asked on the boot screen.
 # Screenshots: out/boot-NNN.png (a restart, every ~0.7 s), out/boot-signin-NN.png, out/boot-still-*.png, out/boot-off-*.png.
 . .github/vm/checks/lib.sh
-expect boot 40
+expect boot 41
 pip install --quiet pillow >/dev/null 2>&1 || true
 gsudo() { printf "echo taylortest | sudo -S sh -c '%s'" "$1"; }
 
@@ -60,6 +60,7 @@ vm boot-3 \
   "$(ok 'the lost dot hops and the friend hops lower' "$(gsudo 'grep -q "the lost dot hops, the friend hops lower" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the opening hands over to the login' "$(gsudo 'grep -qE "the hand-off begins at 14[.][67] s" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'no QML errors on her login screen' "$(gsudo '! grep -qiE "ReferenceError|TypeError|is not defined|Cannot assign" /tmp/taylor-greeter-scene.log')")" \
+  "$(ok 'her login screen is drawn by the graphics card, with no shader errors' "$(gsudo 'grep -q "drawn by the graphics card" /tmp/taylor-greeter-scene.log && ! grep -qiE "ShaderEffect|qsb|shader.*(fail|error)|more shapes than" /tmp/taylor-greeter-scene.log')")" \
   "$(ok 'the boot screen is switched on (rhgb)' "grep -qw rhgb /proc/cmdline")" \
   "$(ok 'the text screen black is her dark after a restart' "[ \"\$(cut -d, -f1 /sys/module/vt/parameters/default_red)\" = 11 ]")" \
   "$(gsudo 'cat /tmp/taylor-greeter-scene.log; head -c 2000 /tmp/taylor-greeter-hyprland.log; journalctl -b -u greetd -u taylor-console -u taylor-greeter-prefs --no-pager | tail -30; systemd-analyze blame | head -15; cat /proc/cmdline')" \

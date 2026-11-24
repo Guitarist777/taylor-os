@@ -2,7 +2,8 @@
 # Runs inside the login screen's Hyprland: her login scene (Quickshell), then closes that Hyprland, so greetd can start
 # her desktop (after a good password) or show the login screen again (if the scene stopped for any other reason).
 # Qt's threaded render loop (2026-11-23, measured on her PC, 2560x1440 at 240 Hz): the opening ran at 21 frames a
-# second with Qt's default loop on NVIDIA, 120 with this one plus the scene's Canvas drawing on its own thread.
+# second with Qt's default loop on NVIDIA, 120 with this one; with the scene drawn by the graphics card (2026-11-24,
+# gpu_draw.js) it runs at 240 from the opening to the welcome.
 rm -f /tmp/taylor-greeter-reconnect
 QSG_RENDER_LOOP=threaded quickshell -p /usr/share/taylor-os/greeter > /tmp/taylor-greeter-scene.log 2>&1
 # A scene that lost track of a sign-in leaves /tmp/taylor-greeter-reconnect and ends (see answerWatch in shell.qml):

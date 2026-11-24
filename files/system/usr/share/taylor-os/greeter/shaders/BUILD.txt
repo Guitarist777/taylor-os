@@ -1,0 +1,3 @@
+The login scene's shaders. Qt Quick loads the compiled .qsb files; after changing a source, compile it again (Qt's qsb,
+the same Qt version as the image, Fedora's qt6-qtshadertools):
+  for f in prims.vert prims.frag waves.frag sky.frag hills.frag; do qsb-qt6 --glsl '300 es,330' --hlsl 50 --msl 12 -o $f.qsb $f; done
