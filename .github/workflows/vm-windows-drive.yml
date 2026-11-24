@@ -187,7 +187,7 @@ jobs:
       - name: The verdict (fails on any FAIL)
         run: |
           # (2026-11-18: the first run cut each line at its first underscore, so "integrity_check" never matched)
-          cat out/1-hibernated.txt out/2-mounted.txt out/3-other-side.txt 2>/dev/null | tr -d '\r' | grep -v '^\$ ' | grep -v '|| echo' | sed 's/__DONE_[0-9]*__.*//' | grep -oE '(PASS|FAIL) [A-Za-z].*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
+          cat out/1-hibernated.txt out/2-mounted.txt out/3-other-side.txt 2>/dev/null | tr -d '\r' | grep -av '^\$ ' | grep -av '|| echo' | sed 's/__DONE_[0-9]*__.*//' | grep -aoE '(PASS|FAIL) [A-Za-z].*' | sed 's/ *$//' | sort -u | tee out/verdict.txt
           grep -q '^PASS opened after the switch: integrity_check says ok' out/verdict.txt
           test "$(grep -c '^PASS ' out/verdict.txt)" -ge 45
           ! grep -q '^FAIL ' out/verdict.txt
