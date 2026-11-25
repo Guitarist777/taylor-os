@@ -167,22 +167,22 @@ vm screen-wait "sleep 17" "$SCALE"
 WHB="1024 640"
 vm screen-back \
   "$(ok 'a change not kept goes back by itself after 15 s' "$SCALE | grep -q 'SCALE 1.25' && grep -qE '\"displayScale\": *1.25' ~/.config/taylor-os/settings.json && $L | grep -q 'display back to'")" \
-  "hyprctl reload; sleep 4" \
+  "hyprctl plugin list | head -2" "hyprctl reload; sleep 4" "hyprctl plugin list | head -2; hyprctl -j configerrors" \
   "$(ok 'her kept scale is there again after Hyprland reads its settings again' "$SCALE | grep -q 'SCALE 1.25'")" \
   "$RELOOK" "$AT" "$PLACES"
-tap screen-back hdr; sleep 4
-shot settings-display-hdr
-vm screen-hdr "$RELOOK" "$AT" "$PLACES" "$L | grep -E 'taylor-settings: (display|hyprland says)' | tail -4"
-tap screen-hdr revert; sleep 4
-vm screen-hdr-back \
-  "$(ok 'Use HDR is asked of Hyprland and Go back undoes it' "$L | grep 'hyprland says display' | grep -q ' hdr vrr' && $L | grep 'hyprland says display' | tail -1 | grep -q ' sdr vrr' && grep -qE '\"hdr\": *false' ~/.config/taylor-os/settings.json")" \
-  "$L | grep -E 'taylor-settings: (display|hyprland says)' | tail -6" \
-  "$RELOOK" "$AT" "$PLACES"
-tap screen-hdr-back scale:0; sleep 4
+tap screen-back scale:0; sleep 4
 WHB="1280 800"
 vm screen-auto "$RELOOK" "$AT" "$PLACES" "$SCALE"
 tap screen-auto keep; sleep 3
-vm screen-end "$(ok 'the scale goes back to automatic and is kept' "grep -qE '\"displayScale\": *0' ~/.config/taylor-os/settings.json")" "$SCALE"
+CM="hyprctl -j monitors | python3 -c 'import json,sys; print(\"CM\", json.load(sys.stdin)[0][\"colorManagementPreset\"])'"
+vm screen-end "$(ok 'the scale goes back to automatic and is kept' "grep -qE '\"displayScale\": *0' ~/.config/taylor-os/settings.json")" "$SCALE" "$CM" "$RELOOK" "$AT" "$PLACES"
+tap screen-end hdr; sleep 4
+shot settings-display-hdr
+vm screen-hdr "$CM" "$RELOOK" "$AT" "$PLACES" "$L | grep -E 'taylor-settings: display' | tail -3"
+tap screen-hdr revert; sleep 4
+vm screen-hdr-back \
+  "$(ok 'Use HDR is asked of Hyprland and Go back undoes it' "$L | grep 'taylor-settings: display {' | grep -q '\"hdr\":true' && $L | grep -q 'taylor-settings: display back to' && grep -qE '\"hdr\": *false' ~/.config/taylor-os/settings.json && $CM | grep -q 'CM srgb'")" \
+  "$CM" "$L | grep -E 'taylor-settings: display' | tail -4"
 
 vm settings-end \
   "$(ok 'the status line comes back on' "grep -q '\"statusLine\": *true' ~/.config/taylor-os/settings.json")" \
