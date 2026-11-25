@@ -154,13 +154,16 @@ vm screen-open "$RELOOK; sleep 2" "$AT" "$PLACES" "$SCALE" \
   "$(ok 'Display shows refresh rate, scale, HDR and variable refresh rate' "$L | grep -q 'place scale:1.25 ' && $L | grep -q 'place hdr ' && $L | grep -q 'place vrr:2 ' && $L | grep -qE 'place rate:[0-9]+ '")" \
   "$L | grep -E 'taylor-settings: screen' | tail -2"
 shot settings-display
-tap screen-open scale:1.25; sleep 4
+tap screen-open scale:1.25; sleep 2
 WHB="1024 640"
-vm screen-try "$RELOOK" "$SCALE" "$AT" "$PLACES" \
-  "$(ok 'a scale picked is tried at once and asks to keep it' "$SCALE | grep -q 'SCALE 1.25' && $L | grep -q 'place keep '")"
-shot settings-display-keep
+# only what the Keep tap needs, so it lands well inside the 15 s; the checks come after it
+vm screen-try "$RELOOK" "$AT" "$PLACES"
 tap screen-try keep; sleep 3
-vm screen-kept "$(ok 'Keep writes the scale to her settings' "grep -qE '\"displayScale\": *1.25' ~/.config/taylor-os/settings.json")" "$RELOOK" "$AT" "$PLACES"
+shot settings-display-keep
+vm screen-kept \
+  "$(ok 'a scale picked is tried at once and asks to keep it' "$SCALE | grep -q 'SCALE 1.25' && $L | grep -q 'taylor-settings: display kept .*\"scale\":1.25'")" \
+  "$(ok 'Keep writes the scale to her settings' "grep -qE '\"displayScale\": *1.25' ~/.config/taylor-os/settings.json")" \
+  "$SCALE" "$L | grep -E 'taylor-settings: display' | tail -3" "$RELOOK" "$AT" "$PLACES"
 tap screen-kept scale:1; sleep 3
 WHB="1280 800"
 vm screen-wait "sleep 17" "$SCALE"

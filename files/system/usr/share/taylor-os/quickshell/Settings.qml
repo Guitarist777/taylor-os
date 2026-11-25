@@ -523,6 +523,18 @@ FloatingWindow {
                     width: parent.width
                     visible: win.page === "Display"
                     Head { title: "Display"; sub: disp.name ? disp.name + (disp.now ? " · " + disp.now : "") : "Your screen." }
+                    // Windows' "Keep these display settings?": a screen that can't show a change comes back by itself.
+                    // At the top, so a change that makes the page bigger can't push it under the dock or off the screen.
+                    SRow {
+                        visible: disp.pending
+                        label: "Keep these display settings?"
+                        small: "Going back in " + disp.left + " s"
+                        Row {
+                            spacing: 18
+                            Link { placeName: "keep"; text: "Keep"; color: Theme.accent; onHit: disp.keep() }
+                            Link { placeName: "revert"; text: "Go back"; onHit: disp.revert() }
+                        }
+                    }
                     // the Windows layout (her ask 2026-11-25): resolution, refresh rate, scale, HDR, variable refresh
                     SRow {
                         label: "Resolution"
@@ -586,17 +598,6 @@ FloatingWindow {
                             opts: [{ k: "0", n: "Off" }, { k: "2", n: "Games" }, { k: "1", n: "Always" }]
                             value: String(disp.shown.vrr)
                             onPick: (k) => disp.tryIt({ vrr: Number(k) })
-                        }
-                    }
-                    // Windows' "Keep these display settings?": a screen that can't show a change comes back by itself
-                    SRow {
-                        visible: disp.pending
-                        label: "Keep these display settings?"
-                        small: "Going back in " + disp.left + " s"
-                        Row {
-                            spacing: 18
-                            Link { placeName: "keep"; text: "Keep"; color: Theme.accent; onHit: disp.keep() }
-                            Link { placeName: "revert"; text: "Go back"; onHit: disp.revert() }
                         }
                     }
                     SRow {
