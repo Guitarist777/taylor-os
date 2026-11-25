@@ -614,4 +614,8 @@ hl.on("window.destroy", function(w) if w and w.address and T.minimized then T.mi
 pcall(hl.unbind, mod .. " + D")
 hl.bind(mod .. " + D", function() T.showDesktop() end)
 
+-- her screen (Settings > Display: refresh rate, scale, HDR, variable refresh rate; 2026-11-25)
+local displayOk, displayErr = pcall(dofile, "/usr/share/taylor-os/hypr/display.lua")
+if not displayOk then log("display.lua: " .. tostring(displayErr)) end
+
 log("windows.lua loaded")

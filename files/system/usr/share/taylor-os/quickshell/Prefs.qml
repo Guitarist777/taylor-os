@@ -33,6 +33,12 @@ Singleton {
     // Display
     property alias brightness: a.brightness
     property alias warmNight: a.warmNight           // warmer colours at night (hyprsunset, Warm.qml)
+    // her screen (2026-11-25; Hyprland reads these through /usr/share/taylor-os/hypr/display.lua)
+    property alias displayMode: a.displayMode       // "" = the highest refresh rate at full size, else "2560x1440@240"
+    property alias displayScale: a.displayScale     // 0 = automatic, else 1 .. 2
+    property alias hdr: a.hdr
+    property alias sdrBrightness: a.sdrBrightness   // ordinary things while HDR is on: 0.5 .. 2, 1 = as is
+    property alias vrr: a.vrr                       // variable refresh rate: 0 off, 1 on, 2 games (a full-screen window)
     // About: the last "Check now" (uptodate | staged | newer | offline | unknown, and when, in ms)
     property alias updateState: a.updateState
     property alias updateCheckedAt: a.updateCheckedAt
@@ -86,6 +92,11 @@ Singleton {
             property bool mixerWidget: true
             property real brightness: 80
             property bool warmNight: false
+            property string displayMode: ""
+            property real displayScale: 0
+            property bool hdr: false
+            property real sdrBrightness: 1
+            property int vrr: 0
             property string updateState: ""
             property real updateCheckedAt: 0
             property string lastBrowser: ""

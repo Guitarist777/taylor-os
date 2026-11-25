@@ -1,7 +1,7 @@
 # Her Settings window and the volume and brightness ring (2026-11-21). Real clicks on the real window: where each control
 # is comes from Settings' own log ("taylor-settings: place NAME x y", window pixels) plus where Hyprland put the window.
 . .github/vm/checks/lib.sh
-expect settings 35
+expect settings 42
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 AT="hyprctl -j clients | python3 -c 'import json,sys; c=[w for w in json.load(sys.stdin) if w[\"title\"]==\"Settings\"]; print(\"SETAT\", *(c[0][\"at\"] + c[0][\"size\"] + [int(c[0][\"floating\"])]) if c else (\"none\",))'"
 PLACES="$L | grep -oE 'place [^ ]+ [0-9]+ [0-9]+' | tail -60"
@@ -142,6 +142,47 @@ shot settings-open-mixer
 vm mixer-from-settings \
   "$(ok 'Open the mixer in Settings opens the Mixer window' "hyprctl clients | grep -q 'title: Mixer' && $L | grep -q 'taylor-settings: open the mixer'")" \
   "\$Q call mixer close; sleep 1"
+
+# 9. Her screen (her ask 2026-11-25: Windows' Display page): a scale is tried at once and asks "Keep these display
+#    settings?"; Keep writes it; a change not kept goes back by itself after 15 s; the kept one is there again after
+#    Hyprland reads its settings again (display.lua); Use HDR is asked of Hyprland and Go back undoes it. (The virtual
+#    screen has one mode and no HDR, so the refresh rate and HDR are checked as asked, not as shown.) At 125% the
+#    clicks are given in the screen's logical size, 1024 x 640.
+SCALE="hyprctl -j monitors | python3 -c 'import json,sys; print(\"SCALE\", json.load(sys.stdin)[0][\"scale\"])'"
+RELOOK="\$Q call settings section Display; sleep 2"
+vm screen-open "$RELOOK; sleep 2" "$AT" "$PLACES" "$SCALE" \
+  "$(ok 'Display shows refresh rate, scale, HDR and variable refresh rate' "$L | grep -q 'place scale:1.25 ' && $L | grep -q 'place hdr ' && $L | grep -q 'place vrr:2 ' && $L | grep -qE 'place rate:[0-9]+ '")" \
+  "$L | grep -E 'taylor-settings: screen' | tail -2"
+shot settings-display
+tap screen-open scale:1.25; sleep 4
+WHB="1024 640"
+vm screen-try "$RELOOK" "$SCALE" "$AT" "$PLACES" \
+  "$(ok 'a scale picked is tried at once and asks to keep it' "$SCALE | grep -q 'SCALE 1.25' && $L | grep -q 'place keep '")"
+shot settings-display-keep
+tap screen-try keep; sleep 3
+vm screen-kept "$(ok 'Keep writes the scale to her settings' "grep -qE '\"displayScale\": *1.25' ~/.config/taylor-os/settings.json")" "$RELOOK" "$AT" "$PLACES"
+tap screen-kept scale:1; sleep 3
+WHB="1280 800"
+vm screen-wait "sleep 17" "$SCALE"
+WHB="1024 640"
+vm screen-back \
+  "$(ok 'a change not kept goes back by itself after 15 s' "$SCALE | grep -q 'SCALE 1.25' && grep -qE '\"displayScale\": *1.25' ~/.config/taylor-os/settings.json && $L | grep -q 'display back to'")" \
+  "hyprctl reload; sleep 4" \
+  "$(ok 'her kept scale is there again after Hyprland reads its settings again' "$SCALE | grep -q 'SCALE 1.25'")" \
+  "$RELOOK" "$AT" "$PLACES"
+tap screen-back hdr; sleep 4
+shot settings-display-hdr
+vm screen-hdr "$RELOOK" "$AT" "$PLACES" "$L | grep -E 'taylor-settings: (display|hyprland says)' | tail -4"
+tap screen-hdr revert; sleep 4
+vm screen-hdr-back \
+  "$(ok 'Use HDR is asked of Hyprland and Go back undoes it' "$L | grep 'hyprland says display' | grep -q ' hdr vrr' && $L | grep 'hyprland says display' | tail -1 | grep -q ' sdr vrr' && grep -qE '\"hdr\": *false' ~/.config/taylor-os/settings.json")" \
+  "$L | grep -E 'taylor-settings: (display|hyprland says)' | tail -6" \
+  "$RELOOK" "$AT" "$PLACES"
+tap screen-hdr-back scale:0; sleep 4
+WHB="1280 800"
+vm screen-auto "$RELOOK" "$AT" "$PLACES" "$SCALE"
+tap screen-auto keep; sleep 3
+vm screen-end "$(ok 'the scale goes back to automatic and is kept' "grep -qE '\"displayScale\": *0' ~/.config/taylor-os/settings.json")" "$SCALE"
 
 vm settings-end \
   "$(ok 'the status line comes back on' "grep -q '\"statusLine\": *true' ~/.config/taylor-os/settings.json")" \

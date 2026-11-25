@@ -522,7 +522,83 @@ FloatingWindow {
                 Column {
                     width: parent.width
                     visible: win.page === "Display"
-                    Head { title: "Display"; sub: "Your screen." }
+                    Head { title: "Display"; sub: disp.name ? disp.name + (disp.now ? " · " + disp.now : "") : "Your screen." }
+                    // the Windows layout (her ask 2026-11-25): resolution, refresh rate, scale, HDR, variable refresh
+                    SRow {
+                        label: "Resolution"
+                        visible: disp.sizes.length > 1
+                        Choice {
+                            placePrefix: "res"
+                            opts: disp.sizes.map((z) => ({ k: z, n: z.replace("x", " × ") }))
+                            value: disp.size
+                            onPick: (k) => disp.tryIt({ mode: k + "@" + disp.topRate(k) })
+                        }
+                    }
+                    SRow {
+                        label: "Refresh rate"
+                        small: "Higher is smoother. Your screen's best is " + disp.topRate(disp.size) + " Hz."
+                        visible: disp.rates.length > 0
+                        Choice {
+                            placePrefix: "rate"
+                            opts: disp.rates.map((r) => ({ k: r, n: r + " Hz" }))
+                            value: disp.rate
+                            onPick: (k) => disp.tryIt({ mode: disp.size + "@" + k })
+                        }
+                    }
+                    SRow {
+                        label: "Scale"
+                        small: "Makes text, apps and the dock bigger."
+                        Choice {
+                            placePrefix: "scale"
+                            opts: [{ k: "0", n: "Auto" }, { k: "1", n: "100%" }, { k: "1.25", n: "125%" }, { k: "1.5", n: "150%" }, { k: "1.75", n: "175%" }, { k: "2", n: "200%" }]
+                            value: String(disp.shown.scale)
+                            onPick: (k) => disp.tryIt({ scale: Number(k) })
+                        }
+                    }
+                    SRow {
+                        label: "Use HDR"
+                        small: disp.hdrOk === false ? "This screen doesn't say it can show HDR." : "Brighter highlights and deeper colour in games and videos made for HDR."
+                        Switch { placeName: "hdr"; on: disp.shown.hdr; onFlip: disp.tryIt({ hdr: !disp.shown.hdr }) }
+                    }
+                    SRow {
+                        visible: disp.shown.hdr
+                        label: "SDR content brightness"
+                        small: "How bright everything else looks while HDR is on"
+                        Row {
+                            spacing: 12
+                            Slider {
+                                id: sdrSlider
+                                placeName: "sdr"
+                                from: 50; to: 200; step: 5
+                                value: Math.round(disp.shown.sdr * 100)
+                                anchors.verticalCenter: parent.verticalCenter
+                                onMoved: (v) => { value = v; }
+                                onDone: (v) => disp.setSdr(v / 100)
+                            }
+                            Val { text: sdrSlider.value + "%"; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                    }
+                    SRow {
+                        label: "Variable refresh rate"
+                        small: "FreeSync or G-Sync: the screen waits for each new frame, so games don't tear or stutter."
+                        Choice {
+                            placePrefix: "vrr"
+                            opts: [{ k: "0", n: "Off" }, { k: "2", n: "Games" }, { k: "1", n: "Always" }]
+                            value: String(disp.shown.vrr)
+                            onPick: (k) => disp.tryIt({ vrr: Number(k) })
+                        }
+                    }
+                    // Windows' "Keep these display settings?": a screen that can't show a change comes back by itself
+                    SRow {
+                        visible: disp.pending
+                        label: "Keep these display settings?"
+                        small: "Going back in " + disp.left + " s"
+                        Row {
+                            spacing: 18
+                            Link { placeName: "keep"; text: "Keep"; color: Theme.accent; onHit: disp.keep() }
+                            Link { placeName: "revert"; text: "Go back"; onHit: disp.revert() }
+                        }
+                    }
                     SRow {
                         visible: Brightness.available
                         label: "Brightness"
@@ -712,6 +788,120 @@ FloatingWindow {
             }
         }
     }
+    // ---- her screen (Display): what it can do, from Hyprland; her picks in Prefs; Hyprland applies them through
+    // taylor.display() in /usr/share/taylor-os/hypr/display.lua (which also reads them when the desktop starts)
+    QtObject {
+        id: disp
+        property string name: ""
+        property var modes: []          // [{w, h, hz}] from Hyprland, best first
+        property real hz: 0             // what the screen runs at now
+        property string now: ""
+        property var hdrOk: null        // from the screen's EDID: true, false, or null (not known)
+        property bool pending: false
+        property int left: 15
+        property var before: null
+        property var pend: null
+        readonly property var saved: ({ mode: Prefs.displayMode, scale: Prefs.displayScale, hdr: Prefs.hdr, sdr: Prefs.sdrBrightness, vrr: Prefs.vrr })
+        readonly property var shown: pending && pend ? pend : saved
+        readonly property var sizes: {
+            const out = [];
+            for (const m of modes) { const z = m.w + "x" + m.h; if (out.indexOf(z) < 0 && out.length < 4) out.push(z); }
+            return out;
+        }
+        readonly property string size: shown.mode ? shown.mode.split("@")[0] : (sizes.length ? sizes[0] : "")
+        readonly property var rates: {
+            const out = [];
+            for (const m of modes) {
+                if (m.w + "x" + m.h !== size) continue;
+                const r = String(Math.round(m.hz));
+                if (out.indexOf(r) < 0 && Math.round(m.hz) >= 50) out.push(r);
+            }
+            return out.slice(0, 7);
+        }
+        readonly property string rate: shown.mode ? String(Math.round(Number(shown.mode.split("@")[1]))) : topRate(size)
+        function topRate(z) {
+            let best = 0;
+            for (const m of modes) if (m.w + "x" + m.h === z) best = Math.max(best, Math.round(m.hz));
+            return String(best || Math.round(hz) || 60);
+        }
+        function lua(v) {
+            const mode = /^[0-9]+x[0-9]+@[0-9.]+$/.test(v.mode) ? v.mode : "";
+            return "return taylor.display(\"" + mode + "\", " + Number(v.scale) + ", " + (v.hdr ? "true" : "false") + ", " + Number(v.sdr) + ", " + Math.round(v.vrr) + ")";
+        }
+        function apply(v) {
+            console.info("taylor-settings: display " + JSON.stringify(v));
+            applyProc.command = ["hyprctl", "eval", lua(v)];
+            applyProc.running = true;
+            relook.restart();
+        }
+        // a change she tries: shown at once, kept only when she says so
+        function tryIt(change) {
+            const base = pending && pend ? pend : saved;
+            const next = { mode: base.mode, scale: base.scale, hdr: base.hdr, sdr: base.sdr, vrr: base.vrr };
+            for (const k in change) next[k] = change[k];
+            if (!pending) before = saved;
+            pend = next;
+            pending = true;
+            left = 15;
+            countdown.restart();
+            apply(next);
+        }
+        function keep() {
+            if (!pending) return;
+            countdown.stop();
+            Prefs.displayMode = pend.mode; Prefs.displayScale = pend.scale; Prefs.hdr = pend.hdr;
+            Prefs.sdrBrightness = pend.sdr; Prefs.vrr = pend.vrr;
+            pending = false;
+            console.info("taylor-settings: display kept " + JSON.stringify(pend));
+        }
+        function revert() {
+            if (!pending) return;
+            countdown.stop();
+            pending = false;
+            console.info("taylor-settings: display back to " + JSON.stringify(before));
+            apply(before);
+        }
+        // the SDR brightness can't hide the screen: it is kept as she lets go
+        function setSdr(x) {
+            if (pending) { tryIt({ sdr: x }); return; }
+            Prefs.sdrBrightness = x;
+            apply(saved);
+        }
+    }
+    Timer {
+        id: countdown
+        interval: 1000; repeat: true
+        onTriggered: { disp.left -= 1; if (disp.left <= 0) disp.revert(); }
+    }
+    Process { id: applyProc; stdout: StdioCollector { onStreamFinished: console.info("taylor-settings: hyprland says " + this.text.trim()) } }
+    Timer { id: relook; interval: 1500; onTriggered: monProc.running = true }
+    Process {
+        id: monProc
+        command: ["hyprctl", "-j", "monitors"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const m = JSON.parse(this.text)[0];
+                    if (!m) return;
+                    disp.name = ((m.make || "") + " " + (m.model || "")).trim() || m.name;
+                    disp.hz = m.refreshRate;
+                    const list = [];
+                    for (const a of (m.availableModes || [])) {
+                        const r = /^([0-9]+)x([0-9]+)@([0-9.]+)Hz$/.exec(a);
+                        if (r) list.push({ w: +r[1], h: +r[2], hz: +r[3] });
+                    }
+                    list.sort((x, y) => (y.w * y.h - x.w * x.h) || (y.hz - x.hz));
+                    disp.modes = list;
+                    disp.now = m.width + " × " + m.height + " at " + Math.round(m.refreshRate) + " Hz" + (m.colorManagementPreset === "hdr" ? ", HDR" : "") + (m.vrr ? ", variable refresh on" : "");
+                    console.info("taylor-settings: screen " + m.name + " " + m.width + "x" + m.height + "@" + Math.round(m.refreshRate) + " scale " + m.scale + " cm " + m.colorManagementPreset + " vrr " + m.vrr);
+                    if (disp.hdrOk === null) { edidProc.command = ["sh", "-c", "edid-decode /sys/class/drm/card*-" + m.name + "/edid 2>/dev/null | grep -q 'SMPTE ST2084' && echo yes || echo no"]; edidProc.running = true; }
+                } catch (e) { console.info("taylor-settings: could not read the screen: " + e); }
+            }
+        }
+    }
+    Process { id: edidProc; stdout: StdioCollector { onStreamFinished: { const t = this.text.trim(); disp.hdrOk = t === "yes" ? true : (t === "no" ? false : null); } } }
+    Timer { interval: 10000; repeat: true; triggeredOnStart: true; running: win.visible && win.page === "Display" && !disp.pending; onTriggered: monProc.running = true }
+
     Timer { interval: 10000; repeat: true; triggeredOnStart: true; running: win.visible && win.page === "Network"; onTriggered: netState.running = true }
 
     // about
