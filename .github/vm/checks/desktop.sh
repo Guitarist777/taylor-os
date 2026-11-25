@@ -23,8 +23,9 @@ vm desktop-scheme-back "\$Q call theme scheme taylor; sleep 2" \
 # the gap after her password (2026-11-21): her PC had 5 s of black between the login scene finishing and her desktop
 # starting. The login screen now closes its Hyprland the moment greetd has her desktop's start in hand, and writes the
 # times to /tmp/taylor-greeter-times.log (seconds since boot). Her desktop's start is logind's: the wayland session's
-# TimestampMonotonic (greetd ends the login screen's script before it could log that itself).
-GAP='a=$(awk "/launched; closing/ {a=\$1} END {print a}" /tmp/taylor-greeter-times.log); b=$(for s in $(loginctl show-user tester -p Sessions --value); do [ "$(loginctl show-session $s -p Type --value)" = wayland ] && loginctl show-session $s -p TimestampMonotonic --value; done | sort -n | head -1); echo "LAUNCHED $a SESSION $b"; awk -v a="$a" -v b="$b" "BEGIN {g = b/1000000 - a; print \"GAP\", g; exit !(a > 0 && b > 0 && g < 2 && g > -1)}"'
+# TimestampMonotonic (greetd ends the login screen's script before it could log that itself). Measured from the LAST
+# "asking greetd to start" (2026-11-25: "launched" can be missing after a fresh login scene, and an older one was used).
+GAP='a=$(awk "/asking greetd to start/ {a=\$1} END {print a}" /tmp/taylor-greeter-times.log); b=$(for s in $(loginctl show-user tester -p Sessions --value); do [ "$(loginctl show-session $s -p Type --value)" = wayland ] && loginctl show-session $s -p TimestampMonotonic --value; done | sort -n | head -1); echo "LAUNCHED $a SESSION $b"; awk -v a="$a" -v b="$b" "BEGIN {g = b/1000000 - a; print \"GAP\", g; exit !(a > 0 && b > 0 && g < 2 && g > -1)}"'
 vm desktop-login-gap \
   "cat /tmp/taylor-greeter-times.log" \
   "$(ok 'the login screen logs where the time after her password goes' "grep -q 'password accepted' /tmp/taylor-greeter-times.log && grep -q 'launched; closing the login screen' /tmp/taylor-greeter-times.log")" \

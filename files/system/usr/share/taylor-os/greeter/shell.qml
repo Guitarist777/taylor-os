@@ -210,6 +210,7 @@ ShellRoot {
         // once this screen is gone. Before 2026-11-21 nothing closed it (the old exit command is refused by Hyprland
         // 0.57), so greetd waited its 5 s and ended it: 5 s of black after her password.
         function onLaunched() {
+            closeWatch.stop();
             root.mark("launched; closing the login screen");
             Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.exit()"]);   // Lua form (Hyprland 0.57)
         }
@@ -252,11 +253,24 @@ ShellRoot {
                     console.info("taylor-greeter: starting " + (root.kde ? "the KDE backup" : "her desktop"));
                     root.mark("welcome and fade done; asking greetd to start " + (root.kde ? "kde" : "taylor"));
                     Greetd.launch(root.kde ? root.kdeSession : root.session, root.kde ? root.kdeEnv : root.sessionEnv, true);
+                    closeWatch.start();
                 } else {
                     console.info("taylor-greeter: demo signed in");
                     root.fade = 0;   // the demo stays on "Welcome back", for the preview's picture
                 }
             }
+        }
+    }
+
+    // greetd's answer to the start can be lost the same way as a sign-in's (virtual PC run 45565559136, 2026-11-25: after
+    // a fresh login scene, no "launched" came, so nothing closed this screen and greetd waited its 5 s: 5 s of black).
+    // greetd has the start the moment it is sent (it answers in about 0.01 s), so 1 s with no answer closes the screen.
+    Timer {
+        id: closeWatch
+        interval: 1000
+        onTriggered: {
+            root.mark("greetd did not confirm the start in 1 s; closing the login screen");
+            Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.exit()"]);
         }
     }
 
