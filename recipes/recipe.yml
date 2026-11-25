@@ -23,18 +23,24 @@ modules:
       - "rpm -q terra-gamescope || rpm -q gamescope"
 
   # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
+  # PINNED to the set running on her PC (2026-11-25): that afternoon the COPR rebuilt Hyprland and its family against a new
+  # hyprgraphics (0.6 -> 0.7, library .so.5 -> .so.6) but not the title bar plugin, and in the virtual PC (run 45709330733)
+  # Hyprland then loaded no plugin: no title bars, no minimise / full screen / close. Move these together, only after the
+  # virtual PC's windows checks pass on the new set (the check after this module fails the build on any other version).
   - type: dnf
     repos:
       copr:
         - sdegler/hyprland
     install:
       packages:
-        - hyprland
-        - xdg-desktop-portal-hyprland # screen sharing and file pickers inside Hyprland
-        - hyprpolkitagent # the "enter your password" window for admin prompts
-        - hyprlock # lock screen
+        - hyprland-0.57.2-1.fc45
+        - hyprgraphics-0.6.0-1.fc45 # the library the pinned Hyprland and the plugin were built with
+        - hyprtoolkit-0.6.0-2.fc45 # hyprpolkitagent's toolkit, built with that hyprgraphics
+        - xdg-desktop-portal-hyprland-1.5.0-1.fc45 # screen sharing and file pickers inside Hyprland
+        - hyprpolkitagent-0.2.0-1.fc45 # the "enter your password" window for admin prompts
+        - hyprlock-0.9.7-1.fc45 # lock screen
         - hypridle # locks / sleeps when idle
-        - hyprpaper # the still Horizon picture under the live sky (shows if the shell ever fails)
+        - hyprpaper-0.8.5-1.fc45 # the still Horizon picture under the live sky (shows if the shell ever fails)
         - uwsm # starts Hyprland as a proper session from the login screen
         - kitty # terminal Hyprland's default config opens
         - quickshell # draws her desktop from the mockup: clock, mixer, dock, tray (from Fedora itself)
@@ -49,8 +55,13 @@ modules:
         - tuigreet # the plain text sign-in, only if her login screen fails twice (never locked out)
         - ntfs-3g # its ntfs-3g.probe tells the Windows-drive mount whether Windows is hibernated (the mount itself uses the kernel's ntfs3)
         - hyprsunset # Settings > Display, "Warmer colors at night" (Hyprland's own night-light; ddcutil and skopeo, used by Settings too, are already in Bazzite)
-        - hyprland-plugin-hyprbars # a slim title bar with minimise, full screen and close on every window (her pick 2026-11-23)
+        - hyprland-plugin-hyprbars-0.57.0-1.fc45 # a slim title bar with minimise, full screen and close on every window (her pick 2026-11-23)
         - plymouth-plugin-script # draws her boot screen (2026-11-21): her dark with nothing on it (themes/taylor)
+
+  # the pinned Hyprland set, as a check: the build stops if any other version came in
+  - type: script
+    snippets:
+      - "rpm -q hyprland-0.57.2-1.fc45 hyprgraphics-0.6.0-1.fc45 hyprtoolkit-0.6.0-2.fc45 hyprland-plugin-hyprbars-0.57.0-1.fc45 hyprlock-0.9.7-1.fc45 hyprpaper-0.8.5-1.fc45 hyprpolkitagent-0.2.0-1.fc45 xdg-desktop-portal-hyprland-1.5.0-1.fc45"
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
