@@ -263,6 +263,9 @@ PanelWindow {
         focus: win.primary
         Keys.onPressed: (event) => {
             event.accepted = true;
+            // A held key never repeats into her password (2026-11-24: her login screen refused her password twice; a slow
+            // frame can make one press look held, and the letter then counts twice). Backspace still repeats.
+            if (event.isAutoRepeat && event.key !== Qt.Key_Backspace) return;
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) win.keyEnter();
             else if (event.key === Qt.Key_Backspace) win.keyErase();
             else if (event.key === Qt.Key_Escape) win.keyEscape();
