@@ -172,6 +172,17 @@ jobs:
           python3 .github/vm/vmctl.py type '\n'
           sleep 2
           python3 .github/vm/vmctl.py shot "$PWD/out/3c-welcome-back.png"
+          # greetd's answer can arrive cut in half (a known Quickshell fault); after 8 s her login screen starts afresh and
+          # asks for her password once more, and she types it again. So does the test, only then (2026-11-25, run 45558051962).
+          sleep 14
+          python3 .github/vm/vmctl.py run tester taylortest out/3c-fresh.txt \
+            "grep -q 'fresh login scene' /tmp/taylor-greeter-times.log && ! pgrep -x -u tester Hyprland >/dev/null && echo FRESH-SCENE-ASKS-AGAIN || echo signed-in-first-time"
+          if grep -qE 'FRESH-SCENE-ASKS-AGAIN\r?$' out/3c-fresh.txt; then   # the answer, not the typed command (it ends in signed-in-first-time)
+            echo "the login screen started afresh after a lost answer; typing the password once more, as she would"
+            sleep 4
+            python3 .github/vm/vmctl.py type 'taylortest\n'
+            sleep 2
+          fi
           # her unlock (the dots rise, the desktop dial draws), then her arrival on the desktop
           for n in 3d 3e 3f 3g 3h; do
             sleep 2.5
