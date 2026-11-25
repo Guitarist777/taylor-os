@@ -1,0 +1,80 @@
+#!/usr/bin/python3 -I
+# TAYLOR OS login screen: its one line to greetd (2026-11-25). The login screen (greeter/GreetdLink.qml) writes greetd's
+# requests here as one JSON object per line, and reads greetd's answers back the same way.
+#
+# Why not Quickshell's own greetd reader: it reads each answer with one read() and never waits for the rest, so an
+# answer that arrives in two pieces is read wrong ("unexpected greetd response"), and every answer after it on that
+# connection is out of step. Her login screen then waited for an answer that never came ("greetd lost the sign-in";
+# virtual PC runs 44998803379, 45008051770, 45332474835, 45341496537, 45565559136). Here every answer is read whole:
+# its 4-byte length, then exactly that many bytes, however many pieces they come in.
+#
+# Her password passes through here on its way to greetd. Nothing here writes it down, logs it or prints it: only
+# greetd's answers go to stdout, and greetd never sends a password back.
+import json
+import os
+import socket
+import struct
+import sys
+import threading
+
+HEADER = struct.Struct("=I")   # greetd's frame: the length in this PC's own byte order, then the JSON
+
+
+def say(obj):
+    sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
+def read_exactly(sock, n):
+    buf = bytearray()
+    while len(buf) < n:
+        part = sock.recv(n - len(buf))
+        if not part:
+            raise EOFError("greetd closed the connection")
+        buf += part
+    return bytes(buf)
+
+
+def answers(sock):
+    try:
+        while True:
+            (n,) = HEADER.unpack(read_exactly(sock, HEADER.size))
+            obj = json.loads(read_exactly(sock, n))
+            if not isinstance(obj, dict):
+                raise ValueError("greetd sent something that is not an object")
+            say(obj)
+    except Exception as e:   # noqa: BLE001 - any end of the connection is reported the same way
+        say({"type": "link_closed", "why": type(e).__name__})
+        os._exit(1)
+
+
+def main():
+    path = os.environ.get("GREETD_SOCK", "")
+    if not path:
+        say({"type": "link_closed", "why": "no GREETD_SOCK"})
+        return 1
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(path)
+    except OSError as e:
+        say({"type": "link_closed", "why": type(e).__name__})
+        return 1
+    threading.Thread(target=answers, args=(sock,), daemon=True).start()
+    say({"type": "link_ready"})
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue   # never echoed: the line may hold her password
+        if not isinstance(obj, dict):
+            continue
+        data = json.dumps(obj, separators=(",", ":")).encode()
+        sock.sendall(HEADER.pack(len(data)) + data)
+    return 0   # the login screen has ended
+
+
+if __name__ == "__main__":
+    sys.exit(main())

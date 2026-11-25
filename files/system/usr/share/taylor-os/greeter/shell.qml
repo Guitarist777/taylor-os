@@ -1,14 +1,13 @@
 //@ pragma IconTheme breeze-dark
 // TAYLOR OS login screen (her designs of 2026-11-18/19): her opening, the hand-off to the night sky, and TAYLOR's dial
 // that takes her password one star at a time. One Scene per screen; the keyboard goes to the first screen.
-// greetd checks the password (Quickshell.Services.Greetd); nothing here ever writes it down, logs it or shows it.
+// greetd checks the password (through GreetdLink.qml); nothing here ever writes it down, logs it or shows it.
 // After "Welcome back" her TAYLOR desktop starts (Hyprland through uwsm, as the old login screen did).
 // Without greetd (the automatic preview) it runs as a demo: the password "taylortest" is right, anything else wrong.
 // TAYLOR_GREETER_FROM=20 starts 20 s in; TAYLOR_GREETER_TYPED=5 then types 5 letters; with
 // TAYLOR_GREETER_ANSWER=ok or wrong, it then shows that answer (the preview's frames).
 import Quickshell
 import Quickshell.Io
-import Quickshell.Services.Greetd
 import QtQuick
 
 ShellRoot {
@@ -20,6 +19,9 @@ ShellRoot {
     property bool busy: false
     property bool launching: false
     property real fade: 0
+
+    // greetd (2026-11-25: our own line to it, which reads every answer whole; see GreetdLink.qml)
+    GreetdLink { id: greetd }
 
     // Started exactly so: on 2026-11-19 wrapping it (screen cleared, its lines sent to the journal) made uwsm stop at
     // once and her login came back. uwsm's own quiet switch (UWSM_SILENT_START=1, uwsm 0.24) keeps its start-up lines
@@ -135,11 +137,11 @@ ShellRoot {
         if (pw.length === 0) { sEmpty(); return; }
         busy = true;
         sWaiting();
-        if (!Greetd.available) { demo.start(); return; }
+        if (!greetd.available) { demo.start(); return; }
         mark("password sent");
         answerWatch.tries = 0;
         answerWatch.restart();
-        Greetd.createSession(user);
+        greetd.createSession(user);
     }
     // greetd sometimes never answers a sign-in (virtual PC runs 44998803379 and 45008051770, 2026-11-22; 45332474835 and
     // 45341496537, 2026-11-24). The cause is on this side: Quickshell's greetd reader takes an answer before all of it has
@@ -156,9 +158,9 @@ ShellRoot {
         onTriggered: {
             if (!root.busy) return;
             tries += 1;
-            console.info("taylor-greeter: greetd did not answer in 8 s; state " + Greetd.state + "; starting a fresh login scene");
+            console.info("taylor-greeter: greetd did not answer in 8 s; state " + greetd.gstate + "; starting a fresh login scene");
             root.mark("greetd did not answer; fresh login scene");
-            if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
+            if (greetd.gstate !== "Inactive") greetd.cancelSession();
             root.pw = "";
             reconnectFile.running = true;
         }
@@ -195,15 +197,15 @@ ShellRoot {
     }
 
     Connections {
-        target: Greetd
+        target: greetd
         function onAuthMessage(message, error, responseRequired, echoResponse) {
-            if (responseRequired) Greetd.respond(root.pw);
+            if (responseRequired) greetd.respond(root.pw);
             else console.info("taylor-greeter: " + (error ? "error: " : "") + message);
         }
         function onAuthFailure(message) {
             root.bad("wrong password");
             // close the refused session so the next password starts a fresh one (2026-11-22)
-            if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
+            if (greetd.gstate !== "Inactive") greetd.cancelSession();
         }
         function onReadyToLaunch() { root.good(); }
         // greetd has her desktop's start in hand: close this login screen's Hyprland now; her desktop can only start
@@ -216,7 +218,7 @@ ShellRoot {
         }
         function onError(error) {
             root.bad("greetd: " + error);
-            if (Greetd.state !== GreetdState.Inactive) Greetd.cancelSession();
+            if (greetd.gstate !== "Inactive") greetd.cancelSession();
         }
     }
 
@@ -249,10 +251,10 @@ ShellRoot {
             root.fade = Math.min(1, (w - 0.9) / 0.4);
             if (root.fade >= 1) {
                 stop();
-                if (Greetd.available) {
+                if (greetd.available) {
                     console.info("taylor-greeter: starting " + (root.kde ? "the KDE backup" : "her desktop"));
                     root.mark("welcome and fade done; asking greetd to start " + (root.kde ? "kde" : "taylor"));
-                    Greetd.launch(root.kde ? root.kdeSession : root.session, root.kde ? root.kdeEnv : root.sessionEnv, true);
+                    greetd.launch(root.kde ? root.kdeSession : root.session, root.kde ? root.kdeEnv : root.sessionEnv, true);
                     closeWatch.start();
                 } else {
                     console.info("taylor-greeter: demo signed in");
