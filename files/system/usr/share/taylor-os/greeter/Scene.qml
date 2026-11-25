@@ -267,7 +267,12 @@ PanelWindow {
             else if (event.key === Qt.Key_Backspace) win.keyErase();
             else if (event.key === Qt.Key_Escape) win.keyEscape();
             else if (event.key === Qt.Key_F2) win.keyKde();
-            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) win.keyTyped(event.text);
+            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) {
+                const t = event.text;
+                if (t.toLowerCase() !== t.toUpperCase()) Eng.keyNote((t === t.toUpperCase()) !== ((event.modifiers & Qt.ShiftModifier) !== 0) ? "caps" : "nocaps");
+                win.keyTyped(t);
+            }
+            else if ((event.modifiers & Qt.KeypadModifier) && event.text === "" && [Qt.Key_Insert, Qt.Key_End, Qt.Key_Down, Qt.Key_PageDown, Qt.Key_Left, Qt.Key_Clear, Qt.Key_Right, Qt.Key_Home, Qt.Key_Up, Qt.Key_PageUp, Qt.Key_Delete].indexOf(event.key) >= 0) Eng.keyNote("num");
             else event.accepted = false;
         }
     }

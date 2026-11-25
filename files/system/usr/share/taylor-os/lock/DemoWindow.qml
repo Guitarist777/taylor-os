@@ -13,6 +13,7 @@ PanelWindow {
     signal keyErase()
     signal keyEnter()
     signal keyEscape()
+    signal keyNote(string s)
     anchors { top: true; bottom: true; left: true; right: true }
     color: "#0B0D0C"
     exclusionMode: ExclusionMode.Ignore
@@ -31,5 +32,6 @@ PanelWindow {
         onKeyErase: win.keyErase()
         onKeyEnter: win.keyEnter()
         onKeyEscape: win.keyEscape()
+        onKeyNote: (s) => win.keyNote(s)
     }
 }

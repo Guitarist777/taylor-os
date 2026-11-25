@@ -78,6 +78,7 @@ hl.config({
 
     input = {
         kb_layout    = "us",
+        numlock_by_default = true,   -- the number pad types digits at once (2026-11-24: her login screen refused two passwords)
         follow_mouse = 1,
         sensitivity  = 0,
     },

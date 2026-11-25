@@ -14,6 +14,7 @@ WlSessionLockSurface {
     signal keyErase()
     signal keyEnter()
     signal keyEscape()
+    signal keyNote(string s)
     color: "#0B0D0C"
 
     LockScene {
@@ -27,5 +28,6 @@ WlSessionLockSurface {
         onKeyErase: surf.keyErase()
         onKeyEnter: surf.keyEnter()
         onKeyEscape: surf.keyEscape()
+        onKeyNote: (s) => surf.keyNote(s)
     }
 }

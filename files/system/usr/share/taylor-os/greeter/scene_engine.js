@@ -306,18 +306,36 @@ function land(slot, born) {
     dots.push({ slot: slot, fx: fx, fy: fy, born: born, col: cols[slot % 3 === 0 ? 0 : slot % 3 === 1 ? 1 : 3], vx: 0, vy: 0, x: fx, y: fy });
 }
 
+// Her keys' state, for the hint (2026-11-24: two refused passwords at her login screen with no sign why). Caps Lock is
+// read from each letter (a capital without Shift, or a small letter with it); Num Lock off shows when a number-pad key
+// gives no digit.
+var CAPS = 'Caps Lock is on', NUM = 'Num Lock is off', caps = false;
+function plainHint() { return caps ? CAPS : dots.length ? 'Press Enter to unlock' : 'Type your password'; }
+function keyNote(s) {
+    if (s === 'num') { if (mode === 'idle' || mode === 'wrong') { hint = NUM; hintT = T; } return; }
+    var on = s === 'caps';
+    if (on === caps) return;
+    caps = on;
+    if (mode === 'idle' && (hint === CAPS || hint === 'Press Enter to unlock' || hint === 'Type your password')) hint = plainHint();
+}
+// A key while the dial still shakes from a wrong password: the shake ends now, so each letter she types gets its dot
+// (before, letters typed in that second and a half counted without a dot, and the dots no longer matched her password).
+function endShake() { if (mode === 'wrong') { dots = []; shuffle(); mode = 'idle'; hint = 'Type your password'; } }
+
 // Each letter: a dot (up to 24; the letters beyond still count, they just add no dot).
 function addChar() {
+    endShake();
     if (mode !== 'idle') return;
     if (free.length) { var q = Math.floor(Math.random() * free.length), slot = free.splice(q, 1)[0]; land(slot, T); }
-    hint = 'Press Enter to unlock';
+    hint = caps ? CAPS : 'Press Enter to unlock';
 }
 function delChar(left) {
+    endShake();
     if (mode !== 'idle') return;
     if (dots.length > left) { var d = dots.pop(); free.push(d.slot); }
-    if (left === 0) hint = 'Type your password';
+    if (left === 0) hint = plainHint();
 }
-function clearAll() { if (mode !== 'idle') return; dots = []; shuffle(); hint = 'Type your password'; }
+function clearAll() { endShake(); if (mode !== 'idle') return; dots = []; shuffle(); hint = plainHint(); }
 function emptyEnter() { hint = 'Type a password first'; hintT = T; }
 
 // Enter: the arcs quicken while the password is checked.
@@ -530,6 +548,7 @@ function drawLogin(x, dt) {
     if (mode === 'wrong' && e > 1.5) { dots = []; shuffle(); mode = 'idle'; }
     if (mode === 'idle' && hint === 'Not quite. Try again.' && e > 3.2) hint = 'Type your password';
     if (hint === 'Type a password first' && T - hintT > 2.2) hint = 'Type your password';
+    if (hint === NUM && T - hintT > 2.5) hint = mode === 'idle' ? plainHint() : '';
 
     if (x.gpu) x.toTop();   // her name and the hint are over the dial and its pulse
     if (N > 0) {

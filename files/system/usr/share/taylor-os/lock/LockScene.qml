@@ -22,6 +22,7 @@ Item {
     signal keyErase()
     signal keyEnter()
     signal keyEscape()
+    signal keyNote(string s)     // Caps Lock / Num Lock, for the hint on the main screen's dial
 
     property bool started: false
     property double startedMs: 0
@@ -71,6 +72,7 @@ Item {
     function waiting() { if (primary) Eng.waiting(); }
     function accepted() { if (primary) Eng.accepted(); }
     function rejected() { if (primary) Eng.rejected(); }
+    function note(s) { if (primary) Eng.keyNote(s); }
     function welcomeFor() { return Eng.welcomeFor(); }
 
     FontLoader {
@@ -162,7 +164,12 @@ Item {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) sc.keyEnter();
             else if (event.key === Qt.Key_Backspace) sc.keyErase();
             else if (event.key === Qt.Key_Escape) sc.keyEscape();
-            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) sc.keyTyped(event.text);
+            else if (event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier)) {
+                const t = event.text;
+                if (t.toLowerCase() !== t.toUpperCase()) sc.keyNote((t === t.toUpperCase()) !== ((event.modifiers & Qt.ShiftModifier) !== 0) ? "caps" : "nocaps");
+                sc.keyTyped(t);
+            }
+            else if ((event.modifiers & Qt.KeypadModifier) && event.text === "" && [Qt.Key_Insert, Qt.Key_End, Qt.Key_Down, Qt.Key_PageDown, Qt.Key_Left, Qt.Key_Clear, Qt.Key_Right, Qt.Key_Home, Qt.Key_Up, Qt.Key_PageUp, Qt.Key_Delete].indexOf(event.key) >= 0) sc.keyNote("num");
             else event.accepted = false;
         }
     }

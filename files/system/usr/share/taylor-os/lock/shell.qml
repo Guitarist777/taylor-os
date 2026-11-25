@@ -83,6 +83,7 @@ ShellRoot {
                 onKeyErase: root.erase()
                 onKeyEnter: root.submit()
                 onKeyEscape: root.clear()
+                onKeyNote: (s) => root.each((x) => x.note(s))
                 Component.onCompleted: root.surfaces.push(ls.scene)
             }
         }
@@ -101,6 +102,7 @@ ShellRoot {
                 onKeyErase: root.erase()
                 onKeyEnter: root.submit()
                 onKeyEscape: root.clear()
+                onKeyNote: (s) => root.each((x) => x.note(s))
                 Component.onCompleted: root.surfaces.push(scene)
             }
         }
