@@ -169,7 +169,7 @@ if not taylorOk then taylor_windows_error = tostring(taylorErr) end
 -- ignores an app's own minimise button (tested on her PC: no event at all). So Hyprland's own title bar plugin (hyprbars)
 -- draws a slim bar on each window with minimise, full screen and close, and those three call TAYLOR's own (windows.lua):
 -- minimise hides the window until the dock or the window switcher brings it back. Apps that draw their own bar
--- (browsers, Steam) get none, so there are never two.
+-- (browsers, Steam) get none, so there are never two. Spotify draws none on Linux, so it gets the bar (her report 2026-11-25).
 pcall(function()
     hl.plugin.load("/usr/lib64/hyprland/libhyprbars.so")
     hl.config({ plugin = { hyprbars = {
@@ -185,6 +185,6 @@ pcall(function()
         action = [[hyprctl eval 'if taylor and taylor.squareActive then taylor.squareActive() end']] })
     hb.add_button({ bg_color = "rgba(2a302dff)", fg_color = "rgba(edefeeff)", size = 16, icon = "–",
         action = [[hyprctl eval 'if taylor and taylor.minimize then taylor.minimize(hl.get_active_window()) end']] })
-    hl.window_rule({ name = "taylor-own-bars", match = { class = [[^(firefox|org\.mozilla\.firefox|google-chrome|chromium.*|microsoft-edge.*|steam|Spotify|spotify|com\.spotify\.Client|com\.mitchellh\.ghostty)$]] }, ["hyprbars:no_bar"] = true })
+    hl.window_rule({ name = "taylor-own-bars", match = { class = [[^(firefox|org\.mozilla\.firefox|google-chrome|chromium.*|microsoft-edge.*|steam|com\.mitchellh\.ghostty)$]] }, ["hyprbars:no_bar"] = true })
 end)
 

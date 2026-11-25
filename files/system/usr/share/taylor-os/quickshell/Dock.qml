@@ -70,7 +70,8 @@ Scope {
         terminal:  { name: "Terminal", icons: ["kitty", "utilities-terminal"], desktop: "kitty", run: ["kitty"], match: /^kitty$/i },
         steam:     { name: "Steam", icons: ["steam"], desktop: "steam", run: ["steam"], need: true, match: /^steam$/i },
         ea:        { name: "EA", icons: ["ea-app", "lutris_ea-app", "9AD6_Origin"], lutris: "ea-app", need: true, match: /^(eadesktop|ealauncher|origin)(\.exe)?$/i },
-        battlenet: { name: "Battle.net", icons: ["Battle.net", "lutris_battlenet"], lutris: "battlenet", need: true, match: /^battle\.net(\.exe)?$/i },
+        battlenet: { name: "Battle.net", icons: ["lutris_battlenet", "Battle.net"],   // the blue one: her set's is silver, and read as "not installed" (her report 2026-11-25)
+                   lutris: "battlenet", need: true, match: /^battle\.net(\.exe)?$/i },
         spotify:   { name: "Spotify", icons: ["spotify", "com.spotify.Client"], desktop: "com.spotify.Client", flatpak: "com.spotify.Client", match: /^(spotify|com\.spotify\.client)$/i },
         messages:  { name: "Messages", tip: "Messages for web", icons: ["taylor-messages"], desktop: "taylor-messages", run: ["/usr/libexec/taylor-open-messages"], match: /messages\.google\.com/i, orTitle: /Messages for web/i },
         mixer:     { name: "Mixer", icons: ["multimedia-volume-control", "audio-card"], match: /quickshell/i, andTitle: /^Mixer$/ },
