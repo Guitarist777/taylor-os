@@ -171,9 +171,9 @@ ShellRoot {
         busy = false;
         launching = true;
         console.info("taylor-lock: password accepted");
-        sAccepted();
+        alwaysIn.start();          // first: nothing after this line can keep her locked
         finishWatch.start();
-        alwaysIn.start();
+        sAccepted();
     }
     function bad(why) {
         pw = "";

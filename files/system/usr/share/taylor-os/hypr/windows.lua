@@ -260,7 +260,39 @@ function T.maximizeAsked(w)
     end
     T.dirty = true
 end
-hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w) end)
+hl.on("window.fullscreen", function(w) pcall(T.maximizeAsked, w); pcall(T.noteWanted, w) end)
+
+-- Each window gets back the full screen or full size it had when she switches to it (her report 2026-11-26: with her
+-- terminal squared, going back to Deadlock left the game in a small window and the terminal filling the screen, "super
+-- hard to get it to go away"). Hyprland keeps one full screen per workspace, so squaring one window takes it from the
+-- other. What a window had is remembered while another one takes it, and given back when she comes to it again; when
+-- she (or the app) ends it on the window she is in, it is forgotten.
+T.want = T.want or {}             -- address -> 2 (true full screen) or 1 (full size)
+local function fresh(w)
+    if not w or not w.address then return nil end
+    for _, x in ipairs(hl.get_windows() or {}) do if x.address == w.address then return x end end
+    return nil
+end
+function T.noteWanted(w)
+    w = fresh(w)
+    if not w then return end
+    local fs = w.fullscreen or 0
+    local a = hl.get_active_window()
+    if fs == 2 or fs == 1 then T.want[w.address] = fs
+    elseif a and a.address == w.address and not T.restoring then T.want[w.address] = nil end
+end
+function T.restoreWanted(w)
+    w = fresh(w)
+    if not w then return end
+    local want = T.want[w.address]
+    if not want or (w.fullscreen or 0) == want or (T.drag and T.drag.moving) then return end
+    T.restoring = true
+    dsp(hl.dsp.window.fullscreen({ window = w, mode = (want == 2) and "fullscreen" or "maximized", action = "set" }))
+    T.restoring = false
+    log("given back its " .. ((want == 2) and "full screen" or "full size") .. ": " .. tostring(w.class))
+    T.dirty = true
+end
+hl.on("window.active", function(w) pcall(T.restoreWanted, w) end)
 
 -- Windows key + arrows, composed the way Windows does it
 local NEXT = {
@@ -383,17 +415,23 @@ end
 -- the very bottom edge, the clock and tray until it goes up past theirs. Sent only when something changes.
 T.cover = T.cover or {}
 local REVEAL_OUT = 110
+-- Over a TRUE full-screen window (a game) the pointer must rest at the edge for about half a second before the dock or
+-- the clock come back (her report 2026-11-26: over Deadlock the top bar was "touchy", dropping in whenever the pointer
+-- brushed the top). Over a snapped or squared window a touch is still enough, as before.
+local DWELL = 12                  -- ticks of 40 ms
+T.edgeT = T.edgeT or {}           -- monitor -> ticks the pointer has rested at the top edge
+T.edgeB = T.edgeB or {}           -- monitor -> the same at the bottom edge
 local function near(a, b) return math.abs(a - b) <= 3 end
 local function coverTick(cur)
     local all = hl.get_windows() or {}
     for _, m in ipairs(hl.get_monitors() or {}) do
         local ws = m.active_workspace
-        local top, br, mx = false, false, false
+        local top, br, mx, full = false, false, false, false
         if ws then
             for _, w in ipairs(all) do
                 if w.workspace and w.workspace.id == ws.id and w.mapped and not w.hidden then
                     local fs = w.fullscreen or 0
-                    if fs >= 2 then top = true; br = true
+                    if fs >= 2 then top = true; br = true; full = true
                     elseif fs == 1 and T.squared[w.address] then top = true; br = true; mx = true
                     else
                         local s = T.snaps[w.address]
@@ -416,12 +454,23 @@ local function coverTick(cur)
         local py = cur.y - my
         local dragging = T.drag and T.drag.moving
         local rt, rb = c.rt, c.rb
-        if not top or dragging or not here then rt = false
-        elseif py <= 1 then rt = true
-        elseif py > REVEAL_OUT then rt = false end
-        if not br or dragging or not here then rb = false
-        elseif py >= H - 2 then rb = true
-        elseif py < H - REVEAL_OUT then rb = false end
+        local n = m.name
+        if not top or dragging or not here then rt = false; T.edgeT[n] = 0
+        elseif py <= 1 then
+            T.edgeT[n] = (T.edgeT[n] or 0) + 1
+            if not full or T.edgeT[n] >= DWELL then rt = true end
+        else
+            T.edgeT[n] = 0
+            if py > REVEAL_OUT then rt = false end
+        end
+        if not br or dragging or not here then rb = false; T.edgeB[n] = 0
+        elseif py >= H - 2 then
+            T.edgeB[n] = (T.edgeB[n] or 0) + 1
+            if not full or T.edgeB[n] >= DWELL then rb = true end
+        else
+            T.edgeB[n] = 0
+            if py < H - REVEAL_OUT then rb = false end
+        end
         if T.dirty or c.top ~= top or c.br ~= br or c.rt ~= rt or c.rb ~= rb or c.mx ~= mx then
             T.cover[m.name] = { top = top, br = br, rt = rt, rb = rb, mx = mx }
             emit(string.format("cover %s %d %d %d %d %d", m.name, top and 1 or 0, br and 1 or 0, rt and 1 or 0, rb and 1 or 0, mx and 1 or 0))
@@ -471,7 +520,7 @@ if T.timer then pcall(function() T.timer:set_enabled(false) end) end
 T.timer = hl.timer(tick, { timeout = 40, type = "repeat" })
 
 -- a closed window forgets its place
-hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; T.dirty = true end end)
+hl.on("window.destroy", function(w) if w and w.address then T.snaps[w.address] = nil; if T.squared then T.squared[w.address] = nil end; if T.want then T.want[w.address] = nil end; T.dirty = true end end)
 
 function T.bind_buttons(on)
     if T.btn_binds then for _, bd in ipairs(T.btn_binds) do pcall(function() bd:remove() end) end end

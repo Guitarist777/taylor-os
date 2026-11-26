@@ -16,7 +16,7 @@ SW=${SW:-1280}; SH=${SH:-800}
 for p in "300 600" "320 620" "640 700"; do $V move $p $SW $SH; sleep 0.7; done
 vm mixer-pointer "hyprctl cursorpos"
 
-expect mixer 31
+expect mixer 32
 vm mixer-channels \
   "$(ok 'the mixer channels Game, Chat, Media and Aux exist in PipeWire' "test \$(pw-cli ls Node | grep -cE 'node.name = \"taylor_(game|chat|media|aux)(\\.out)?\"') -eq 8")" \
   "$(ok 'the desktop mixer is on her screen' "hyprctl layers | grep -q taylor-mixer")" \
@@ -25,6 +25,10 @@ vm mixer-channels \
   "$(ok 'channels with nothing playing are marked quiet' "~/mx t \"d['ch']['game']['playing'] and not d['ch']['aux']['playing']\"")" \
   "~/mx q state" "~/mx at w:mute:game" "pw-link -l | grep -A2 '^taylor_' | head -40"
 shot mixer-widget
+# a Windows game through Proton names no role for its sound (Deadlock, 2026-11-26: it went to Media)
+vm mixer-proton "~/mx tone probe.exe 550 Music; sleep 4" \
+  "$(ok 'a Windows game through Proton lands in Game' "~/mx t \"'probe.exe' in d['ch']['game']['apps']\"")" \
+  "~/mx untone probe.exe"
 
 # mute Game from the desktop mixer (its green dot), and back
 at=$(tr -d '\r' < out/mixer-channels.txt | grep -oE 'AT [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)

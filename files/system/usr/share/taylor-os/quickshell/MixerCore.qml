@@ -242,6 +242,13 @@ Singleton {
     // ---- routing ----
     property var handled: ({})         // stream id -> true, once routed
     function targetName(n) { const p = n.properties || {}; return String(p["target.object"] || p["node.target"] || ""); }
+    // A Windows game run through Proton (Deadlock: "deadlock.exe") never names its sound a game, so with no rule of hers
+    // it went to Media (2026-11-26). A Windows program's sound, or Wine's, goes to Game unless she moved it elsewhere.
+    function looksLikeGame(p) {
+        const bin = String(p["application.process.binary"] || "").toLowerCase();
+        const name = String(p["application.name"] || "").toLowerCase();
+        return /\.exe$/.test(bin) || /\.exe$/.test(name) || /^(wine|wine64|wine-preloader|wine64-preloader)$/.test(bin);
+    }
     function route(n) {
         if (!n || !n.ready || handled[n.id]) return;
         const p = n.properties || {};
@@ -255,7 +262,8 @@ Singleton {
         else {
             const t = targetName(n), role = String(p["media.role"] || "");
             if (t !== "") return;                         // a first guess of the rules, or the app's own choice
-            to = role === "Game" ? "taylor_game" : (role === "Communication" || role === "Phone") ? "taylor_chat" : "taylor_media";
+            to = (role === "Game" || looksLikeGame(p)) ? "taylor_game"
+               : (role === "Communication" || role === "Phone") ? "taylor_chat" : "taylor_media";
         }
         if (targetName(n) === to) return;
         Quickshell.execDetached(["pw-metadata", String(n.id), "target.object", to]);

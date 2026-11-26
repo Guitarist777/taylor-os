@@ -2,7 +2,7 @@
 # with the dock and clock stepping away and coming back at the edges, a drag to the left edge with the dotted outline,
 # a snapped window dragged away floats again, workspaces slide with the dots following, less motion, the scheme colour.
 . .github/vm/checks/lib.sh
-expect windows 41
+expect windows 42
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # the helper that reads Hyprland's real state, sent into the virtual PC in one line
 HELPER=$(gzip -9c .github/vm/checks/windows_helper.py | base64 -w0)
@@ -60,6 +60,11 @@ vm windows-full \
   "$(ok 'Windows key + F puts the window in true full screen' "python3 /tmp/w.py fullscreen")" \
   "$(ok 'the dock is not shown over a full-screen window' "python3 /tmp/w.py layer taylor-dock absent")" \
   "$(ok 'the clock and tray are not shown over a full-screen window' "python3 /tmp/w.py layer taylor-tray absent")"
+# a brush of the top edge (a game's menus, a flick of the mouse) does not bring the dock over a full-screen window;
+# resting there does (her report 2026-11-26: the top bar was "touchy" over Deadlock)
+$V move $((W/2)) 0 $W $HH; sleep 0.15; $V move $((W/2)) $((HH/2)) $W $HH; sleep 1.5
+vm windows-dock-brush \
+  "$(ok 'a brush of the top edge leaves the full-screen window alone' "python3 /tmp/w.py layer taylor-dock absent")"
 $V move $((W/2)) 0 $W $HH; sleep 2
 shot windows-3-dock-back
 vm windows-dock-back \
