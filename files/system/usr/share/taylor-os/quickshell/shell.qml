@@ -93,8 +93,8 @@ ShellRoot {
         // the same as picking "Ask TAYLOR" in her launcher (for the checks)
         function ask(text: string): void { her.ask(text); }
         // her panel (for the checks)
-        function show(): void { her.show(); }
-        function hide(): void { her.hide(); }
+        function open(): void { her.show(); }      // not "show": quickshell ipc keeps that word for itself (ipc show lists the targets)
+        function close(): void { her.hide(); }
         function panel(): string { return "open=" + her.open + " wants=" + her.wants + " thinking=" + her.thinking + " down=" + her.down + " messages=" + her.msgs.length + " private=" + her.privateOn + " view=" + her.view + " ping=" + her.pinged; }
         function send(text: string): void { her.send(text); }
         function priv(on: bool): void { her.privateOn = on; }

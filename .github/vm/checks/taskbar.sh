@@ -122,7 +122,7 @@ vm taskbar-unlock \
 $V click "${XS[0]}" "$DY" "$SW" "$SH"; sleep 4
 vm taskbar-dial \
   "$(ok 'the dial on the dock opens TAYLOR beside her dial (not the launcher)' "$QL | grep -q \"taylor-dock: the dial opens TAYLOR's window\" && $QL | grep -q 'taylor-panel: open' && ! hyprctl layers | grep -q taylor-launcher")" \
-  "$QL | grep -E 'the dial opens|taylor-panel: open' | tail -2; \$Q call taylor hide; sleep 1" \
+  "$QL | grep -E 'the dial opens|taylor-panel: open' | tail -2; \$Q call taylor close; sleep 1" \
   "pkill -u tester -f -i firefox; for p in \$(hyprctl -j clients | python3 -c 'import json,sys; print(\" \".join(str(c[\"pid\"]) for c in json.load(sys.stdin) if not c[\"class\"]))'); do kill \$p; done; sleep 1; hyprctl clients | grep -c '^Window' || true"
 
 # Gaming mode (her pick S4, 2026-11-22): a full-screen game (here a window that says it is Steam game 123) turns it on;

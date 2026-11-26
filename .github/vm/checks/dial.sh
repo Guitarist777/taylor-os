@@ -86,10 +86,10 @@ vm dial-7 \
   "\$Q call taylor panel"
 shot dial-6-two-waiting
 sleep 10
-vm dial-7b "$(ok 'the Got a sec? line tucks away after about 9 s while she keeps wanting' "\$Q call taylor panel | grep -q 'wants=true ' && \$Q call taylor panel | grep -q 'ping=false'")" "\$Q call taylor show; sleep 3; \$Q call taylor last" \
+vm dial-7b "$(ok 'the Got a sec? line tucks away after about 9 s while she keeps wanting' "\$Q call taylor panel | grep -q 'wants=true ' && \$Q call taylor panel | grep -q 'ping=false'")" "\$Q call taylor open; sleep 3; \$Q call taylor last" \
   "$(ok 'opening her shows what she wanted as her first message' "\$Q call taylor last | grep -q '^her|instant|' && \$Q call taylor panel | grep -q 'wants=false '")"
 shot dial-6b-what-she-wanted
-vm dial-7c "\$Q call taylor hide; sleep 1; echo hidden"
+vm dial-7c "\$Q call taylor close; sleep 1; echo hidden"
 vm dial-8 "printf '{\"up\": true, \"thinking\": false, \"waiting\": 0, \"since\": 0}' > /tmp/state.json; sleep 4.5; \$Q call taylor state"
 
 # Ask TAYLOR from her launcher, with the keys she would press
