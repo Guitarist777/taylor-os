@@ -29,6 +29,7 @@ PanelWindow {
     property bool showLine: true      // her "Status line" setting
     property bool busy: false         // a moment after she picked something: the arcs turn faster
     property bool thinking: false     // TAYLOR is thinking: faster arcs, dots swirling inside
+    property bool wants: false        // TAYLOR wants Jessica (TaylorPanel.qml): a bright glint goes round her ring and the band pulses
     property bool stepAside: false    // the launcher is open and draws the dial itself
     property var notes: []            // her notifications (shell.qml): {t, b, st: in | fade | out, t0}
     property int waiting: 0           // how many are waiting (st "in")
@@ -84,6 +85,22 @@ PanelWindow {
             const cx = win.ext + win.side, cy = win.ext, k = win.sp.k, R = win.sp.r;
             const rot = still ? win.stillAngle : Dial.arcAngle() + win.spin;
             Dial.draw(x, cx, cy, R, 1, 1, 1, Math.max(0.7 * kk, 0.6 * tk), rot, still ? 0 : T);
+
+            // she wants Jessica (her preview's lineDial: wave and glint): the band pulses, a bright glint travels round the ring
+            if (win.wants && tk < 0.5) {
+                const kd = R / 30;
+                x.strokeStyle = acc; x.lineWidth = 7 * kd;
+                x.globalAlpha = 0.07 * (0.5 + 0.5 * Math.sin(T * 2.6)) * (still ? 0.6 : 1);
+                x.beginPath(); x.arc(cx, cy, R, 0, 6.2832); x.stroke();
+                const ga = still ? -1.5708 : T * 2.2;
+                const gx = cx + Math.cos(ga) * R, gy = cy + Math.sin(ga) * R;
+                const glow = x.createRadialGradient(gx, gy, 0, gx, gy, R * 0.16);
+                const gc = win.theme.mix(acc, win.theme.text, 0.5), rgb = Math.round(gc.r * 255) + "," + Math.round(gc.g * 255) + "," + Math.round(gc.b * 255);
+                glow.addColorStop(0, "rgba(" + rgb + ",0.55)"); glow.addColorStop(1, "rgba(" + rgb + ",0)");
+                x.globalAlpha = 1; x.fillStyle = glow; x.beginPath(); x.arc(gx, gy, R * 0.16, 0, 6.2832); x.fill();
+                x.fillStyle = win.theme.mix(acc, win.theme.text, 0.5); x.beginPath(); x.arc(gx, gy, R * 0.045, 0, 6.2832); x.fill();
+                x.globalAlpha = 1;
+            }
 
             // thinking: five dots swirl inside her dial (her tour's orbit(tx, ty, R * 0.34, 5, T, tk, 2.6, 3.4))
             if (tk > 0.002) {

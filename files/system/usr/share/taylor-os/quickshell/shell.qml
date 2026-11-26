@@ -20,10 +20,12 @@
 // oldest away. Only counts go to the log, never what a notification says. A notification that carries a progress value
 // (the "value" hint) is drawn as the filling ring by the clock (Progress.qml) instead of a dot.
 //
-// TAYLOR herself (Taylor.qml, the one hook to her assistant at 127.0.0.1:8080): while she is thinking the dial says
-// "THINKING." and dots swirl inside it; what she has waiting is counted with the notifications ("2 NEW.") and is one
-// line in the list (a click opens her page). Ask TAYLOR in the launcher hands the question to her. When TAYLOR is not
-// running nothing changes on the dial.
+// TAYLOR herself (Taylor.qml reads her state from her server at 127.0.0.1:8080; TaylorPanel.qml is her, "Beside her",
+// in the desktop itself, her brief of 2026-11-25): while she is thinking the dial says "THINKING." and dots swirl inside
+// it; when something new of hers is waiting she wants Jessica (a glint round her ring, "1 THING IS WAITING.", her dot by
+// the clock blinking, "TAYLOR · Got a sec?" above the clock for about 9 s). Her dial, her dock slot, her dot, that line,
+// her line in the list and Ask TAYLOR in the launcher all open her panel. When TAYLOR is not running nothing changes on
+// the dial and her panel says she is waking up.
 // Loading (Loading.qml): circling dots by the pointer until an app she picked opens its window.
 import Quickshell
 import Quickshell.Io
@@ -53,13 +55,17 @@ ShellRoot {
 
     // ---- TAYLOR herself ----
     Taylor { id: taylor }
-    readonly property bool thinking: taylor.thinking || askThinking
+    // her panel, "Beside her" (TaylorPanel.qml, her brief 2026-11-25): her dial, her dock slot, her dot by the clock, the
+    // "Got a sec?" line and Ask TAYLOR all open it
+    TaylorPanel { id: her; screen: root.mainScreen; theme: root.c; waiting: taylor.waiting; thinkingElsewhere: taylor.thinking; status: root.dialLine }
+    readonly property bool thinking: taylor.thinking || askThinking || her.thinking
     // her count: each notification waiting, plus everything TAYLOR has waiting (her one line stands for all of them)
     readonly property int waitingAll: { notesRev; return notes.filter((n) => n.st === "in" && !n.taylor).length + ((taylorNote && taylorNote.st === "in") ? taylor.waiting : 0); }
     // the line under her: what she just did, then a sequence's own word (GOODNIGHT.), then thinking, then what waits
     readonly property string dialLine: dialBusy && !askThinking ? dialStatus
         : dialStatus !== "ALL CLEAR." && !askThinking ? dialStatus
         : thinking ? "THINKING."
+        : her.wants ? (taylor.waiting > 1 ? taylor.waiting + " THINGS ARE WAITING." : "1 THING IS WAITING.")
         : waitingAll === 1 ? "ONE NEW." : waitingAll > 1 ? waitingAll + " NEW." : "ALL CLEAR."
     onDialLineChanged: console.info("taylor-desktop: status " + dialLine)
     // what TAYLOR has waiting is one line in her list (and so one dot and part of the count)
@@ -85,7 +91,14 @@ ShellRoot {
         target: "taylor"
         function state(): string { return "up=" + taylor.up + " thinking=" + taylor.thinking + " waiting=" + taylor.waiting + " line=" + root.dialLine; }
         // the same as picking "Ask TAYLOR" in her launcher (for the checks)
-        function ask(text: string): void { root.askThinking = true; root.dialBusy = true; statusBack.restart(); taylor.ask(text); }
+        function ask(text: string): void { her.ask(text); }
+        // her panel (for the checks)
+        function show(): void { her.show(); }
+        function hide(): void { her.hide(); }
+        function panel(): string { return "open=" + her.open + " wants=" + her.wants + " thinking=" + her.thinking + " down=" + her.down + " messages=" + her.msgs.length + " private=" + her.privateOn + " view=" + her.view + " ping=" + her.pinged; }
+        function send(text: string): void { her.send(text); }
+        function priv(on: bool): void { her.privateOn = on; }
+        function last(): string { const m = her.msgs[her.msgs.length - 1]; return m ? (m.me ? "me" : "her") + "|" + (m.tag || "") + "|" + m.text.length : ""; }
     }
     IpcHandler {
         target: "launcher"
@@ -115,7 +128,7 @@ ShellRoot {
     function noteDismiss(n) {
         if (!n || n.st !== "in") return;
         n.st = "fade"; n.t0 = Date.now() / 1000; notesRev++;
-        if (n.taylor) { taylorSeen = taylor.waiting; taylor.openPage(taylor.base + "/"); console.info("taylor-notes: her TAYLOR line opens her page"); return; }
+        if (n.taylor) { taylorSeen = taylor.waiting; her.show(); console.info("taylor-notes: her TAYLOR line opens her"); return; }
         const s = n.src; n.src = null;
         if (s) { try { s.dismiss(); } catch (e) {} }
     }
@@ -163,10 +176,12 @@ ShellRoot {
     // Her dial opens TAYLOR's window (her ask, 2026-11-21: "her whole window, as on the Mac and Windows"): the TAYLOR app, or her page.
     // Before, it opened the launcher (now Windows key + Space and the dock's dial) or, with some waiting, their list (now the count by
     // the clock; and what waits is on her Home in that window too).
+    // 2026-11-25 (her brief, "TAYLOR in TaylorOS"): she opens beside her dial, in the desktop itself (TaylorPanel.qml), not
+    // in a separate app.
     function dialClicked() {
-        console.info("taylor-desktop: the dial opens TAYLOR's window");
+        console.info("taylor-desktop: the dial opens TAYLOR");
         listOpen = false; launcherOpen = false;
-        Quickshell.execDetached(["sh", "-c", "/usr/libexec/taylor-open-app 2>&1 | logger -t taylor-open-app"]);
+        her.show();
     }
     function toggleList() {
         if (!listOpen && Date.now() - listShutAt < 400) return;
@@ -246,7 +261,7 @@ ShellRoot {
     Dial {
         screen: root.mainScreen; theme: root.c; arrive2: root.arriveU2
         visible: Prefs.showTaylor
-        status: away.active ? "STILL THERE?" : root.dialLine; busy: root.dialBusy; thinking: root.thinking
+        status: away.active ? "STILL THERE?" : root.dialLine; busy: root.dialBusy; thinking: root.thinking; wants: her.wants
         showLine: Prefs.statusLine
         stepAside: root.launcherO > 0.001
         notes: root.notes; waiting: root.notesWaiting; kickAt: root.kickAt; whisper: root.whisper
@@ -271,7 +286,9 @@ ShellRoot {
         screen: root.mainScreen; theme: root.c; arrive: root.arriveU2
         id: tray
         waiting: root.waitingAll
+        wants: her.wants
         onCountClicked: root.toggleList()
+        onTaylorClicked: her.show()
     }
     Progress { screen: root.mainScreen; theme: root.c; id: progress; trayWidth: tray.implicitWidth }
     Loading { screen: root.mainScreen; theme: root.c; id: loading }
@@ -337,7 +354,7 @@ ShellRoot {
             if (kind === "App" || kind === "File" || kind === "Folder") loading.start();
         }
         onPickedApp: (id) => taskbar.opening(id)
-        onAsk: (text) => taylor.ask(text)
+        onAsk: (text) => her.ask(text)
         onToggleMixer: mixerWindow.open = true
     }
 }

@@ -1,0 +1,224 @@
+#!/usr/bin/python3 -I
+# TAYLOR OS: the desktop's one line to TAYLOR for her panel (her brief, "TAYLOR in TaylorOS", approved 2026-11-25). Her panel
+# (quickshell/TaylorPanel.qml) writes requests here as one JSON object per line and reads TAYLOR's answers back the same way.
+#
+# Why a helper and not the panel itself: the panel must never hold a key. This holds the desktop's own device key and is the
+# only thing that sends it. The key is made once, on this PC, by TAYLOR's /devices/local-pair door from TAYLOR's own sign-in
+# (TAYLOR_TOKEN in ~/.config/taylor/taylor.env, mode 600), and kept in ~/.config/taylor/desktop-device.token (mode 600).
+# A paired device is hers by identity, so what she types in the panel is an ordinary turn of hers, exactly as from her page.
+# Nothing here prints, logs or passes on a key or anything she types; stdout carries only TAYLOR's answers.
+#
+# Requests (stdin):
+#   {"op": "chat", "id": N, "text": "...", "private": bool}   her message; TAYLOR's streamed events come back with "id": N
+#   {"op": "home"}                                           her My day: {"type": "home", "cover", "head", "detail", "cards": [...], "needs": {...}}
+#   {"op": "history", "n": 20}                               the conversation so far: {"type": "history", "turns": [{"me", "text", "tag"}]}
+# Answers (stdout): {"type": "ready"} once the key works; TAYLOR's own chat events ({"type": "token" | "stage" | "reset" | "done", ...});
+#   {"type": "failed", "id": N, "why": "..."}; {"type": "down"} when TAYLOR is not answering (the panel says she is waking up).
+import json
+import os
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+
+BASE = os.environ.get("TAYLOR_BASE", "http://127.0.0.1:8080")
+CFG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "taylor")
+ENV = os.path.join(CFG, "taylor.env")
+KEYFILE = os.path.join(CFG, "desktop-device.token")
+_out = threading.Lock()
+_key = [None]
+
+
+def say(obj):
+    with _out:
+        sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
+        sys.stdout.flush()
+
+
+def shared_sign_in():
+    try:
+        with open(ENV, encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("export "):
+                    s = s[7:].strip()
+                if s.startswith("TAYLOR_TOKEN="):
+                    v = s.split("=", 1)[1].strip().strip("'\"")
+                    return v or None
+    except OSError:
+        return None
+    return None
+
+
+def call(method, path, body=None, key=None, timeout=20):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(BASE + path, data=data, method=method)
+    req.add_header("Authorization", "Bearer " + (key or _key[0] or ""))
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def pair():
+    """A new device key for the desktop, made on this PC from TAYLOR's own sign-in. True when it worked."""
+    shared = shared_sign_in()
+    if not shared:
+        return False
+    try:
+        with call("POST", "/devices/local-pair", {"who": "desktop"}, key=shared, timeout=10) as r:
+            got = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+    tok = got.get("token") if isinstance(got, dict) else None
+    if not isinstance(tok, str) or not tok.startswith("tdv_"):
+        return False
+    os.makedirs(CFG, exist_ok=True)
+    fd = os.open(KEYFILE + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(tok)
+    os.replace(KEYFILE + ".new", KEYFILE)
+    _key[0] = tok
+    return True
+
+
+def load_key():
+    try:
+        with open(KEYFILE, encoding="utf-8") as f:
+            k = f.read().strip()
+            return k or None
+    except OSError:
+        return None
+
+
+def key_works():
+    try:
+        with call("GET", "/whoami", timeout=8) as r:
+            return r.status == 200
+    except urllib.error.HTTPError:
+        return False
+    except (urllib.error.URLError, OSError):
+        raise ConnectionError
+
+
+def connect():
+    """Until TAYLOR answers and the desktop's key works: say "down" (once) while she is away."""
+    said_down = False
+    while True:
+        _key[0] = load_key()
+        try:
+            if (_key[0] and key_works()) or (pair() and key_works()):
+                say({"type": "ready"})
+                return
+        except ConnectionError:
+            pass
+        if not said_down:
+            say({"type": "down"})
+            said_down = True
+        time.sleep(5)
+
+
+def tag(model, category):
+    model = str(model or "")
+    names = {"claude-sonnet-5-5": "Sonnet 5.5", "claude-opus-5-5": "Opus 5.5", "claude-fable-5-1": "Fable 5.1"}
+    if model in ("hosted_vllm/glm-5.3", "hosted_vllm/glm-5.3-flash"):
+        short = "GLM-5.3 (private chamber)"
+    else:
+        m = model.split("/")[-1]
+        short = names.get(m, m)
+    if model == "instant":
+        return "instant"
+    return short + " · " + str(category or "chat")
+
+
+def chat(req):
+    rid = req.get("id")
+    body = {"message": str(req.get("text") or ""), "private": bool(req.get("private"))}
+    for attempt in (1, 2):
+        try:
+            with call("POST", "/chat/stream", body, timeout=300) as r:
+                for raw in r:
+                    try:
+                        ev = json.loads(raw)
+                    except ValueError:
+                        continue
+                    if not isinstance(ev, dict):
+                        continue
+                    t = ev.get("type")
+                    out = {"type": t, "id": rid}
+                    if t in ("token", "stage"):
+                        out["text"] = ev.get("text", "")
+                        if ev.get("footer"):
+                            out["footer"] = True
+                    elif t == "done":
+                        out["tag"] = tag(ev.get("model"), ev.get("category"))
+                        out["private"] = bool(ev.get("local")) or str(ev.get("category")) == "private"
+                    elif t != "reset":
+                        continue
+                    say(out)
+            return
+        except urllib.error.HTTPError as e:
+            if e.code == 401 and attempt == 1 and pair():
+                continue
+            say({"type": "failed", "id": rid, "why": "TAYLOR said no (%d)" % e.code})
+            return
+        except (urllib.error.URLError, OSError):
+            say({"type": "failed", "id": rid, "why": "TAYLOR is not answering"})
+            threading.Thread(target=connect, daemon=True).start()
+            return
+
+
+def home(_req):
+    try:
+        with call("GET", "/home/layout?wait=1", timeout=20) as r:
+            d = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError):
+        say({"type": "home", "ok": False})
+        return
+    big = d.get("big") or {}
+    cards = [{"label": str(x.get("label") or ""), "value": str(x.get("value") or "")} for x in (d.get("rows") or [])[:2]]
+    needs = None
+    for s in d.get("strip") or []:
+        if s.get("text"):
+            needs = {"text": str(s.get("text")), "action": str(s.get("action") or "")}
+            break
+    say({"type": "home", "ok": True, "cover": str(d.get("cover") or ""), "head": str(big.get("head") or ""),
+         "detail": str(big.get("detail") or big.get("label") or ""), "cards": cards, "needs": needs, "urgent": int(d.get("urgent") or 0)})
+
+
+def history(req):
+    n = max(1, min(60, int(req.get("n") or 20)))
+    try:
+        with call("GET", "/history?n=%d" % n, timeout=20) as r:
+            d = json.load(r)
+    except (urllib.error.URLError, OSError, ValueError):
+        say({"type": "history", "ok": False, "turns": []})
+        return
+    turns = []
+    for t in d.get("turns") or []:
+        if t.get("user"):
+            turns.append({"me": True, "text": str(t.get("user"))})
+        if t.get("reply"):
+            turns.append({"me": False, "text": str(t.get("reply")), "tag": tag(t.get("model"), t.get("category"))})
+    say({"type": "history", "ok": True, "turns": turns})
+
+
+def main():
+    threading.Thread(target=connect, daemon=True).start()
+    ops = {"chat": chat, "home": home, "history": history}
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except ValueError:
+            continue          # never echoed: the line may hold what she typed
+        fn = ops.get(req.get("op")) if isinstance(req, dict) else None
+        if fn:
+            threading.Thread(target=fn, args=(req,), daemon=True).start()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

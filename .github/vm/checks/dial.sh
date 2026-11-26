@@ -2,7 +2,7 @@
 # Made-up data only: a made-up TAYLOR (.github/vm/fake_taylor.py) with a made-up token, made-up notifications, a
 # made-up folder. Nothing of hers.
 . .github/vm/checks/lib.sh
-expect dial 31
+expect dial 40
 B='export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus'
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # which layer level each of her pieces is on (0 background, 1 bottom, 2 top, 3 overlay)
@@ -38,14 +38,17 @@ vm dial-2 \
   "$L | grep -E 'taylor-(loading|launcher|desktop)' | tail -12" \
   "pkill -x kitty; sleep 2; echo closed"
 
-# ---- a click on the dial opens TAYLOR's window (her ask, 2026-11-21: the TAYLOR app, or here, with no app installed, her page in the
-# browser); then the launcher by its keys: a folder's name finds the folder; any text adds Ask TAYLOR ----
-$V click $cx $cy "$sw" "$sh"; sleep 6
-shot dial-3-window
+# ---- a click on the dial opens TAYLOR beside her dial (her brief, "TAYLOR in TaylorOS", 2026-11-25: in the desktop itself, not an app).
+# The made-up TAYLOR is not running yet, so she says she is waking up; Esc closes her. Then the launcher by its keys: a folder's name
+# finds the folder; any text adds Ask TAYLOR ----
+$V click $cx $cy "$sw" "$sh"; sleep 3
+shot dial-3-panel-waking
 vm dial-3 \
-  "$(ok 'a click on her dial opens TAYLOR window' "$L | grep -q \"the dial opens TAYLOR's window\" && journalctl --user -t taylor-open-app --no-pager | grep -q 'taylor-open-app: her page in the browser'")" \
-  "journalctl --user -t taylor-open-app --no-pager | tail -3" \
-  "pkill -u tester -f -i firefox; sleep 3; echo browser-closed"
+  "$(ok 'a click on her dial opens TAYLOR beside it, over the faded windows' "$L | grep -q 'the dial opens TAYLOR' && hyprctl layers | grep -q 'namespace: taylor-panel,' && hyprctl layers | grep -q taylor-panel-sky && \$Q call taylor panel | grep -q 'open=true'")" \
+  "$(ok 'with TAYLOR not answering her panel says she is waking up (no error)' "\$Q call taylor panel | grep -q 'down=true'")" \
+  "\$Q call taylor panel"
+$V key esc; sleep 2
+vm dial-3b "$(ok 'Esc closes her' "\$Q call taylor panel | grep -q 'open=false' && ! hyprctl layers | grep -q 'namespace: taylor-panel,'")"
 $V key meta_l-spc; sleep 3
 $V type 'zebraf'; sleep 3
 shot dial-4-folder
@@ -78,8 +81,15 @@ shot dial-5-thinking
 vm dial-7 \
   "printf '{\"up\": true, \"thinking\": false, \"waiting\": 2, \"since\": 0}' > /tmp/state.json; sleep 4.5" \
   "\$Q call taylor state" \
-  "$(ok 'two things waiting from TAYLOR show 2 NEW.' "\$Q call taylor state | grep -q 'line=2 NEW.'")"
-shot dial-6-two-new
+  "$(ok 'two new things from TAYLOR: her line reads 2 THINGS ARE WAITING.' "\$Q call taylor state | grep -q 'line=2 THINGS ARE WAITING.'")" \
+  "$(ok 'she wants Jessica: TAYLOR · Got a sec? rises above the clock (over the windows) and her dot by the clock is there' "hyprctl layers | grep -q taylor-ping && \$Q call taylor panel | grep -q 'wants=true ' && \$Q call taylor panel | grep -q 'ping=true'")" \
+  "\$Q call taylor panel"
+shot dial-6-two-waiting
+sleep 10
+vm dial-7b "$(ok 'the Got a sec? line tucks away after about 9 s while she keeps wanting' "\$Q call taylor panel | grep -q 'wants=true ' && \$Q call taylor panel | grep -q 'ping=false'")" "\$Q call taylor show; sleep 3; \$Q call taylor last" \
+  "$(ok 'opening her shows what she wanted as her first message' "\$Q call taylor last | grep -q '^her|instant|' && \$Q call taylor panel | grep -q 'wants=false '")"
+shot dial-6b-what-she-wanted
+vm dial-7c "\$Q call taylor hide; sleep 1; echo hidden"
 vm dial-8 "printf '{\"up\": true, \"thinking\": false, \"waiting\": 0, \"since\": 0}' > /tmp/state.json; sleep 4.5; \$Q call taylor state"
 
 # Ask TAYLOR from her launcher, with the keys she would press
@@ -89,11 +99,19 @@ shot dial-7-ask-row
 $V key ret; sleep 0.8
 shot dial-8-asked
 sleep 5
+shot dial-8b-her-reply
 vm dial-9 \
-  "cat /tmp/fake.log | grep -v STATE; echo; cat /tmp/opened.txt" \
-  "$(ok 'Ask TAYLOR sends what she typed to TAYLOR' "grep -q \"ASK text='hello taylor'\" /tmp/fake.log")" \
-  "$(ok 'her page opens with the ask nonce TAYLOR gave' "n=\$(grep -oE 'nonce=[0-9a-f]+' /tmp/fake.log | tail -1 | cut -d= -f2); [ -n \"\$n\" ] && grep -q \"PAGE /?ask=\$n\" /tmp/fake.log && grep -q 'taylor-hook: ask sent' <($L)")" \
-  "$L | grep -E 'taylor-hook' | tail -8"
+  "cat /tmp/fake.log | grep -v STATE" \
+  "$(ok 'Ask TAYLOR sends what she typed straight to her, and her panel opens' "grep -q \"CHAT ok private=False text='hello taylor'\" /tmp/fake.log && \$Q call taylor panel | grep -q 'open=true'")" \
+  "$(ok 'her reply streams in with the tag naming the part that answered' "\$Q call taylor last | grep -q '^her|Sonnet 5.5 ' && \$Q call taylor last | grep -q ' chat|[1-9]'")" \
+  "$(ok 'the desktop paired as its own device, made on this PC from her sign-in' "grep -q 'PAIR ok who=desktop' /tmp/fake.log && [ \"\$(stat -c %a ~/.config/taylor/desktop-device.token)\" = 600 ]")" \
+  "$(ok 'no key reaches the log' "! $L | grep -qE 'madeup-vm-token|tdv_madeup'")" \
+  "\$Q call taylor priv true; \$Q call taylor send 'made-up private thing'; sleep 4; \$Q call taylor last" \
+  "$(ok 'with Private on, it goes as private and the private chamber answers' "grep -q \"CHAT ok private=True text='made-up private thing'\" /tmp/fake.log && \$Q call taylor last | grep -q 'private chamber'")" \
+  "\$Q call taylor priv false; \$Q call taylor panel"
+shot dial-8c-private
+$V key esc; sleep 2
+vm dial-9b "$(ok 'Esc closes her again' "\$Q call taylor panel | grep -q 'open=false'")"
 
 # ---- notifications: nothing covers a full-screen window ----
 $V key meta_l-ret; sleep 4

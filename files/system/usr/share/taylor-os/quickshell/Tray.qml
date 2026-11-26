@@ -11,7 +11,9 @@ PanelWindow {
     property QtObject theme
     property real arrive: 1           // her arrival after signing in (shell.qml): 0 hidden, 1 in place
     property int waiting: 0           // her notifications waiting (her design tour, part 5): the green count
+    property bool wants: false        // TAYLOR wants her (TaylorPanel.qml): her dot here blinks
     signal countClicked()
+    signal taylorClicked()            // her dot by the clock opens her (her brief, 2026-11-25)
 
     // How she is connected (2026-11-23: the icon was always Wi-Fi, but her PC is on a cable): a cable wins over Wi-Fi,
     // Wi-Fi shows its signal in four steps, nothing connected shows offline. NetworkManager is asked every 5 seconds.
@@ -103,6 +105,24 @@ PanelWindow {
                     anchors.fill: parent
                     onClicked: { const s = Pipewire.defaultAudioSink; if (s && s.audio) s.audio.muted = !s.audio.muted }
                 }
+            }
+            // TAYLOR's dot (her preview's trayT): a ring with a green centre; it blinks while she wants Jessica
+            Item {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 18; height: 18
+                Rectangle { anchors.centerIn: parent; width: 13; height: 13; radius: 6.5; color: "transparent"; border.width: 1.5; border.color: win.theme.accent }
+                Rectangle {
+                    id: herDot
+                    anchors.centerIn: parent; width: 4.4; height: 4.4; radius: 2.2; color: win.theme.accent
+                    SequentialAnimation on opacity {
+                        id: blink
+                        running: win.wants && !win.theme.still; loops: Animation.Infinite
+                        NumberAnimation { from: 1; to: 0.15; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 0.15; to: 1; duration: 700; easing.type: Easing.InOutSine }
+                    }
+                    Connections { target: blink; function onRunningChanged() { if (!blink.running) herDot.opacity = 1; } }
+                }
+                MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: { console.info("taylor-tray: her dot was clicked"); win.taylorClicked(); } }
             }
             Column {
                 anchors.verticalCenter: parent.verticalCenter

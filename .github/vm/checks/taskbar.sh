@@ -117,11 +117,12 @@ sleep 9
 vm taskbar-unlock \
   "$(ok 'her password opens it again after Lock' "[ \"\$($LH)\" = no ]")"
 
-# the dock's dial opens TAYLOR's window, as the big dial does (her ask 2026-11-23); the launcher is Windows key + Space
+# the dock's dial opens TAYLOR, as the big dial does (her ask 2026-11-23); since 2026-11-25 she opens beside her dial in the
+# desktop itself (TaylorPanel.qml), not in an app; the launcher is Windows key + Space
 $V click "${XS[0]}" "$DY" "$SW" "$SH"; sleep 4
 vm taskbar-dial \
-  "$(ok 'the dial on the dock opens the TAYLOR window (not the launcher)' "$QL | grep -q \"taylor-dock: the dial opens TAYLOR's window\" && journalctl --user -t taylor-open-app --no-pager | grep -q 'taylor-open-app:'")" \
-  "$QL | grep -E 'the dial opens' | tail -2; journalctl --user -t taylor-open-app --no-pager | tail -2" \
+  "$(ok 'the dial on the dock opens TAYLOR beside her dial (not the launcher)' "$QL | grep -q \"taylor-dock: the dial opens TAYLOR's window\" && $QL | grep -q 'taylor-panel: open' && ! hyprctl layers | grep -q taylor-launcher")" \
+  "$QL | grep -E 'the dial opens|taylor-panel: open' | tail -2; \$Q call taylor hide; sleep 1" \
   "pkill -u tester -f -i firefox; for p in \$(hyprctl -j clients | python3 -c 'import json,sys; print(\" \".join(str(c[\"pid\"]) for c in json.load(sys.stdin) if not c[\"class\"]))'); do kill \$p; done; sleep 1; hyprctl clients | grep -c '^Window' || true"
 
 # Gaming mode (her pick S4, 2026-11-22): a full-screen game (here a window that says it is Steam game 123) turns it on;

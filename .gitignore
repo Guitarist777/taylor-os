@@ -3,3 +3,4 @@ cosign.key
 *.key
 *.private
 .env
+__pycache__/
