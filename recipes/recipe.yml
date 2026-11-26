@@ -10,6 +10,16 @@ description: The TAYLOR desktop. Bazzite underneath, Hyprland on top, KDE as the
 base-image: ghcr.io/ublue-os/bazzite-nvidia-open
 image-version: stable
 
+# Her window buttons' plugin is compiled in a plain Fedora 45 stage against the same Hyprland the image installs, and only
+# the finished package is copied in (files/scripts/hyprbars-stage.sh; Bazzite's own mesa blocks Hyprland's developer files).
+stages:
+  - name: hyprbars
+    from: registry.fedoraproject.org/fedora:45
+    modules:
+      - type: script
+        scripts:
+          - hyprbars-stage.sh
+
 modules:
   # Bazzite's Fedora 45 build ships Terra's Xwayland, which does not satisfy the Xwayland Hyprland asks for
   # (a known clash, 2026-11). Swap it for Fedora's Xwayland in ONE step.
@@ -23,7 +33,7 @@ modules:
       - "rpm -q terra-gamescope || rpm -q gamescope"
 
   # Hyprland and the small pieces it needs. The sdegler/hyprland COPR builds them for Fedora 45 (checked 2026-11-15).
-  # The title bar plugin is rebuilt below against whatever Hyprland this installs (files/scripts/hyprbars-build.sh): on
+  # The title bar plugin is rebuilt below against whatever Hyprland this installs (files/scripts/hyprbars-stage.sh): on
   # 2026-11-25 the COPR rebuilt Hyprland's family but not the plugin (no title bars in the virtual PC, run 45709330733), and
   # pinning the old set broke the same night when the COPR deleted the old libraries (build run 45752251318).
   - type: dnf
@@ -55,10 +65,14 @@ modules:
         - hyprland-plugin-hyprbars # (rebuilt for this Hyprland just below) a slim title bar with minimise, full screen and close on every window (her pick 2026-11-23)
         - plymouth-plugin-script # draws her boot screen (2026-11-21): her dark with nothing on it (themes/taylor)
 
-  # her window buttons' plugin, built against exactly this Hyprland (the build stops unless the rebuilt one is installed)
+  # her window buttons' plugin, built in the hyprbars stage against exactly this Hyprland (the build stops unless it matches)
+  - type: copy
+    from: hyprbars
+    src: /out
+    dest: /tmp/hyprbars-out
   - type: script
     scripts:
-      - hyprbars-build.sh
+      - hyprbars-install.sh
 
   # Her desktop (mockup 7, "Dock your way + mixer"): Hyprland and Quickshell settings for every new account (/etc/skel),
   # the Horizon wallpaper, the mockup's fonts (Manrope, Share Tech Mono; OFL), and the TAYLOR mixer channels in PipeWire.
