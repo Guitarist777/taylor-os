@@ -114,9 +114,9 @@ shot lock-13-coming-back
 sleep 3
 shot lock-14-back
 vm lock-7 \
+  "$(ok 'everything is back and nothing locked' "\$Q call lock state | grep -q '^off' && [ \"\$($LH)\" = no ] && ! $LQS >/dev/null")" \
   "$(ok 'the timeout started after the idle time' "$DLOG | grep -q 'taylor-away: dimming (idle'")" \
-  "$(ok 'moving the mouse during the wait cancels it' "$DLOG | grep -q 'she is back; everything returns'")" \
-  "$(ok 'everything is back and nothing locked' "\$Q call lock state | grep -q '^off' && [ \"\$($LH)\" = no ] && ! $LQS >/dev/null")"
+  "$(ok 'moving the mouse during the wait cancels it' "$DLOG | grep -q 'she is back; everything returns'")"
 
 # ---- the timeout again, left alone: the burst into the lock screen ----
 vm lock-8 \
