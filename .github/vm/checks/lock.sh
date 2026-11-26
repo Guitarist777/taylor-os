@@ -1,7 +1,7 @@
 # Phases 6 and 7 (her build brief): the lock screen and unlock, the backup lock screen if hers dies, the timeout to
 # lock (and its cancel), and the goodnight before the PC powers off. Run LAST: the shutdown check turns the PC off.
 . .github/vm/checks/lib.sh
-expect lock 32
+expect lock 34
 
 # her login session's LockedHint (yes / no), the lock screen's process, and its log
 LH='s=$(loginctl list-sessions --no-legend | awk '"'"'$3=="tester"{print $1}'"'"' | while read s; do [ "$(loginctl show-session $s -p Seat --value)" = seat0 ] && echo $s; done | head -1); loginctl show-session $s -p LockedHint --value'
@@ -80,6 +80,20 @@ shot lock-9-after-hyprlock
 vm lock-5 \
   "$(ok 'her password unlocks through hyprlock' "! pgrep -u tester -x hyprlock >/dev/null && [ \"\$($STATE)\" = unlocked ] && [ \"\$($LH)\" = no ]")" \
   "$(ok 'her desktop is told after the backup unlock too' "[ \$($DLOG | grep -c 'unlocked (lock screen)') -ge 2 ]")"
+
+# ---- a screen that stops drawing: "Welcome back" never finishes, her password still lets her in (2026-11-26) ----
+vm lock-5s "touch /run/user/1000/taylor-lock.test-stall"
+$V key meta_l-l
+sleep 5
+$V type 'taylortest'
+sleep 0.5
+$V type '\n'
+sleep 11
+shot lock-9b-stalled-in
+vm lock-5t \
+  "$(ok 'with the screen stalled, her password still unlocks within 7 s' "grep -q 'test: Welcome back will stall' $LLOG && grep -q 'did not finish in 7 s; unlocking anyway' $LLOG && [ \"\$($LH)\" = no ] && ! $LQS >/dev/null")" \
+  "$(ok 'and her desktop is still told to arrive' "[ \$($DLOG | grep -c 'unlocked (lock screen)') -ge 3 ]")" \
+  "rm -f /run/user/1000/taylor-lock.test-stall; grep -v qmlscanner $LLOG | tail -6"
 
 # ---- the timeout: dimming, STILL THERE?, the glide, and moving the mouse brings everything back ----
 SET='~/.config/taylor-os/settings.json'

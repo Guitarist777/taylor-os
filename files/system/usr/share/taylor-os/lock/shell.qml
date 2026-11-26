@@ -16,6 +16,12 @@
 //
 // Tests: TAYLOR_LOCK_DEMO=1 needs no session lock (a plain window, for the local preview): "taylortest" is right.
 // TAYLOR_LOCK_TYPED=5 types 5 letters after 1.5 s; TAYLOR_LOCK_ANSWER=wrong then presses Enter with them.
+// A file $XDG_RUNTIME_DIR/taylor-lock.test-stall (the VM test makes it) holds "Welcome back" forever, as a screen that
+// stops drawing does, to prove her password still lets her in.
+//
+// Her password always lets her in (2026-11-26: twice her password was accepted and she stayed locked, because the
+// screen stopped drawing and "Welcome back" waits on drawn frames). The animation is only decoration: 7 s after a good
+// password, by the wall clock, the session is unlocked whatever the animation is doing.
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -37,9 +43,15 @@ ShellRoot {
     property bool launching: false
     property bool done: false
     property real fade: 0
+    property bool stallTest: false
 
     // what happened, told to every screen's scene
-    function each(f) { for (const s of surfaces) if (s) f(s); }
+    // A screen that reconnects (the monitor waking, a switch to a text screen and back) gets a new surface; the old
+    // one's scene is gone. Calls skip anything gone, so one dead screen never stops her keys or her unlock
+    // (2026-11-26: "Property 'letter' ... is not a function" and she stayed locked).
+    function alive(s) { try { return !!s && typeof s.letter === "function"; } catch (e) { return false; } }
+    function each(f) { for (const s of surfaces.slice()) if (alive(s)) { try { f(s); } catch (e) { console.warn("taylor-lock: a screen skipped: " + e); } } }
+    function forget(sc) { surfaces = surfaces.filter((x) => x !== sc && alive(x)); }
     function sTyped() { each((s) => s.letter()); }
     function sErase(left) { each((s) => s.erase(left)); }
     function sClear() { each((s) => s.clearAll()); }
@@ -49,6 +61,11 @@ ShellRoot {
     function sRejected() { each((s) => s.rejected()); }
 
     Component.onCompleted: console.info("taylor-lock: " + mode + (demo ? " (demo)" : ""))
+    Process {
+        running: true
+        command: ["sh", "-c", "test -e \"" + root.run + "/taylor-lock.test-stall\""]
+        onExited: (code) => { if (code === 0) { root.stallTest = true; console.info("taylor-lock: test: Welcome back will stall"); } }
+    }
 
     // Her first name, as the login screen shows it (her account's real name, else the account name).
     Process {
@@ -84,7 +101,8 @@ ShellRoot {
                 onKeyEnter: root.submit()
                 onKeyEscape: root.clear()
                 onKeyNote: (s) => root.each((x) => x.note(s))
-                Component.onCompleted: root.surfaces.push(ls.scene)
+                Component.onCompleted: { root.surfaces = root.surfaces.filter((x) => root.alive(x)).concat([ls.scene]); }
+                Component.onDestruction: root.forget(ls.scene)
             }
         }
     }
@@ -119,8 +137,9 @@ ShellRoot {
     }
 
     function primaryScene() {
-        for (const s of surfaces) if (s && s.primary) return s;
-        return surfaces.length ? surfaces[0] : null;
+        const live = surfaces.filter((x) => alive(x));
+        for (const s of live) if (s.primary) return s;
+        return live.length ? live[0] : null;
     }
 
     // ---- her keys ----
@@ -154,6 +173,7 @@ ShellRoot {
         console.info("taylor-lock: password accepted");
         sAccepted();
         finishWatch.start();
+        alwaysIn.start();
     }
     function bad(why) {
         pw = "";
@@ -182,7 +202,10 @@ ShellRoot {
         interval: 50
         repeat: true
         onTriggered: {
-            const s = root.primaryScene(), w = s ? s.welcomeFor() : 5;
+            if (root.stallTest) return;
+            const s = root.primaryScene();
+            let w = 5;
+            try { if (s) w = s.welcomeFor(); } catch (e) { w = 5; }
             if (w < 4.6) return;
             root.fade = Math.min(1, (w - 4.6) / 0.4);
             if (root.fade < 1) return;
@@ -190,10 +213,24 @@ ShellRoot {
             arrive.running = true;
         }
     }
+    // The wall-clock promise: in by 7 s after a good password, drawn or not.
+    Timer {
+        id: alwaysIn
+        interval: 7000
+        onTriggered: {
+            if (root.done) return;
+            console.info("taylor-lock: Welcome back did not finish in 7 s; unlocking anyway");
+            finishWatch.stop();
+            root.fade = 1;
+            root.unlockNow();
+            if (!arrive.running) arrive.running = true;
+        }
+    }
     Process {
         id: arrive
-        command: root.desktopDir !== "" ? ["quickshell", "ipc", "-p", root.desktopDir, "call", "lock", "arrived"]
-                                        : ["quickshell", "ipc", "call", "lock", "arrived"]
+        // never waits more than 3 s on her desktop: a stuck desktop must not keep her locked
+        command: root.desktopDir !== "" ? ["timeout", "3", "quickshell", "ipc", "-p", root.desktopDir, "call", "lock", "arrived"]
+                                        : ["timeout", "3", "quickshell", "ipc", "call", "lock", "arrived"]
         onExited: (code) => {
             console.info("taylor-lock: her desktop told to arrive (" + code + ")");
             root.unlockNow();
