@@ -1,7 +1,7 @@
 # Her Settings window and the volume and brightness ring (2026-11-21). Real clicks on the real window: where each control
 # is comes from Settings' own log ("taylor-settings: place NAME x y", window pixels) plus where Hyprland put the window.
 . .github/vm/checks/lib.sh
-expect settings 42
+expect settings 44
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 AT="hyprctl -j clients | python3 -c 'import json,sys; c=[w for w in json.load(sys.stdin) if w[\"title\"]==\"Settings\"]; print(\"SETAT\", *(c[0][\"at\"] + c[0][\"size\"] + [int(c[0][\"floating\"])]) if c else (\"none\",))'"
 PLACES="$L | grep -oE 'place [^ ]+ [0-9]+ [0-9]+' | tail -60"
@@ -126,6 +126,18 @@ shot taylor-status-off
 vm status-off \
   "$(ok 'the status line switch writes her setting' "grep -q '\"statusLine\": *false' ~/.config/taylor-os/settings.json")"
 tap warm-off statusline; sleep 2
+# 7b. Game mode by hand (her ask 2026-11-27): the switch sets TAYLOR's game flag and takes it away (real clicks). The
+#     virtual PC has no TAYLOR, so a stand-in folder is made for the check and taken away after.
+vm gamemode-open "mkdir -p ~/taylor && touch ~/taylor/server.py; \$Q call settings section TAYLOR; sleep 4" "$AT" "$PLACES"
+shot settings-gamemode
+tap gamemode-open gamemode; sleep 4
+vm gamemode-on \
+  "$(ok 'the Game mode switch turns game mode on' "grep -q 'game mode on' ~/taylor/game_mode.flag")" \
+  "$L | grep -E 'game mode' | tail -3"
+tap gamemode-open gamemode; sleep 4
+vm gamemode-off \
+  "$(ok 'switching it off turns game mode off' "! test -e ~/taylor/game_mode.flag")" \
+  "$L | grep -E 'game mode' | tail -3; rm -rf ~/taylor"
 # 8. The mixer in Settings (her ask 2026-11-23): its quick view on the desktop turns off and on (real clicks), and
 #    "Open the mixer" opens the Mixer window
 vm sound-open "\$Q call settings section Sound; sleep 3" "$AT" "$PLACES"

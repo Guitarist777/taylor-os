@@ -435,6 +435,12 @@ FloatingWindow {
                         label: "\"Ask TAYLOR\" in search"
                         Switch { placeName: "asktaylor"; on: Prefs.askTaylor; onFlip: { Prefs.askTaylor = !Prefs.askTaylor; console.info("taylor-settings: ask TAYLOR in search " + Prefs.askTaylor); } }
                     }
+                    SRow {
+                        visible: win.gameMode !== "none"
+                        label: "Game mode"
+                        small: "Her local model stays off the graphics card and her night jobs wait. It turns on by itself while a game is full screen."
+                        Switch { placeName: "gamemode"; on: win.gameMode === "on"; onFlip: win.setGameMode(win.gameMode === "on" ? "off" : "on") }
+                    }
                 }
 
                 // ---- Sound ----
@@ -761,6 +767,20 @@ FloatingWindow {
     }
 
     // network
+    // Game mode: TAYLOR's flag, read while the TAYLOR page is open (a game or her own "game mode" can change it too)
+    property string gameMode: "none"
+    onGameModeChanged: if (visible) placesT.restart()      // the row shows or hides: its place moves
+    function setGameMode(v) { gameCmd.command = ["/usr/libexec/taylor-gamewatch", "flag", v]; gameCmd.running = true; console.info("taylor-settings: game mode " + v); }
+    Process {
+        id: gameCmd
+        command: ["/usr/libexec/taylor-gamewatch", "flag", "status"]
+        stdout: StdioCollector { onStreamFinished: { const t = this.text.trim(); if (t === "on" || t === "off" || t === "none") win.gameMode = t; } }
+    }
+    Timer {
+        interval: 3000; repeat: true; triggeredOnStart: true
+        running: win.visible && win.page === "TAYLOR"
+        onTriggered: if (!gameCmd.running) { gameCmd.command = ["/usr/libexec/taylor-gamewatch", "flag", "status"]; gameCmd.running = true; }
+    }
     function net(args) { netCmd.command = ["/usr/libexec/taylor-network"].concat(args); netCmd.running = true; }
     function join(ssid, pass) { joinCmd.pass = pass; joinCmd.command = ["/usr/libexec/taylor-network", "join", ssid]; joinCmd.running = true; }
     Process { id: netCmd; onExited: (code) => { console.info("taylor-settings: network change exit " + code); netPage.busy = ""; netState.running = true; } }
