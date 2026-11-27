@@ -88,7 +88,8 @@ Scope {
     property var day: null             // {cover, head, detail, cards, needs}
     property int seq: 0
     property int liveId: -1
-    property bool historyAsked: false
+    property bool historyAsked: false  // a history request is on its way
+    property bool historyLoaded: false // the conversation so far is in (only once: a reconnect must not add it twice)
     property int seen: 0               // how many were waiting when she last opened her
 
     // a reply that will not come: her line instead, so she is never left waiting on "thinking"
@@ -127,6 +128,9 @@ Scope {
         if (j.type === "down") { down = true; console.info("taylor-panel: TAYLOR is not answering yet"); return; }
         if (j.type === "home") { if (j.ok) { day = j; if (topicAt >= topicItems.length) topicAt = 0; if (view === "topic" && !topicItems.length) view = "day"; } return; }
         if (j.type === "history") {
+            historyAsked = false;
+            if (!j.ok || historyLoaded) return;          // TAYLOR was not answering yet: asked again on the next open or when she connects
+            historyLoaded = true;
             if (j.ok) {
                 const turns = j.turns.slice(-30);
                 for (let k = 0; k < turns.length; k++) {
@@ -176,7 +180,7 @@ Scope {
     property string topicFail: ""
     function refresh() {
         link.write(JSON.stringify({ op: "home" }) + "\n");
-        if (!historyAsked) { historyAsked = true; link.write(JSON.stringify({ op: "history", n: 20 }) + "\n"); }
+        if (!historyLoaded && !historyAsked) { historyAsked = true; link.write(JSON.stringify({ op: "history", n: 20 }) + "\n"); }
     }
     function show() {
         if (open) return;
