@@ -11,6 +11,7 @@
 #   taylor-screenshot keep FILE               (the little picture) move it from the memory folder into Pictures/Screenshots
 #   taylor-screenshot forget FILE             (the little picture's x) throw it away
 #   taylor-screenshot where                   where they are saved
+#   taylor-screenshot landed                  (the little picture, after a drag) "window" if the pointer is over a window
 set -u
 what="${1:-screen}"
 
@@ -32,6 +33,24 @@ keep() {
 
 case "$what" in
   where) echo "$dir"; exit 0 ;;
+  landed)    # an app that took the drop does not always say so on Wayland; letting go over a window counts as given
+    python3 -I - <<'PY'
+import json, subprocess
+def hj(w):
+    try: return json.loads(subprocess.run(["hyprctl", "-j", w], capture_output=True, text=True, timeout=3).stdout)
+    except Exception: return None
+c = hj("cursorpos") or {}
+x, y = c.get("x", -1), c.get("y", -1)
+shown = {m.get("activeWorkspace", {}).get("id") for m in (hj("monitors") or [])}
+for w in hj("clients") or []:
+    (ax, ay), (sw, sh) = w.get("at", [0, 0]), w.get("size", [0, 0])
+    if w.get("mapped", True) and not w.get("hidden") and w.get("workspace", {}).get("id") in shown \
+            and ax <= x < ax + sw and ay <= y < ay + sh:
+        print("window"); break
+else:
+    print("none")
+PY
+    exit 0 ;;
   keep) ours "${2:-}" || exit 1; keep "$2"; exit ;;
   forget) ours "${2:-}" || exit 1; rm -f -- "$2"; exit ;;
   screen|area|window) ;;

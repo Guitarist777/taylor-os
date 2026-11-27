@@ -3,7 +3,7 @@
 # into an app it is NOT saved; left alone it is saved to Pictures/Screenshots; a click saves and opens it; its x throws
 # it away. Every step uses the real keys and the real mouse.
 . .github/vm/checks/lib.sh
-expect shots 17
+expect shots 20
 W=1280; HH=800
 HELPER=$(gzip -9c .github/vm/checks/shots_helper.py | base64 -w0)
 D='"$(/usr/libexec/taylor-screenshot where)"'
@@ -22,6 +22,7 @@ vm shots-start \
   "echo $HELPER | base64 -d | gunzip > /tmp/s.py && echo helper-ok" \
   "$WH" \
   "$(ok 'grim, slurp and wl-copy are on the PC' "command -v grim && command -v slurp && command -v wl-copy")" \
+  "$(ok 'the kernel leaves Alt + Print Screen to the desktop (SysRq keys off)' "grep -qx 0 /proc/sys/kernel/sysrq")" \
   "$(ok 'the screenshot keys are bound in Hyprland' "hyprctl -j binds | grep -cE '\"key\": \"(Print|Sys_Req)\"' | grep -qx 3")" \
   "rm -rf $D $M; hyprctl binds | grep -B3 -A6 -E 'key: (Print|Sys_Req|S)$' | head -40"
 s=$(screen shots-start); [ -n "$s" ] && { W=${s% *}; HH=${s#* }; }
@@ -92,6 +93,16 @@ vm shots-x \
   "$(ok 'the x on the little picture throws it away' "$LAYER | grep -q none && [ \$($INMEM) = 0 ]")" \
   "$(ok '...nothing saved' "sleep 6; [ \$($SAVED) = 3 ]")" "$INMEM; $SAVED" "$QSLOG"
 
+# let go over the bare desktop: nothing took it, so it stays and is saved as usual
+$V key print; sleep 2
+vm shots-desk-where "$LAYER"
+read SX SY SW SHH < <(shotxy shots-desk-where)
+$V drag $((SX + SW / 2)) $((SY + SHH / 2)) 760 260 $W $HH; sleep 1.5
+vm shots-desk \
+  "$(ok 'let go over the bare desktop, the little picture stays' "$LAYER | grep -qv none")" "$LAYER" "$QSLOG"
+sleep 8
+vm shots-desk-later "$(ok '...and is saved when it goes' "[ \$($SAVED) = 4 ]")" "$SAVED"
+
 # a click on it saves it at once and opens it
 $V key print; sleep 2
 vm shots-click-where "$LAYER"
@@ -99,7 +110,7 @@ read SX SY SW SHH < <(shotxy shots-click-where)
 $V click $((SX + SW / 2)) $((SY + SHH / 2)) $W $HH; sleep 4
 shot shots-5-opened
 vm shots-click \
-  "$(ok 'a click on the little picture saves it straight away' "$LAYER | grep -q none && [ \$($SAVED) = 4 ]")" \
+  "$(ok 'a click on the little picture saves it straight away' "$LAYER | grep -q none && [ \$($SAVED) = 5 ]")" \
   "$(ok '...and opens it' "pgrep -af 'Pictures/Screenshots/Screenshot 20' | grep -v pgrep")" \
   "hyprctl clients | grep -E 'class|title'" "pgrep -af Screenshot" "$QSLOG"
 $V key meta_l-q; sleep 1

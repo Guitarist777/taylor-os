@@ -10,6 +10,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import Quickshell.Io
 import QtQuick
 
 PanelWindow {
@@ -60,6 +61,17 @@ PanelWindow {
     }
     function away() { if (win.path) finish("keep"); }
 
+    // let go over a window = given to that app (not saved); over the bare desktop = it stays, then is saved as usual
+    Process {
+        id: landed
+        command: ["/usr/libexec/taylor-screenshot", "landed"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (this.text.trim() === "window") win.finish("dropped");
+                else { console.info("taylor-shot: drag let go on the desktop"); life.restart(); }
+            }
+        }
+    }
     Timer {
         id: life
         interval: 6000
@@ -114,7 +126,8 @@ PanelWindow {
             Drag.onDragFinished: (action) => {
                 carry.x = 0; carry.y = 0;
                 if (action !== Qt.IgnoreAction) win.finish("dropped");
-                else { console.info("taylor-shot: drag let go nowhere"); life.restart(); }
+                else landed.running = true      // Wayland apps often take the file without saying so: ask where it was let go
+
             }
         }
         MouseArea {
