@@ -667,10 +667,13 @@ hl.bind(mod .. " + D", function() T.showDesktop() end)
 -- drag over a part, Alt + Print Screen = the window she is in. Saved to Pictures/Screenshots and copied for pasting
 -- (/usr/libexec/taylor-screenshot). Bound here, not in her own settings file, so a PC set up before today gets them too.
 local function shot(what) hl.dispatch(hl.dsp.exec_cmd("/usr/libexec/taylor-screenshot " .. what)) end
-for _, k in ipairs({ "Print", mod .. " + SHIFT + S", "ALT + Print" }) do pcall(hl.unbind, k) end
+-- (Alt + Print Screen reaches Hyprland as Sys_Req on a PC keyboard, so both are bound: the 2026-11-27 virtual PC took
+-- no picture with "ALT + Print" alone.)
+for _, k in ipairs({ "Print", mod .. " + SHIFT + S", "ALT + Print", "ALT + Sys_Req" }) do pcall(hl.unbind, k) end
 hl.bind("Print",               function() shot("screen") end)
 hl.bind(mod .. " + SHIFT + S", function() shot("area") end)
 hl.bind("ALT + Print",         function() shot("window") end)
+hl.bind("ALT + Sys_Req",       function() shot("window") end)
 
 -- her screen (Settings > Display: refresh rate, scale, HDR, variable refresh rate; 2026-11-25)
 local displayOk, displayErr = pcall(dofile, "/usr/share/taylor-os/hypr/display.lua")

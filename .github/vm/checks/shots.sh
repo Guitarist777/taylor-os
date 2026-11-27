@@ -13,6 +13,8 @@ INMEM="ls $M/*.png 2>/dev/null | wc -l"
 NEWEST="ls -t $D/*.png 2>/dev/null | head -1"
 SIZE="python3 -c 'import struct,sys; b=open(sys.argv[1],\"rb\").read(24); print(\"PNG\", *struct.unpack(\">II\", b[16:24]))' \"\$($NEWEST)\""
 LAYER="python3 /tmp/s.py layer"
+# the test's own shell is not inside her desktop: point it at Hyprland's Wayland socket (wl-paste, the test window)
+WL='export WAYLAND_DISPLAY=$(cd "$XDG_RUNTIME_DIR" && ls wayland-? 2>/dev/null | head -1)'
 QSLOG='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1 | grep taylor-shot | tail -6'
 shotxy() { tr -d '\r' < "out/$1.txt" | grep -oE 'SHOT [0-9]+ [0-9]+ [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-; }
 
@@ -20,14 +22,15 @@ vm shots-start \
   "echo $HELPER | base64 -d | gunzip > /tmp/s.py && echo helper-ok" \
   "$WH" \
   "$(ok 'grim, slurp and wl-copy are on the PC' "command -v grim && command -v slurp && command -v wl-copy")" \
-  "$(ok 'the screenshot keys are bound in Hyprland' "hyprctl -j binds | grep -c taylor-screenshot | grep -qx 3")" \
-  "rm -rf $D $M; hyprctl -j binds | grep -B2 -A2 taylor-screenshot | head -30"
+  "$(ok 'the screenshot keys are bound in Hyprland' "hyprctl -j binds | grep -cE '\"key\": \"(Print|Sys_Req)\"' | grep -qx 3")" \
+  "rm -rf $D $M; hyprctl binds | grep -B3 -A6 -E 'key: (Print|Sys_Req|S)$' | head -40"
 s=$(screen shots-start); [ -n "$s" ] && { W=${s% *}; HH=${s#* }; }
 
 # Print Screen: the whole screen, shown small first (not saved yet), then saved when it goes
 $V key print; sleep 2
 shot shots-1-thumb
 vm shots-print \
+  "$WL" \
   "$(ok 'Print Screen shows the little picture in the bottom right' "$LAYER | grep -qv none")" \
   "$(ok '...not saved yet while it shows' "[ \$($SAVED) = 0 ] && [ \$($INMEM) = 1 ]")" \
   "$(ok '...and copied, ready to paste' "wl-paste --list-types | grep -qx image/png")" \
@@ -60,6 +63,7 @@ vm shots-area \
 
 # drag the little picture into an app: it goes there and is NOT saved (a test window that takes dropped files)
 vm shots-target \
+  "$WL" \
   "python3 /tmp/s.py droptarget; rm -f /tmp/drop.txt; (setsid quickshell -p /tmp/droptest >/tmp/droptest.log 2>&1 &); sleep 4" \
   "hyprctl dispatch movewindowpixel 'exact 80 120,title:^(droptest)\$' >/dev/null; sleep 1; python3 /tmp/s.py drop"
 read DX DY < <(tr -d '\r' < out/shots-target.txt | grep -oE 'DROP [0-9]+ [0-9]+' | tail -1 | cut -d' ' -f2-)
@@ -96,7 +100,7 @@ $V click $((SX + SW / 2)) $((SY + SHH / 2)) $W $HH; sleep 4
 shot shots-5-opened
 vm shots-click \
   "$(ok 'a click on the little picture saves it straight away' "$LAYER | grep -q none && [ \$($SAVED) = 4 ]")" \
-  "$(ok '...and opens it' "hyprctl -j clients | grep -q 'Screenshot 20'")" \
-  "hyprctl clients | grep -E 'class|title'" "$QSLOG"
+  "$(ok '...and opens it' "pgrep -af 'Pictures/Screenshots/Screenshot 20' | grep -v pgrep")" \
+  "hyprctl clients | grep -E 'class|title'" "pgrep -af Screenshot" "$QSLOG"
 $V key meta_l-q; sleep 1
 vm shots-end "pkill -f 'quickshell -p /tmp/droptest'; true"

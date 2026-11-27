@@ -20,10 +20,10 @@ if a == "layer":
             for l in lv:
                 if l.get("namespace") == "taylor-shot":
                     found = l
-    print("SHOT", *(found[k] for k in ("x", "y", "w", "h")) if found else "none")
+    print("SHOT", *([found[k] for k in ("x", "y", "w", "h")] if found else ["none"]))
 elif a == "drop":
     c = [c for c in hj("clients") if c.get("title") == "droptest"]
-    print("DROP", *(c[0]["at"][0] + c[0]["size"][0] // 2, c[0]["at"][1] + c[0]["size"][1] // 2) if c else "none")
+    print("DROP", *([c[0]["at"][0] + c[0]["size"][0] // 2, c[0]["at"][1] + c[0]["size"][1] // 2] if c else ["none"]))
 elif a == "droptarget":
     os.makedirs("/tmp/droptest", exist_ok=True)
     open("/tmp/droptest/shell.qml", "w").write('''import Quickshell
