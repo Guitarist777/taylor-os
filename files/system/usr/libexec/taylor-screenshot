@@ -3,17 +3,46 @@
 #   Print Screen                 the whole screen the pointer is on
 #   Windows key + Shift + S      drag over the part she wants (Esc or a right click cancels)
 #   Alt + Print Screen           just the window she is in
-# Each one is saved to Pictures/Screenshots and copied, so Ctrl + V pastes it straight into a message.
-# A note says it was taken (tap it to open the picture). Uses grim + slurp (Hyprland's own screen grab) and wl-copy.
+# Like the Mac (her ask the same day): the picture shows small in the bottom right for a few seconds (Shot.qml). Drag it
+# into an app and it is NOT saved to her PC; leave it and it is saved to Pictures/Screenshots; click it to save and open
+# it. It is copied too, so Ctrl + V pastes it. Until then it lives only in her session's memory folder.
+# If the desktop is not answering, it is saved straight away with a note instead.
+#   taylor-screenshot screen|area|window      take one
+#   taylor-screenshot keep FILE               (the little picture) move it from the memory folder into Pictures/Screenshots
+#   taylor-screenshot forget FILE             (the little picture's x) throw it away
+#   taylor-screenshot where                   where they are saved
 set -u
 what="${1:-screen}"
 
 dir="$(xdg-user-dir PICTURES 2>/dev/null || true)"
 [ -n "$dir" ] && [ "$dir" != "$HOME" ] || dir="$HOME/Pictures"
 dir="$dir/Screenshots"
-[ "$what" = where ] && { echo "$dir"; exit 0; }       # where they are saved (the virtual PC's check asks)
-mkdir -p "$dir" || exit 1
-file="$dir/Screenshot $(date '+%Y-%m-%d %H.%M.%S').png"
+mem="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/taylor-shots"
+
+# a file the little picture names must be one of ours in the memory folder
+ours() { case "$1" in "$mem"/*.png) [ "$(dirname -- "$1")" = "$mem" ] && [ -f "$1" ] ;; *) false ;; esac; }
+
+keep() {
+    mkdir -p "$dir" || return 1
+    local b to n=2
+    b="$(basename -- "$1" .png)"; to="$dir/$b.png"
+    while [ -e "$to" ]; do to="$dir/$b ($n).png"; n=$((n + 1)); done
+    mv -- "$1" "$to" && echo "$to"
+}
+
+case "$what" in
+  where) echo "$dir"; exit 0 ;;
+  keep) ours "${2:-}" || exit 1; keep "$2"; exit ;;
+  forget) ours "${2:-}" || exit 1; rm -f -- "$2"; exit ;;
+  screen|area|window) ;;
+  *) echo "usage: taylor-screenshot screen|area|window | keep FILE | forget FILE | where" >&2; exit 2 ;;
+esac
+
+mkdir -p "$mem" && chmod 700 "$mem" || exit 1
+find "$mem" -maxdepth 1 -name '*.png' -mmin +30 -delete 2>/dev/null
+# the little picture of the last one is kept and steps aside, so it is not in this one
+[ "$(timeout 2 quickshell ipc call shot away 2>/dev/null)" = ok ] && sleep 0.3
+file="$mem/Screenshot $(date '+%Y-%m-%d %H.%M.%S').png"
 
 case "$what" in
   screen)
@@ -31,16 +60,15 @@ print(m[0]["name"] if m else "")' 2>/dev/null)"
 w=json.load(sys.stdin) or {}
 a,s=w.get("at"),w.get("size")
 print(f"{a[0]},{a[1]} {s[0]}x{s[1]}" if a and s and s[0]>0 else "")' 2>/dev/null)"
-    if [ -n "$geo" ]; then grim -g "$geo" "$file"; else exec "$0" screen; fi ;;
-  *) echo "usage: taylor-screenshot screen|area|window" >&2; exit 2 ;;
+    if [ -n "$geo" ]; then grim -g "$geo" "$file"; else grim "$file"; fi ;;
 esac || exit 1
-
 [ -s "$file" ] || exit 1
+
 wl-copy --type image/png < "$file" 2>/dev/null &
-name="$(basename "$file")"
-(
-  act="$(notify-send -a "Screenshots" -i "$file" -A open=Open "Screenshot taken" \
-        "Copied, so you can paste it. Saved in Pictures/Screenshots." 2>/dev/null)"
-  [ "$act" = "open" ] && xdg-open "$file"
-) >/dev/null 2>&1 &
-echo "$name"
+if [ "$(timeout 3 quickshell ipc call shot pop "$file" 2>/dev/null)" = ok ]; then
+    echo "$file"
+else
+    saved="$(keep "$file")" || exit 1
+    notify-send -a "Screenshots" "Screenshot saved" "In Pictures/Screenshots, and copied so you can paste it." 2>/dev/null &
+    echo "$saved"
+fi

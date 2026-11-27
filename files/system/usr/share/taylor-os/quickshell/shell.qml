@@ -301,6 +301,14 @@ ShellRoot {
     // and warmer colours at night (Settings.qml, Osd.qml, Warm.qml)
     Settings { onOpenMixer: mixerWindow.open = true }
     Osd { screen: root.mainScreen; theme: root.c }
+    // a screenshot's little picture in the bottom right: drag it into an app, or it is saved (Shot.qml, taylor-screenshot)
+    Shot { id: shotW; screen: root.mainScreen; theme: root.c }
+    IpcHandler {
+        target: "shot"
+        function pop(path: string): string { shotW.show(path); return "ok"; }
+        function away(): string { shotW.away(); return "ok"; }
+        function state(): string { return shotW.path ? "showing" : "none"; }
+    }
     Warm {}
     // her windows and workspaces (Covers.qml, with Hyprland's windows.lua): the dock's strip, the workspace dots under the
     // dock, and the dotted outline while dragging a window (on every screen)
