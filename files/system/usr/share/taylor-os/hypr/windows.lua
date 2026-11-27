@@ -663,6 +663,15 @@ hl.on("window.destroy", function(w) if w and w.address and T.minimized then T.mi
 pcall(hl.unbind, mod .. " + D")
 hl.bind(mod .. " + D", function() T.showDesktop() end)
 
+-- Screenshots (her ask 2026-11-27), the keys Windows uses: Print Screen = the whole screen, Windows key + Shift + S =
+-- drag over a part, Alt + Print Screen = the window she is in. Saved to Pictures/Screenshots and copied for pasting
+-- (/usr/libexec/taylor-screenshot). Bound here, not in her own settings file, so a PC set up before today gets them too.
+local function shot(what) hl.dispatch(hl.dsp.exec_cmd("/usr/libexec/taylor-screenshot " .. what)) end
+for _, k in ipairs({ "Print", mod .. " + SHIFT + S", "ALT + Print" }) do pcall(hl.unbind, k) end
+hl.bind("Print",               function() shot("screen") end)
+hl.bind(mod .. " + SHIFT + S", function() shot("area") end)
+hl.bind("ALT + Print",         function() shot("window") end)
+
 -- her screen (Settings > Display: refresh rate, scale, HDR, variable refresh rate; 2026-11-25)
 local displayOk, displayErr = pcall(dofile, "/usr/share/taylor-os/hypr/display.lua")
 if not displayOk then log("display.lua: " .. tostring(displayErr)) end

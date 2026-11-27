@@ -1,0 +1,46 @@
+#!/usr/bin/bash
+# TAYLOR OS screenshots (her ask 2026-11-27, "we didn't make a shortcut for screenshots"). The keys are Windows' own:
+#   Print Screen                 the whole screen the pointer is on
+#   Windows key + Shift + S      drag over the part she wants (Esc or a right click cancels)
+#   Alt + Print Screen           just the window she is in
+# Each one is saved to Pictures/Screenshots and copied, so Ctrl + V pastes it straight into a message.
+# A note says it was taken (tap it to open the picture). Uses grim + slurp (Hyprland's own screen grab) and wl-copy.
+set -u
+what="${1:-screen}"
+
+dir="$(xdg-user-dir PICTURES 2>/dev/null || true)"
+[ -n "$dir" ] && [ "$dir" != "$HOME" ] || dir="$HOME/Pictures"
+dir="$dir/Screenshots"
+[ "$what" = where ] && { echo "$dir"; exit 0; }       # where they are saved (the virtual PC's check asks)
+mkdir -p "$dir" || exit 1
+file="$dir/Screenshot $(date '+%Y-%m-%d %H.%M.%S').png"
+
+case "$what" in
+  screen)
+    out="$(hyprctl -j monitors 2>/dev/null | python3 -I -c 'import json,sys
+m=[x for x in json.load(sys.stdin) if x.get("focused")]
+print(m[0]["name"] if m else "")' 2>/dev/null)"
+    if [ -n "$out" ]; then grim -o "$out" "$file"; else grim "$file"; fi ;;
+  area)
+    geo="$(slurp -d -b '#0b0d1a66' -c '#8fb3ffff' -w 2 2>/dev/null)" || exit 0     # cancelled: nothing happens
+    [ -n "$geo" ] || exit 0
+    sleep 0.05                                                                       # slurp's overlay is gone first
+    grim -g "$geo" "$file" ;;
+  window)
+    geo="$(hyprctl -j activewindow 2>/dev/null | python3 -I -c 'import json,sys
+w=json.load(sys.stdin) or {}
+a,s=w.get("at"),w.get("size")
+print(f"{a[0]},{a[1]} {s[0]}x{s[1]}" if a and s and s[0]>0 else "")' 2>/dev/null)"
+    if [ -n "$geo" ]; then grim -g "$geo" "$file"; else exec "$0" screen; fi ;;
+  *) echo "usage: taylor-screenshot screen|area|window" >&2; exit 2 ;;
+esac || exit 1
+
+[ -s "$file" ] || exit 1
+wl-copy --type image/png < "$file" 2>/dev/null &
+name="$(basename "$file")"
+(
+  act="$(notify-send -a "Screenshots" -i "$file" -A open=Open "Screenshot taken" \
+        "Copied, so you can paste it. Saved in Pictures/Screenshots." 2>/dev/null)"
+  [ "$act" = "open" ] && xdg-open "$file"
+) >/dev/null 2>&1 &
+echo "$name"
