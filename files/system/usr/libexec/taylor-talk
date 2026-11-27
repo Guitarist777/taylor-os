@@ -12,6 +12,10 @@
 #   {"op": "chat", "id": N, "text": "...", "private": bool}   her message; TAYLOR's streamed events come back with "id": N
 #   {"op": "home"}                                           her My day: {"type": "home", "cover", "head", "detail", "cards": [...], "needs": {...}}
 #   {"op": "history", "n": 20}                               the conversation so far: {"type": "history", "turns": [{"me", "text", "tag"}]}
+#   {"op": "topic", "id": T, "act": "reveal" | "talk" | "not_now" | "dismiss" | "got_it"}
+#                                                            her tap on one of TAYLOR's topics (her "I have 1 thing to talk about"),
+#                                                            the same doors her page uses: {"type": "topic", "id", "act", "ok", ...}.
+#                                                            talk answers with the fixed line her page sends so TAYLOR speaks first.
 # Answers (stdout): {"type": "ready"} once the key works; TAYLOR's own chat events ({"type": "token" | "stage" | "reset" | "done", ...});
 #   {"type": "failed", "id": N, "why": "..."}; {"type": "down"} when TAYLOR is not answering (the panel says she is waking up).
 import json
@@ -180,10 +184,55 @@ def home(_req):
     needs = None
     for s in d.get("strip") or []:
         if s.get("text"):
-            needs = {"text": str(s.get("text")), "action": str(s.get("action") or "")}
+            needs = {"text": str(s.get("text")), "action": str(s.get("action") or ""), "items": [it for it in (item(x) for x in (s.get("items") or [])) if it]}
             break
     say({"type": "home", "ok": True, "cover": str(d.get("cover") or ""), "head": str(big.get("head") or ""),
          "detail": str(big.get("detail") or big.get("label") or ""), "cards": cards, "needs": needs, "urgent": int(d.get("urgent") or 0)})
+
+
+def item(x):
+    """One of her topics (topics.py's Home row) as the panel shows it. A covered one carries no words of its own: Show asks reveal."""
+    if not isinstance(x, dict) or x.get("id") is None:
+        return None
+    kind = str(x.get("kind") or "")
+    out = {"id": str(x.get("id")), "kind": kind, "covered": bool(x.get("covered")), "taps": [str(t) for t in (x.get("taps") or [])][:3]}
+    if kind in ("money", "week"):
+        out["line"] = str(x.get("title") or "")
+        out["lines"] = [str(l.get("label") or "") + ": " + str(l.get("text") or "") for l in (x.get("lines") or []) if isinstance(l, dict)]
+        out["ack"] = str(x.get("ack") or ("/money-card/got_it" if kind == "money" else "/week-card/got_it"))
+    else:
+        out["line"] = str(x.get("line") or "") if not x.get("covered") else ""
+        out["covered_line"] = str(x.get("covered_line") or "I have something to ask you")
+        if x.get("helper"):
+            out["helper"] = str(x.get("helper"))
+    return out
+
+
+ACTS = {"reveal": "GET", "talk": "POST", "not_now": "POST", "dismiss": "POST"}
+
+
+def topic(req):
+    tid, act = str(req.get("id") or ""), str(req.get("act") or "")
+    out = {"type": "topic", "id": tid, "act": act, "ok": False}
+    try:
+        if act == "got_it":
+            path = "/money-card/got_it" if tid == "money" else "/week-card/got_it" if tid == "week" else ""
+            if not path:
+                raise ValueError
+            with call("POST", path, {}, timeout=20) as r:
+                out["ok"] = bool(json.load(r).get("ok", True))
+        elif act in ACTS and tid.isdigit():
+            with call(ACTS[act], "/topics/%s/%s" % (tid, act), {} if ACTS[act] == "POST" else None, timeout=20) as r:
+                d = json.load(r)
+            if act == "reveal":
+                out.update(ok=bool(d.get("line")), line=str(d.get("line") or ""), source=str(d.get("source") or ""))
+            elif act == "talk":
+                out.update(ok=bool(d.get("ok") and d.get("line")), line=str(d.get("line") or ""), private=bool(d.get("private")))
+            else:
+                out["ok"] = bool(d.get("ok"))
+    except (urllib.error.URLError, OSError, ValueError, AttributeError):
+        pass
+    say(out)
 
 
 def history(req):
@@ -196,7 +245,7 @@ def history(req):
         return
     turns = []
     for t in d.get("turns") or []:
-        if t.get("user"):
+        if t.get("user") and t.get("initiated") != "taylor":      # TAYLOR spoke first from a topic: the stored line is not something she wrote
             turns.append({"me": True, "text": str(t.get("user"))})
         if t.get("reply"):
             turns.append({"me": False, "text": str(t.get("reply")), "tag": tag(t.get("model"), t.get("category"))})
@@ -205,7 +254,7 @@ def history(req):
 
 def main():
     threading.Thread(target=connect, daemon=True).start()
-    ops = {"chat": chat, "home": home, "history": history}
+    ops = {"chat": chat, "home": home, "history": history, "topic": topic}
     for line in sys.stdin:
         line = line.strip()
         if not line:

@@ -2,7 +2,7 @@
 # Made-up data only: a made-up TAYLOR (.github/vm/fake_taylor.py) with a made-up token, made-up notifications, a
 # made-up folder. Nothing of hers.
 . .github/vm/checks/lib.sh
-expect dial 40
+expect dial 43
 B='export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus'
 L='timeout 8 quickshell log --pid $(pgrep -u tester -x quickshell | head -1) 2>&1'
 # which layer level each of her pieces is on (0 background, 1 bottom, 2 top, 3 overlay)
@@ -112,6 +112,32 @@ vm dial-9 \
 shot dial-8c-private
 $V key esc; sleep 2
 vm dial-9b "$(ok 'Esc closes her again' "\$Q call taylor panel | grep -q 'open=false'")"
+
+# ---- her topics and the thinking dots (her report 2026-11-27: "I clicked 'I have one thing to talk about' and she didn't
+#      say anything"; "the dots ... are overlapping with other things in her window"). Real clicks on My day's Show and on
+#      Talk about it; the dots are measured where the panel says they are.
+place() { tr -d '\r' < "out/$1.txt" | grep -E "^$2 [0-9]+ [0-9]+\$" | tail -1 | cut -d' ' -f2-; }
+vm dial-9c "\$Q call taylor open; sleep 2.5; \$Q call taylor panel; \$Q call taylor places"
+F=dial-9c
+if [ -z "$(place dial-9c needsshow)" ]; then
+  p=$(place dial-9c dayswitch); echo "My day at $p"; [ -n "$p" ] && $V click $p "$sw" "$sh"; sleep 1.5
+  vm dial-9d "\$Q call taylor places"; F=dial-9d
+fi
+p=$(place $F needsshow); echo "Show at $p"; [ -n "$p" ] && $V click $p "$sw" "$sh"; sleep 1.5
+shot dial-8d-topic
+vm dial-9e "$(ok 'Show on My day opens her topic with its taps' "\$Q call taylor panel | grep -q 'view=topic' && \$Q call taylor places | grep -q '^topictalk '")" "\$Q call taylor places"
+p=$(place dial-9e topictalk); echo "Talk about it at $p"; [ -n "$p" ] && $V click $p "$sw" "$sh"; sleep 5
+shot dial-8e-topic-talked
+b64l=$(base64 -w0 .github/vm/panel_layout.py)
+vm dial-9f \
+  "$(ok 'Talk about it goes through the topic door and TAYLOR speaks first (her line, no bubble from Jessica)' "grep -q 'TOPIC talk' /tmp/fake.log && grep -q 'CHAT ok private=False text=.(TAYLOR brings up a topic)' /tmp/fake.log && \$Q call taylor last | grep -q '^her|Sonnet 5.5 '")" \
+  "grep -v STATE /tmp/fake.log | tail -5; \$Q call taylor panel" \
+  "echo $b64l > /tmp/pl.b64; base64 -d /tmp/pl.b64 > /tmp/panel_layout.py; \$Q call taylor send 'a slow one'; sleep 2.5; \$Q call taylor places > /tmp/places.txt; python3 /tmp/panel_layout.py /tmp/places.txt" \
+  "$(ok 'while she thinks, her dots have a row of their own: inside the list, clear of the typing box and every message' "python3 /tmp/panel_layout.py /tmp/places.txt | grep -q '^PASS'")"
+shot dial-8f-dots
+sleep 6
+vm dial-9g "$(ok 'her slow reply comes and the dots go' "\$Q call taylor last | grep -q '^her|Sonnet 5.5 ' && \$Q call taylor panel | grep -q 'thinking=false'")"
+$V key esc; sleep 2
 
 # ---- notifications: nothing covers a full-screen window ----
 $V key meta_l-ret; sleep 4

@@ -7,6 +7,7 @@ Rectangle {
     property QtObject theme
     property string label: ""
     property bool square: false
+    property string placeName: ""      // TaylorPanel.places(): where it is, for the virtual PC's real clicks
     signal hit()
     width: square ? 28 * s : t.implicitWidth + 20 * s
     height: 28 * s

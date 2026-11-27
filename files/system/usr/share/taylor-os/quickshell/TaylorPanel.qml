@@ -19,6 +19,16 @@
 // Wants Jessica: when TAYLOR has something new waiting, "TAYLOR · Got a sec?" rises above the clock for about 9 s while her
 // dial keeps its glint going round until she is opened; opening her shows what she wanted as her first message.
 //
+// Her topics (2026-11-27, her report: "I clicked 'I have one thing to talk about' and she didn't say anything"): My day's
+// Needs you row opens them one at a time, with the same taps as her page (Talk about it, Not now, Don't bring this up; Show
+// for a covered one). Talk about it sends TAYLOR's fixed line the way her page does, so TAYLOR speaks first.
+//
+// Smoothness (2026-11-27, her report: "the animation is super laggy and buggy"): her screen runs at 240 Hz. The drawing over
+// the windows used to be the whole screen, painted 240 times a second; it is now only the box around her dial and the
+// panel, painted 60 times a second while something moves and 20 (her dial's own pace) otherwise. Her sky's copy is made once
+// at start, not again on every open, and her dial here turns with the dial underneath (the same angle), so the two never
+// show as two rings while she fades in.
+//
 // The line to TAYLOR is /usr/libexec/taylor-talk (it holds the desktop's own key; nothing here ever does). Nothing she
 // types or reads is logged: the log gets counts and states only.
 import Quickshell
@@ -34,6 +44,7 @@ Scope {
     property int waiting: 0            // what TAYLOR has waiting (Taylor.qml)
     property bool thinkingElsewhere: false
     property string status: "ALL CLEAR."   // the line under her dial (shell.qml's dialLine), drawn again in front while she is open
+    property real dialSpin: 0          // how far the dial underneath has turned (Dial.qml's spin): hers here turns with it
 
     // ---- what the desktop reads ----
     property bool open: false
@@ -58,8 +69,20 @@ Scope {
     readonly property real py: Math.max(20 * s, Math.min(sh - ph - 20 * s, sp.y - ph / 2))
 
     // ---- the conversation ----
-    property var msgs: []              // {me, text, tag, priv}
+    // the conversation: a ListModel, so the list follows each change (it used to be a plain array, rebuilt on every word,
+    // and "is there a conversation yet" never noticed a new message)
+    ListModel { id: chat }             // {me, words, tag, priv, live}
+    readonly property int count: chat.count
     property int rev: 0
+    function lastInfo() { if (!chat.count) return ""; const m = chat.get(chat.count - 1); return (m.me ? "me" : "her") + "|" + (m.tag || "") + "|" + String(m.words || "").length; }
+    function add(o) { chat.append({ me: !!o.me, words: String(o.text || ""), tag: String(o.tag || ""), priv: !!o.priv, live: !!o.live }); rev++; }
+    function liveRow() { const i = chat.count - 1; return i >= 0 && chat.get(i).live ? i : -1; }
+    // her topics (My day's Needs you row): one at a time
+    property int topicAt: 0
+    property var shownLine: ({})       // a covered topic's words once she pressed Show: id -> line
+    property string topicBusy: ""      // the topic whose tap is on its way
+    readonly property var topicItems: day && day.needs && day.needs.items ? day.needs.items : []
+    readonly property var topicNow: topicItems.length ? topicItems[Math.min(topicAt, topicItems.length - 1)] : null
     property bool privateOn: false
     property string view: "day"        // day | chat
     property var day: null             // {cover, head, detail, cards, needs}
@@ -70,51 +93,87 @@ Scope {
 
     // a reply that will not come: her line instead, so she is never left waiting on "thinking"
     function endLive(line) {
-        const m = msgs[msgs.length - 1];
-        if (!m || !m.live) return;
-        m.live = false; m.text = m.text || line; m.tag = ""; thinking = false; rev++;
+        const i = liveRow();
+        if (i < 0) return;
+        chat.setProperty(i, "live", false);
+        if (!chat.get(i).words) chat.setProperty(i, "words", line);
+        chat.setProperty(i, "tag", ""); thinking = false; rev++;
     }
     Timer { id: replyGuard; interval: 330000; onTriggered: ty.endLive("That took too long, so I stopped waiting. Ask me again?") }
-    function send(text) {
+    // opener: TAYLOR's own line from a topic she tapped (her page's launchTopicOpening): it goes as her turn, but no bubble of hers
+    function send(text, opener) {
         text = String(text || "").trim();
         if (!text || thinking) return;
         if (down) {
-            msgs.push({ me: true, text: text });
-            msgs.push({ me: false, text: "I'm still waking up. Try me again in a moment.", tag: "" });
-            rev++; view = "chat";
+            if (!opener) add({ me: true, text: text });
+            add({ me: false, text: "I'm still waking up. Try me again in a moment." });
+            view = "chat";
             console.info("taylor-panel: a message while TAYLOR is not answering");
             return;
         }
         replyGuard.restart();
-        msgs.push({ me: true, text: text });
-        msgs.push({ me: false, text: "", tag: "", live: true, stage: "" });
-        rev++;
+        if (!opener) add({ me: true, text: text });
+        add({ me: false, text: "", live: true });
         view = "chat";
         thinking = true;
         liveId = ++seq;
         link.write(JSON.stringify({ op: "chat", id: liveId, text: text, private: privateOn }) + "\n");
-        console.info("taylor-panel: a message went to TAYLOR" + (privateOn ? " (private)" : ""));
+        console.info("taylor-panel: " + (opener ? "a topic went to TAYLOR (she speaks first)" : "a message went to TAYLOR") + (privateOn ? " (private)" : ""));
     }
     function got(line) {
         let j;
         try { j = JSON.parse(line); } catch (e) { return; }
         if (j.type === "ready") { down = false; console.info("taylor-panel: connected to TAYLOR"); if (open) refresh(); return; }
         if (j.type === "down") { down = true; console.info("taylor-panel: TAYLOR is not answering yet"); return; }
-        if (j.type === "home") { if (j.ok) day = j; return; }
+        if (j.type === "home") { if (j.ok) { day = j; if (topicAt >= topicItems.length) topicAt = 0; if (view === "topic" && !topicItems.length) view = "day"; } return; }
         if (j.type === "history") {
-            if (j.ok) { msgs = j.turns.slice(-30).concat(msgs); rev++; }
+            if (j.ok) {
+                const turns = j.turns.slice(-30);
+                for (let k = 0; k < turns.length; k++) {
+                    const t = turns[k];
+                    chat.insert(k, { me: !!t.me, words: String(t.text || ""), tag: String(t.tag || ""), priv: false, live: false });
+                }
+                rev++;
+            }
             return;
         }
+        if (j.type === "topic") { gotTopic(j); return; }
         if (j.id !== liveId) return;
-        const m = msgs[msgs.length - 1];
-        if (!m || !m.live) return;
-        if (j.type === "token") m.text += j.text;
-        else if (j.type === "reset") m.text = "";
-        else if (j.type === "stage") m.stage = j.text;
-        else if (j.type === "done") { m.live = false; m.tag = j.tag; m.priv = !!j.private; thinking = false; console.info("taylor-panel: her reply came (" + j.tag + ")"); }
-        else if (j.type === "failed") { m.live = false; m.text = m.text || "I couldn't answer that just now. Try me again in a moment."; m.tag = ""; thinking = false; console.info("taylor-panel: the reply failed"); }
+        const i = liveRow();
+        if (i < 0) return;
+        if (j.type === "token") chat.setProperty(i, "words", chat.get(i).words + j.text);
+        else if (j.type === "reset") chat.setProperty(i, "words", "");
+        else if (j.type === "stage") return;
+        else if (j.type === "done") { chat.setProperty(i, "live", false); chat.setProperty(i, "tag", String(j.tag || "")); chat.setProperty(i, "priv", !!j.private); thinking = false; console.info("taylor-panel: her reply came (" + j.tag + ")"); }
+        else if (j.type === "failed") { chat.setProperty(i, "live", false); if (!chat.get(i).words) chat.setProperty(i, "words", "I couldn't answer that just now. Try me again in a moment."); chat.setProperty(i, "tag", ""); thinking = false; console.info("taylor-panel: the reply failed"); }
         rev++;
     }
+    // ---- her topics ----
+    function openTopics() {
+        if (topicItems.length) { topicAt = 0; view = "topic"; console.info("taylor-panel: her topics shown (" + topicItems.length + ")"); }
+        else view = "chat";
+    }
+    function topicTap(act) {
+        const t = topicNow;
+        if (!t || topicBusy) return;
+        if (act === "talk" && thinking) return;          // a reply is still on its way: not a second turn on top of it
+        topicBusy = t.id;
+        link.write(JSON.stringify({ op: "topic", id: t.id, act: act }) + "\n");
+        console.info("taylor-panel: topic " + act);
+    }
+    function gotTopic(j) {
+        topicBusy = "";
+        if (j.act === "reveal") {
+            if (j.ok) { const m = Object.assign({}, shownLine); m[j.id] = j.line; shownLine = m; }
+            return;
+        }
+        if (!j.ok) { console.info("taylor-panel: topic " + j.act + " did not go through"); topicFail = j.act; return; }
+        topicFail = "";
+        if (j.act === "talk") { view = "chat"; send(j.line, true); }
+        else if (j.act === "got_it" || j.act === "not_now" || j.act === "dismiss") { if (topicItems.length <= 1) view = "day"; }
+        link.write(JSON.stringify({ op: "home" }) + "\n");    // the topic is closed on her Home: fetch the row again
+    }
+    property string topicFail: ""
     function refresh() {
         link.write(JSON.stringify({ op: "home" }) + "\n");
         if (!historyAsked) { historyAsked = true; link.write(JSON.stringify({ op: "history", n: 20 }) + "\n"); }
@@ -132,6 +191,21 @@ Scope {
         console.info("taylor-panel: closed");
     }
     function ask(text) { show(); send(text); }
+    // where each named control is on the screen (the virtual PC clicks there for real): "name x y" per line
+    function places() {
+        const out = [];
+        const walk = (it) => {
+            for (let i = 0; i < it.children.length; i++) {
+                const c = it.children[i];
+                if (!c.visible) continue;
+                if (c.placeName) { const p = c.mapToItem(null, c.width / 2, c.height / 2); out.push(c.placeName + " " + Math.round(p.x) + " " + Math.round(p.y)); }
+                if (["dots", "row", "inrow", "list"].indexOf(c.objectName) >= 0) { const p = c.mapToItem(null, 0, 0); out.push(c.objectName + " " + Math.round(p.x) + " " + Math.round(p.y) + " " + Math.round(c.width) + " " + Math.round(c.height)); }
+                walk(c);
+            }
+        };
+        walk(overlay.contentItem);
+        return out.join("\n");
+    }
     // what she wanted is her first message (her brief); it comes from her Home: the Needs you line, else its cover line
     function consumeWants() {
         wants = false;
@@ -139,9 +213,8 @@ Scope {
         pingLine.shown = false;
         const d = day;
         const what = d && d.needs && d.needs.text ? d.needs.text : (d && d.cover ? d.cover : "");
-        msgs.push({ me: false, text: "Got a sec? " + (what || "Something's waiting for you on My day."), tag: "instant" });
-        rev++;
-        view = "chat";
+        add({ me: false, text: "Got a sec? " + (what || "Something's waiting for you on My day."), tag: "instant" });
+        view = topicItems.length ? "topic" : "chat";
         console.info("taylor-panel: what she wanted is shown first");
     }
     onWaitingChanged: {
@@ -199,17 +272,15 @@ Scope {
     }
 
     // ---- her sky over the windows, at 85%: the windows look faded to about 15% ----
-    LazyLoader {
-        active: ty.o > 0.001
-        Sky {
-            screen: ty.screen
-            theme: ty.theme
-            color: "transparent"
-            contentItem.opacity: 0.85 * ty.o
-            mask: Region {}
-            WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.namespace: "taylor-panel-sky"
-        }
+    Sky {
+        screen: ty.screen
+        theme: ty.theme
+        visible: ty.o > 0.001          // made once at start; opening only shows it (it used to be built again on every open)
+        color: "transparent"
+        contentItem.opacity: 0.85 * ty.o
+        mask: Region {}
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.namespace: "taylor-panel-sky"
     }
 
     PanelWindow {
@@ -230,18 +301,40 @@ Scope {
         // her dial, again, over the faded windows; its glint while she wants Jessica; the specks
         Canvas {
             id: art
-            anchors.fill: parent
+            // only the box around her dial (with its line under it) and the panel, not the whole screen
+            readonly property real pad: 28 * ty.s
+            readonly property real ext: ty.sp.r * 1.75 + 8 * ty.s
+            readonly property real bx: Math.max(0, Math.min(ty.px, ty.sp.x - ext) - pad)
+            readonly property real by: Math.max(0, Math.min(ty.py, ty.sp.y - ext) - pad)
+            x: bx; y: by
+            width: Math.min(ty.sw, Math.max(ty.px + ty.pw, ty.sp.x + ext) + pad) - bx
+            height: Math.min(ty.sh, Math.max(ty.py + ty.ph, ty.sp.y + Math.max(ext, 136 * ty.sp.k)) + pad) - by
             renderStrategy: Canvas.Cooperative
             onPaint: {
                 const x = getContext("2d");
                 x.reset();
+                x.translate(-bx, -by);
                 const T = Date.now() / 1000, th = ty.thinking || ty.thinkingElsewhere;
                 Dial.setColors(ty.theme.accent, ty.theme.text, ty.theme.text2);
                 x.globalAlpha = 1;
-                const rot = ty.theme.still ? Dial.arcAngle() : Dial.arcAngle() + (th ? T * 1.6 : 0);
+                const rot = ty.theme.still ? Dial.arcAngle() : Dial.arcAngle() + ty.dialSpin;     // the same angle as the dial underneath
                 x.save(); x.globalAlpha = ty.o;
                 Dial.draw(x, ty.sp.x, ty.sp.y, ty.sp.r, ty.o, 1, 1, th ? 0.6 : 0, rot, ty.theme.still ? 0 : T);
                 x.restore();
+                // thinking: her five dots swirl inside the ring, drawn here too (the same places as on the dial underneath),
+                // so they are clear in front and not grey ghosts showing through the faded sky
+                if (th && !ty.theme.still) {
+                    const acc = ty.theme.accent, soft = ty.theme.soft, kk = ty.sp.k, RR = ty.sp.r;
+                    const cols = [acc, ty.theme.mix(acc, soft, 0.5), soft];
+                    for (let i = 0; i < 5; i++) {
+                        const a = T * 3.4 + i * (6.2832 / 5) + 0.55 * Math.sin(T * 3.4 * 0.9 + i * 1.3);
+                        x.globalAlpha = ty.o * (0.6 + 0.4 * Math.sin(T * 3 + i));
+                        x.fillStyle = cols[i % 3];
+                        const dr = 2.6 * kk * (0.8 + 0.3 * Math.sin(T * 2 + i * 2));
+                        x.beginPath(); x.arc(ty.sp.x + Math.cos(a) * RR * 0.34, ty.sp.y + Math.sin(a) * RR * 0.34, dr, 0, 6.2832); x.fill();
+                    }
+                    x.globalAlpha = 1;
+                }
                 if (Prefs.statusLine) Dial.words(x, ty.sp.x, ty.sp.y + 118 * ty.sp.k, ty.sp.k, ty.o, Math.round(11 * ty.sp.k) + "px " + ty.theme.sans, ty.status);
                 // the specks
                 if (ty.specks.length && !ty.theme.still) {
@@ -277,7 +370,9 @@ Scope {
                 }
             }
         }
-        FrameAnimation { running: overlay.visible; onTriggered: art.requestPaint() }
+        // 60 pictures a second while something moves (opening, the specks, the sweep, thinking), else 20 (her dial's own pace)
+        readonly property bool moving: !ty.theme.still && (ty.o < 0.999 || ty.specks.length > 0 || (reveal > 0 && reveal < 1) || ty.thinking || ty.thinkingElsewhere)
+        Timer { interval: overlay.moving ? 16 : 50; repeat: true; running: overlay.visible; onTriggered: art.requestPaint() }
 
         // the panel, revealed from the side nearest her
         Item {
@@ -326,10 +421,11 @@ Scope {
                         }
                         TyButton {
                             id: dayBtn
+                            placeName: "dayswitch"
                             anchors.verticalCenter: parent.verticalCenter
                             s: ty.s; theme: ty.theme
-                            label: ty.view === "day" && ty.msgs.length ? "Back to chat" : "My day"
-                            visible: ty.msgs.length > 0
+                            label: ty.view !== "chat" && ty.count ? "Back to chat" : "My day"
+                            visible: ty.count > 0 || ty.view === "topic"
                             onHit: { ty.view = ty.view === "day" ? "chat" : "day"; if (ty.view === "day") ty.refresh(); }
                         }
                         TyButton {
@@ -344,7 +440,7 @@ Scope {
                     // ---- My day ----
                     Column {
                         id: dayView
-                        visible: ty.view === "day" || ty.msgs.length === 0
+                        visible: ty.view === "day" || (ty.count === 0 && ty.view !== "topic")
                         width: parent.width
                         topPadding: 12 * ty.s; bottomPadding: 8 * ty.s
                         spacing: 12 * ty.s
@@ -391,25 +487,87 @@ Scope {
                                 width: parent.width - 90 * ty.s - openBtn.width; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight
                                 text: ty.day && ty.day.needs ? ty.day.needs.text : ""; font.family: ty.theme.sans; font.pixelSize: 13 * ty.s; color: ty.theme.text; lineHeight: 1.15
                             }
-                            TyButton { id: openBtn; anchors.verticalCenter: parent.verticalCenter; s: ty.s; theme: ty.theme; label: "Open"; onHit: ty.view = "chat" }
+                            TyButton { id: openBtn; placeName: "needsshow"; anchors.verticalCenter: parent.verticalCenter; s: ty.s; theme: ty.theme; label: ty.topicItems.length ? "Show" : "Open"; onHit: ty.openTopics() }
+                        }
+                    }
+
+                    // ---- her topics, one at a time (her page's topicRow): the same taps, the same doors ----
+                    Column {
+                        id: topicView
+                        visible: ty.view === "topic" && !!ty.topicNow
+                        width: parent.width
+                        topPadding: 14 * ty.s; bottomPadding: 8 * ty.s
+                        spacing: 12 * ty.s
+                        readonly property var t: ty.topicNow
+                        readonly property bool card: !!t && (t.kind === "money" || t.kind === "week")
+                        readonly property string words: !t ? "" : card ? t.line : (t.covered ? (ty.shownLine[t.id] || "") : t.line)
+                        Row {
+                            width: parent.width; spacing: 10 * ty.s
+                            visible: ty.topicItems.length > 1
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: (Math.min(ty.topicAt, ty.topicItems.length - 1) + 1) + " of " + ty.topicItems.length; font.family: ty.theme.sans; font.pixelSize: 11 * ty.s; color: ty.theme.muted }
+                            TyButton { anchors.verticalCenter: parent.verticalCenter; s: ty.s; theme: ty.theme; label: "Next"; placeName: "topicnext"; onHit: { ty.topicAt = (ty.topicAt + 1) % ty.topicItems.length; ty.topicFail = ""; } }
+                        }
+                        Text {
+                            width: parent.width; visible: !!(topicView.t && topicView.t.helper) && !topicView.card
+                            text: topicView.t && topicView.t.helper ? "From " + topicView.t.helper : ""
+                            font.family: ty.theme.sans; font.pixelSize: 11 * ty.s; color: ty.theme.muted
+                        }
+                        Text {
+                            width: parent.width; wrapMode: Text.Wrap
+                            text: topicView.words || (topicView.t ? topicView.t.covered_line || "I have something to ask you" : "")
+                            font.family: ty.theme.sans; font.pixelSize: 16 * ty.s; color: ty.theme.text; lineHeight: 1.2
+                        }
+                        Repeater {
+                            model: topicView.card && topicView.t.lines ? topicView.t.lines : []
+                            delegate: Text { required property var modelData; width: topicView.width; wrapMode: Text.Wrap; text: modelData; font.family: ty.theme.sans; font.pixelSize: 13 * ty.s; color: ty.theme.text2 }
+                        }
+                        Flow {
+                            width: parent.width; spacing: 8 * ty.s
+                            opacity: ty.topicBusy ? 0.5 : 1
+                            // a money or week card: one tap
+                            TyButton { visible: topicView.card; s: ty.s; theme: ty.theme; placeName: "topicgotit"; label: topicView.t && topicView.t.taps && topicView.t.taps[0] ? topicView.t.taps[0] : "Got it"; onHit: ty.topicTap("got_it") }
+                            // a covered topic: Show first (Don't bring this up works before she has looked)
+                            TyButton { visible: !topicView.card && !topicView.words; s: ty.s; theme: ty.theme; placeName: "topicshow"; label: "Show"; onHit: ty.topicTap("reveal") }
+                            TyButton { visible: !topicView.card && !!topicView.words; s: ty.s; theme: ty.theme; placeName: "topictalk"; label: topicView.t && topicView.t.taps && topicView.t.taps[0] ? topicView.t.taps[0] : "Talk about it"; onHit: ty.topicTap("talk") }
+                            TyButton { visible: !topicView.card && !!topicView.words; s: ty.s; theme: ty.theme; placeName: "topicnotnow"; label: topicView.t && topicView.t.taps && topicView.t.taps[1] ? topicView.t.taps[1] : "Not now"; onHit: ty.topicTap("not_now") }
+                            TyButton { visible: !topicView.card; s: ty.s; theme: ty.theme; placeName: "topicdismiss"; label: topicView.t && topicView.t.taps && topicView.t.taps[2] ? topicView.t.taps[2] : "Don't bring this up"; onHit: ty.topicTap("dismiss") }
+                        }
+                        Text {
+                            width: parent.width; wrapMode: Text.Wrap; visible: ty.topicFail !== ""
+                            text: "Couldn't reach TAYLOR for that. Tap again."
+                            font.family: ty.theme.sans; font.pixelSize: 12 * ty.s; color: ty.theme.muted
                         }
                     }
 
                     // ---- the conversation ----
                     ListView {
                         id: list
-                        visible: !dayView.visible
+                        objectName: "list"
+                        visible: !dayView.visible && !topicView.visible
                         width: parent.width
-                        height: card.height - 28 * ty.s - topRow.height - inRow.height - (dayView.visible ? dayView.height : 0)
+                        height: card.height - 28 * ty.s - topRow.height - inRow.height
                         clip: true
                         spacing: 14 * ty.s
-                        topMargin: 10 * ty.s; bottomMargin: 14 * ty.s
-                        model: { ty.rev; return ty.msgs.length; }
-                        onCountChanged: Qt.callLater(() => list.positionViewAtEnd())
-                        Connections { target: ty; function onRevChanged() { Qt.callLater(() => list.positionViewAtEnd()); } }
+                        topMargin: 10 * ty.s
+                        footer: Item { width: 1; height: 22 * ty.s }     // room above the typing box (positionViewAtEnd counts a footer, not a margin)
+                        model: chat
+                        // it stays at the newest words while they come in, unless she has scrolled up to read
+                        property bool stick: true
+                        onMovementEnded: stick = atYEnd
+                        onCountChanged: { stick = true; Qt.callLater(() => list.positionViewAtEnd()); }
+                        onContentHeightChanged: if (stick) Qt.callLater(() => list.positionViewAtEnd())
+                        onHeightChanged: if (stick) Qt.callLater(() => list.positionViewAtEnd())
+                        onVisibleChanged: if (visible) { stick = true; Qt.callLater(() => list.positionViewAtEnd()); }
+                        Connections { target: ty; function onRevChanged() { if (list.stick) Qt.callLater(() => list.positionViewAtEnd()); } }
                         delegate: Item {
                             required property int index
-                            readonly property var m: { const o = ty.msgs[index] || { me: false, text: "" }; return { me: !!o.me, text: String(o.text || ""), tag: String(o.tag || ""), priv: !!o.priv, live: !!o.live, r: ty.rev }; }
+                            required property bool me
+                            required property string words
+                            required property string tag
+                            required property bool priv
+                            required property bool live
+                            readonly property var m: ({ me: me, text: words, tag: tag, priv: priv, live: live })
+                            objectName: "row"
                             width: list.width
                             height: m.me ? bubble.height : mine.height
                             Rectangle {
@@ -437,8 +595,12 @@ Scope {
                                     readOnly: true; selectByMouse: true; wrapMode: Text.Wrap
                                     text: !m.me ? m.text : ""; font.family: ty.theme.sans; font.pixelSize: 14 * ty.s; color: ty.theme.text
                                 }
-                                Row {          // thinking: three dots until her words come
+                                Item {         // thinking: three dots until her words come, in a row of their own
                                     visible: !!m.live && !m.text
+                                    width: parent.width; height: 24 * ty.s
+                                    Row {
+                                    objectName: "dots"
+                                    anchors { left: parent.left; leftMargin: 2 * ty.s; top: parent.top; topMargin: 4 * ty.s }
                                     spacing: 5 * ty.s
                                     Repeater {
                                         model: 3
@@ -453,6 +615,7 @@ Scope {
                                             }
                                         }
                                     }
+                                    }
                                 }
                                 Row {          // the tag: which part answered
                                     visible: !!m.tag
@@ -463,11 +626,12 @@ Scope {
                             }
                         }
                     }
-                    Item { width: 1; height: dayView.visible ? Math.max(0, card.height - 28 * ty.s - topRow.height - dayView.height - inRow.height) : 0 }
+                    Item { width: 1; height: dayView.visible || topicView.visible ? Math.max(0, card.height - 28 * ty.s - topRow.height - (dayView.visible ? dayView.height : topicView.height) - inRow.height) : 0 }
 
                     // ---- the input row ----
                     Rectangle {
                         id: inRow
+                        objectName: "inrow"
                         width: parent.width; height: 50 * ty.s
                         radius: 16 * ty.s
                         color: ty.theme.window

@@ -57,7 +57,7 @@ ShellRoot {
     Taylor { id: taylor }
     // her panel, "Beside her" (TaylorPanel.qml, her brief 2026-11-25): her dial, her dock slot, her dot by the clock, the
     // "Got a sec?" line and Ask TAYLOR all open it
-    TaylorPanel { id: her; screen: root.mainScreen; theme: root.c; waiting: taylor.waiting; thinkingElsewhere: taylor.thinking; status: root.dialLine }
+    TaylorPanel { id: her; screen: root.mainScreen; theme: root.c; waiting: taylor.waiting; thinkingElsewhere: taylor.thinking; status: root.dialLine; dialSpin: dialW.spin }
     readonly property bool thinking: taylor.thinking || askThinking || her.thinking
     // her count: each notification waiting, plus everything TAYLOR has waiting (her one line stands for all of them)
     readonly property int waitingAll: { notesRev; return notes.filter((n) => n.st === "in" && !n.taylor).length + ((taylorNote && taylorNote.st === "in") ? taylor.waiting : 0); }
@@ -95,10 +95,13 @@ ShellRoot {
         // her panel (for the checks)
         function open(): void { her.show(); }      // not "show": quickshell ipc keeps that word for itself (ipc show lists the targets)
         function close(): void { her.hide(); }
-        function panel(): string { return "open=" + her.open + " wants=" + her.wants + " thinking=" + her.thinking + " down=" + her.down + " messages=" + her.msgs.length + " private=" + her.privateOn + " view=" + her.view + " ping=" + her.pinged; }
+        function panel(): string { return "open=" + her.open + " wants=" + her.wants + " thinking=" + her.thinking + " down=" + her.down + " messages=" + her.count + " private=" + her.privateOn + " view=" + her.view + " ping=" + her.pinged; }
         function send(text: string): void { her.send(text); }
         function priv(on: bool): void { her.privateOn = on; }
-        function last(): string { const m = her.msgs[her.msgs.length - 1]; return m ? (m.me ? "me" : "her") + "|" + (m.tag || "") + "|" + m.text.length : ""; }
+        function last(): string { return her.lastInfo(); }
+        function topics(): string { return "items=" + her.topicItems.length + " at=" + her.topicAt + " busy=" + (her.topicBusy !== "") + " fail=" + her.topicFail; }
+        function places(): string { return her.places(); }
+        function topic(act: string): void { if (act === "open") her.openTopics(); else her.topicTap(act); }
     }
     IpcHandler {
         target: "launcher"
@@ -259,6 +262,7 @@ ShellRoot {
 
     // the rest on her main screen only
     Dial {
+        id: dialW
         screen: root.mainScreen; theme: root.c; arrive2: root.arriveU2
         visible: Prefs.showTaylor
         status: away.active ? "STILL THERE?" : root.dialLine; busy: root.dialBusy; thinking: root.thinking; wants: her.wants
