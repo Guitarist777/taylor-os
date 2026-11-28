@@ -72,7 +72,7 @@ $V key print; sleep 2
 vm shots-drag-where "$LAYER"
 read SX SY SW SHH < <(shotxy shots-drag-where)
 echo "drag from the picture at $SX $SY ($SW x $SHH) to the app at $DX $DY"
-$V drag $((SX + SW / 2)) $((SY + SHH / 2)) "${DX:-300}" "${DY:-300}" $W $HH; sleep 2
+$V drag $((SX + SW / 2)) $((SY + SHH / 2)) "${DX:-300}" "${DY:-300}" $W $HH; sleep 4
 shot shots-3-dropped
 vm shots-dropped \
   "$(ok 'dragging the little picture into an app hands it the picture file' "grep -qE 'URLS file:///.*taylor-shots/Screenshot.*\.png' /tmp/drop.txt")" \
@@ -82,6 +82,7 @@ sleep 7
 vm shots-dropped-later \
   "$(ok '...and it is not saved to Pictures/Screenshots' "[ \$($SAVED) = 3 ]")" "$SAVED; ls $M"
 
+# (the one given to the app stays in the memory folder for the app to read: 1 file there from here on)
 # its x (on hover) throws it away
 $V key print; sleep 2
 vm shots-x-where "$LAYER"
@@ -90,14 +91,15 @@ $V move $((SX + SW / 2)) $((SY + SHH / 2)) $W $HH; sleep 0.6
 shot shots-4-hover-x
 $V click $((SX + 12 + 6 + 12)) $((SY + 12 + 6 + 12)) $W $HH; sleep 1.5
 vm shots-x \
-  "$(ok 'the x on the little picture throws it away' "$LAYER | grep -q none && [ \$($INMEM) = 0 ]")" \
+  "$(ok 'the x on the little picture throws it away' "$LAYER | grep -q none && [ \$($INMEM) = 1 ]")" \
   "$(ok '...nothing saved' "sleep 6; [ \$($SAVED) = 3 ]")" "$INMEM; $SAVED" "$QSLOG"
 
 # let go over the bare desktop: nothing took it, so it stays and is saved as usual
+vm shots-target-close "pkill -f 'quickshell -p /tmp/droptest'; sleep 1; hyprctl clients | grep -c '^Window' || true"
 $V key print; sleep 2
 vm shots-desk-where "$LAYER"
 read SX SY SW SHH < <(shotxy shots-desk-where)
-$V drag $((SX + SW / 2)) $((SY + SHH / 2)) 760 260 $W $HH; sleep 1.5
+$V drag $((SX + SW / 2)) $((SY + SHH / 2)) 640 470 $W $HH; sleep 1.5
 vm shots-desk \
   "$(ok 'let go over the bare desktop, the little picture stays' "$LAYER | grep -qv none")" "$LAYER" "$QSLOG"
 sleep 8
